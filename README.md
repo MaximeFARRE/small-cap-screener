@@ -1,167 +1,90 @@
-````md id="zj87l1"
-# Project Name
+# Small Cap Screener
 
-Short one-sentence description of the project.
+Desktop application for screening and analyzing French small-cap companies.
 
-> Example: A desktop application to track personal finances, investments, and long-term goals.
+The goal is to provide a **simple, reliable and extensible tool** to:
 
----
-
-## Features
-
-- Main feature 1
-- Main feature 2
-- Main feature 3
-- Optional advanced feature
+* collect and store financial data
+* compute key financial ratios
+* rank companies using multi-factor scoring
+* generate actionable investment insights
 
 ---
 
-## Screenshots
+## Features (MVP)
 
-<!-- Add screenshots in /screenshots -->
-
-### Main page
-
-![Main page](screenshots/main-page.png)
-
-### Example feature
-
-![Feature example](screenshots/feature-example.png)
+* Local database of companies and financial data
+* Financial ratios (valuation, quality, growth, risk)
+* Multi-factor scoring (quality, value, growth)
+* Screening and filtering
+* Export (CSV / Excel)
 
 ---
 
-## Tech Stack
+## Stack
 
-- Language:
-- Framework:
-- Database:
-- Styling:
-- Testing:
-- Other tools:
+* Python (pandas, numpy)
+* PySide6 (desktop UI)
+* SQLite + SQLAlchemy
+* pytest, ruff, black, pre-commit
 
-Example:
-
-```text id="g1szlw"
-- Python
-- PyQt6
-- SQLite
-- pytest
-- GitHub Actions
-````
-
----
-
-## Project Structure
-
-```text id="ndq7hi"
-project-name/
-├── src/
-├── tests/
-├── docs/
-├── assets/
-├── screenshots/
-├── README.md
-├── AGENTS.md
-├── CLAUDE.md
-└── CONTRIBUTING.md
-```
+See `STACK.md` for details.
 
 ---
 
 ## Architecture
 
-```text id="jl0z3v"
-UI / Components
-        ↓
-Services / Business Logic
-        ↓
-Repositories / Database / API
+```
+UI → Services → Repositories
 ```
 
-Rules:
+* UI: display and interaction only
+* Services: business logic (ratios, scoring)
+* Repositories: data access (DB, APIs)
 
-* No business logic in UI files
-* No database access in UI files
-* Reuse services before creating new ones
-* Keep responsibilities separated
-
-More details: see `docs/ARCHITECTURE.md`
+See `docs/ARCHITECTURE.md`.
 
 ---
 
-## Installation
+## Getting Started
 
-### Clone the repository
+```bash
+# clone the repository
+git clone <repo-url>
+cd small-cap-screener
 
-```bash id="onx4st"
-git clone <repository-url>
-cd <repository-name>
-```
-
-### Setup
-
-#### Python example
-
-```bash id="lh2r4q"
+# create virtual environment
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.venv\Scripts\activate  # Windows
+
+# install dependencies
 pip install -r requirements.txt
+
+# enable pre-commit
+pre-commit install
 ```
-
-#### Node.js example
-
-```bash id="o3mdqu"
-npm install
-npm run dev
-```
-
-Replace these commands depending on the project.
 
 ---
 
-## Usage
+## Project Structure
 
-```bash id="7m3z3w"
-# Example
-python main.py
 ```
-
-or
-
-```bash id="dtx9xt"
-npm run dev
+src/
+  ui/
+  services/
+  repositories/
 ```
-
-Explain here how to launch and use the project.
 
 ---
 
 ## Roadmap
 
-* [ ] Add feature X
-* [ ] Improve performance
-* [ ] Add tests
-* [ ] Improve documentation
-
-See `docs/ROADMAP.md` for more details.
+See `docs/ROADMAP.md`.
 
 ---
 
-## Contributing
+## Notes
 
-Contributions are welcome.
-
-Please read:
-
-* `CONTRIBUTING.md`
-* `AGENTS.md`
-* `CLAUDE.md`
-
----
-
-## License
-
-This project is licensed under the MIT License. See the `LICENSE` file for details.
-
-```
-```
+* Local-first application (no server)
+* Designed for maintainability and scalability
+* Compatible with AI-assisted development workflows

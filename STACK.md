@@ -1,46 +1,97 @@
 # STACK.md
 
-> Fill this file when starting a new project.
-> Agents read this before making any change.
+## Overview
+
+Desktop financial analysis app (small-cap screener).
+
+Principles:
+
+* Local-first (no server)
+* Simple, modular, maintainable
+* Compatible with AI-assisted coding
+
+Architecture:
+UI → Services → Repositories
 
 ---
 
-## Language
-<!-- e.g. Python 3.11, TypeScript 5.4 -->
+## Core
 
-## Framework
-<!-- e.g. FastAPI, Next.js 14, Django 5 -->
+* Python 3.11+
+* pandas
+* numpy
 
-## Database
-<!-- e.g. PostgreSQL 16, SQLite, MongoDB -->
+---
 
-## Package Manager
-<!-- e.g. pip + poetry, npm, pnpm -->
+## UI
 
-## Key Dependencies
-<!-- List main libraries, e.g.:
-- sqlalchemy
-- pydantic
-- react-query
--->
+* PySide6
 
-## Naming Conventions
-<!-- e.g.
-- Files: snake_case.py / kebab-case.ts
-- Classes: PascalCase
-- Functions/variables: camelCase / snake_case
--->
+Rules:
 
-## Project Structure
-<!-- Describe src/ layout, e.g.:
-src/
-  ui/          → pages, components, views
-  services/    → business logic
-  repositories/→ DB access, API calls
--->
+* UI = display + interaction only
+* No business logic in UI
 
-## Test Command
-<!-- e.g. pytest / npm test -->
+---
 
-## Lint / Format Command
-<!-- e.g. ruff check . && black . / npm run lint -->
+## Data
+
+* SQLite
+* SQLAlchemy
+
+Rules:
+
+* All DB access via repositories
+
+---
+
+## External Data
+
+* httpx
+
+Rules:
+
+* API calls only in repositories
+
+---
+
+## Testing
+
+* pytest
+
+---
+
+## Code Quality
+
+* black (formatting)
+* ruff (linting)
+* pre-commit (automation)
+
+---
+
+## Config
+
+* python-dotenv
+* pyyaml
+
+---
+
+## Export
+
+* pandas (CSV)
+* xlsxwriter (Excel)
+
+---
+
+## Not Included
+
+* No web backend
+* No cloud
+* No microservices
+
+---
+
+## Optional (later)
+
+* scipy
+* AI tools (external only)
