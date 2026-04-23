@@ -1,0 +1,13 @@
+#!/bin/sh
+branch=$(git rev-parse --abbrev-ref HEAD)
+if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
+  echo ""
+  echo "ERROR: Direct commits to '$branch' are not allowed."
+  echo "Create a dedicated branch first:"
+  echo "  git checkout -b feat/<description>"
+  echo "  git checkout -b fix/<description>"
+  echo "  git checkout -b docs/<description>"
+  echo "  git checkout -b chore/<description>"
+  echo ""
+  exit 1
+fi
