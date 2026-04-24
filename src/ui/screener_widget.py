@@ -49,5 +49,8 @@ class ScreenerWidget(QWidget):
         if 0 <= row_index < len(rows):
             self.row_selected.emit(rows[row_index])
 
+    def rows(self) -> list[ScreenerRow]:
+        return self._model.rows()
+
     def load(self, rows: list[ScreenerRow]) -> None:
         self._model.load(rows)
