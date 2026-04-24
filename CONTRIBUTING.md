@@ -33,7 +33,10 @@ python -m venv .venv
 source .venv/bin/activate
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
+
+# Install pre-commit hooks (runs ruff + black automatically before each commit)
+pre-commit install
 ```
 
 If the project uses another stack (Node.js, C++, etc.), adapt the setup commands accordingly.

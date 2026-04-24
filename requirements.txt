@@ -1,0 +1,6 @@
+# Runtime dependencies
+# Add your project's runtime dependencies here
+# Example:
+# fastapi==0.104.1
+# sqlalchemy==2.0.23
+# pydantic==2.5.0
