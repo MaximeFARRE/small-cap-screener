@@ -139,3 +139,10 @@ class YFinanceProvider(BaseProvider):
 
     def get_financial_statements(self, ticker: str, years: int = 5) -> list[FinancialData]:
         return _get_financial_statements(ticker, years)
+
+    def get_current_price(self, ticker: str) -> float:
+        info: dict = _with_retry(lambda: yf.Ticker(ticker).info)
+        price = info.get("currentPrice") or info.get("regularMarketPrice")
+        if price is None:
+            raise TickerNotFoundError(f"No current price for ticker '{ticker}'")
+        return float(price)
