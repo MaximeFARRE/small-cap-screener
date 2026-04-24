@@ -1,4 +1,6 @@
-from PySide6.QtWidgets import QLabel, QMainWindow, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QMainWindow
+
+from src.ui.screener_widget import ScreenerWidget
 
 WINDOW_TITLE = "Small Cap Screener"
 WINDOW_WIDTH = 1200
@@ -10,12 +12,5 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(WINDOW_TITLE)
         self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
-        self._setup_central_widget()
-
-    def _setup_central_widget(self) -> None:
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-
-        layout = QVBoxLayout(central_widget)
-        placeholder = QLabel("Small Cap Screener — UI coming soon")
-        layout.addWidget(placeholder)
+        self._screener = ScreenerWidget()
+        self.setCentralWidget(self._screener)
