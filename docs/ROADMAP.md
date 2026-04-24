@@ -1,96 +1,59 @@
-# ROADMAP.md
-
 # Roadmap
 
-This file describes the planned improvements for the project.
-
-The roadmap should remain realistic and focused. It is better to list a few meaningful improvements than many vague ideas.
-
----
-
-## Current Priorities
-
-- [ ] Improve project documentation
-- [ ] Add missing screenshots
-- [ ] Improve `.gitignore`
-- [ ] Add or improve tests
-- [ ] Improve commit history quality
-- [ ] Clean repository structure
+Desktop financial screener for French small-cap companies.
+Architecture: UI → Services → Repositories.
 
 ---
 
-## Short-Term Improvements
+## Phase 1 — Core Data Layer (current)
 
-Typical improvements for the next version:
-
-- [ ] Refactor remaining business logic out of the UI
-- [ ] Centralize duplicated logic into services
-- [ ] Improve error handling
-- [ ] Improve validation
-- [ ] Add missing unit tests
-- [ ] Improve installation instructions
-- [ ] Add better logging
+- [x] Project scaffold and configuration
+- [x] Data models: Company, FinancialStatement, PriceHistory, ScreeningSnapshot
+- [ ] Database initialization and session management (`database.py`)
+- [ ] Company repository (CRUD)
+- [ ] Financial statement repository (CRUD)
+- [ ] Unit tests for repositories
 
 ---
 
-## Medium-Term Improvements
+## Phase 2 — Business Logic
 
-- [ ] Improve performance
-- [ ] Add caching if relevant
-- [ ] Split large files into smaller modules
-- [ ] Improve repository and service separation
-- [ ] Add CI with :contentReference[oaicite:0]{index=0}
-- [ ] Add linting and formatting checks
-- [ ] Improve code coverage
+- [ ] Financial ratio computation service (P/E, P/B, EV/EBITDA, etc.)
+- [ ] Multi-factor scoring service
+- [ ] Screening and filtering service
+- [ ] Unit tests for services
 
 ---
 
-## Long-Term Improvements
+## Phase 3 — External Data
 
-- [ ] Add deployment workflow
-- [ ] Add automatic releases
-- [ ] Add advanced monitoring or analytics
-- [ ] Improve scalability
-- [ ] Add better documentation for contributors
-- [ ] Create a more complete test suite
+- [ ] HTTP client for financial data API (httpx, via repository layer)
+- [ ] Data ingestion pipeline (fetch → parse → store)
+- [ ] Error handling and retry logic for API calls
 
 ---
 
-## Example Future Features
+## Phase 4 — UI
 
-Replace these examples depending on the project:
+- [ ] Main window scaffold (PySide6)
+- [ ] Company list / screener table view
+- [ ] Company detail panel
+- [ ] Screening filter controls
+- [ ] Export to CSV and Excel
 
-```text id="t5v6k0"
-- Add user authentication
-- Add export/import functionality
-- Add dashboard and analytics
-- Add API integration
-- Add mobile support
-````
+---
+
+## Phase 5 — Polish
+
+- [ ] Full test coverage (repositories, services)
+- [ ] Packaging / distribution (PyInstaller or similar)
+- [ ] User documentation
 
 ---
 
 ## Out of Scope
 
-To keep the project focused, the following items are currently out of scope:
-
-```text id="t2m8j1"
-- Complete rewrite of the project
-- Large framework migration
-- Premature optimization
-- Unnecessary microservices
-```
-
----
-
-## Notes
-
-The roadmap should evolve over time.
-
-Whenever an important improvement is completed:
-
-* Remove it from this file
-* Add it to `CHANGELOG.md`
-
-```
-```
+- Web backend or cloud deployment
+- Multi-user support
+- Real-time data streaming
+- AI/ML scoring (may be revisited later as optional)

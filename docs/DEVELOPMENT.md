@@ -8,6 +8,19 @@ The objective is to keep the repository clean, predictable, and easy to maintain
 
 ---
 
+## 0. First-Time Setup
+
+After cloning, activate the virtual environment, install dependencies, and enable hooks:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt
+pre-commit install
+```
+
+---
+
 ## 1. Never Work on `main`
 
 The `main` branch must always stay stable and deployable.
@@ -165,19 +178,10 @@ Verify:
 Recommended checks:
 
 ```bash id="cc1kmd"
-# Python
 pytest
-
-# Node.js
-npm test
-
-# Formatting
 ruff check .
-black .
-npm run lint
+black --check .
 ```
-
-Adapt the commands to the current project.
 
 ---
 

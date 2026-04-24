@@ -1,5 +1,5 @@
 [project]
-name = "project-name"
+name = "small-cap-screener"
 version = "0.1.0"
 
 [tool.semantic_release]
