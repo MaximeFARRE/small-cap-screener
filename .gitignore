@@ -68,3 +68,4 @@ screenshots/*.jpeg
 !screenshots/.gitkeep
 !assets/.gitkeep
 !tests/.gitkeep
+!data/.gitkeep
