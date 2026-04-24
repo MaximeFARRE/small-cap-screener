@@ -9,19 +9,19 @@ Architecture: UI → Services → Repositories.
 
 - [x] Project scaffold and configuration
 - [x] Data models: Company, FinancialStatement, PriceHistory, ScreeningSnapshot
-- [ ] Database initialization and session management (`database.py`)
-- [ ] Company repository (CRUD)
-- [ ] Financial statement repository (CRUD)
-- [ ] Unit tests for repositories
+- [x] Database initialization and session management (`database.py`)
+- [x] Company repository (CRUD)
+- [x] Financial statement repository (CRUD)
+- [x] Unit tests for repositories
 
 ---
 
 ## Phase 2 — Business Logic
 
-- [ ] Financial ratio computation service (P/E, P/B, EV/EBITDA, etc.)
-- [ ] Multi-factor scoring service
-- [ ] Screening and filtering service
-- [ ] Unit tests for services
+- [x] Financial ratio computation service (P/E, P/B, EV/EBITDA, etc.)
+- [x] Multi-factor scoring service
+- [x] Screening and filtering service
+- [x] Unit tests for services
 
 ---
 
