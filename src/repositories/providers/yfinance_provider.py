@@ -6,10 +6,12 @@ from typing import Callable, TypeVar
 import pandas as pd
 import yfinance as yf
 
+from src.models.financial_statement import PeriodType
 from src.repositories.providers.base import (
     BaseProvider,
     CompanyInfo,
     DataFetchError,
+    FinancialData,
     PriceRecord,
     TickerNotFoundError,
 )
@@ -65,6 +67,60 @@ def _parse_price_row(ts: pd.Timestamp, row: pd.Series) -> PriceRecord:
     )
 
 
+def _df_float(df: pd.DataFrame, row: str, col: object) -> float | None:
+    try:
+        val = df.loc[row, col]
+        return None if pd.isna(val) else float(val)
+    except (KeyError, TypeError):
+        return None
+
+
+def _parse_statement(
+    col: pd.Timestamp,
+    income: pd.DataFrame,
+    balance: pd.DataFrame | None,
+    cashflow: pd.DataFrame | None,
+    shares: float | None,
+) -> FinancialData:
+    ebit = _df_float(income, "EBIT", col)
+    ebitda = _df_float(income, "EBITDA", col)
+    if ebitda is None and ebit is not None and cashflow is not None:
+        da = _df_float(cashflow, "Depreciation And Amortization", col)
+        if da is not None:
+            ebitda = ebit + da
+    total_debt = _df_float(balance, "Total Debt", col) if balance is not None else None
+    cash = _df_float(balance, "Cash And Cash Equivalents", col) if balance is not None else None
+    net_debt = (total_debt - cash) if total_debt is not None and cash is not None else None
+    equity = _df_float(balance, "Stockholders Equity", col) if balance is not None else None
+    return FinancialData(
+        fiscal_year=col.year,
+        period_type=PeriodType.ANNUAL,
+        revenue=_df_float(income, "Total Revenue", col),
+        ebit=ebit,
+        ebitda=ebitda,
+        net_income=_df_float(income, "Net Income", col),
+        total_assets=_df_float(balance, "Total Assets", col) if balance is not None else None,
+        total_equity=equity,
+        total_debt=total_debt,
+        net_debt=net_debt,
+        free_cash_flow=_df_float(cashflow, "Free Cash Flow", col) if cashflow is not None else None,
+        shares_outstanding=shares,
+    )
+
+
+def _get_financial_statements(ticker: str, years: int) -> list[FinancialData]:
+    t = yf.Ticker(ticker)
+    income: pd.DataFrame = _with_retry(lambda: t.financials)
+    if income is None or income.empty:
+        raise TickerNotFoundError(f"No financial data for ticker '{ticker}'")
+    balance: pd.DataFrame | None = _with_retry(lambda: t.balance_sheet)
+    cashflow: pd.DataFrame | None = _with_retry(lambda: t.cashflow)
+    shares_raw = _with_retry(lambda: t.info).get("sharesOutstanding")
+    shares = float(shares_raw) if shares_raw else None
+    cols = list(income.columns)[:years]
+    return [_parse_statement(col, income, balance, cashflow, shares) for col in cols]
+
+
 def _get_price_history(ticker: str, period: str) -> list[PriceRecord]:
     hist: pd.DataFrame = _with_retry(
         lambda: yf.Ticker(ticker).history(period=period, auto_adjust=False)
@@ -80,3 +136,6 @@ class YFinanceProvider(BaseProvider):
 
     def get_price_history(self, ticker: str, period: str = "5y") -> list[PriceRecord]:
         return _get_price_history(ticker, period)
+
+    def get_financial_statements(self, ticker: str, years: int = 5) -> list[FinancialData]:
+        return _get_financial_statements(ticker, years)
