@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import date
 
@@ -49,3 +50,23 @@ class FinancialData:
     net_debt: float | None
     free_cash_flow: float | None
     shares_outstanding: float | None
+
+
+class BaseProvider(ABC):
+    """Contract that every financial data provider must fulfil.
+
+    To add a new source (Bloomberg, Refinitiv, …) create a subclass
+    and implement all four methods — no other file needs to change.
+    """
+
+    @abstractmethod
+    def get_company_info(self, ticker: str) -> CompanyInfo: ...
+
+    @abstractmethod
+    def get_price_history(self, ticker: str, period: str = "5y") -> list[PriceRecord]: ...
+
+    @abstractmethod
+    def get_financial_statements(self, ticker: str, years: int = 5) -> list[FinancialData]: ...
+
+    @abstractmethod
+    def get_current_price(self, ticker: str) -> float: ...
