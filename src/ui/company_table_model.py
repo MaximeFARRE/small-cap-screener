@@ -54,6 +54,9 @@ class CompanyTableModel(QAbstractTableModel):
         super().__init__()
         self._rows: list[ScreenerRow] = rows or []
 
+    def rows(self) -> list[ScreenerRow]:
+        return self._rows
+
     def load(self, rows: list[ScreenerRow]) -> None:
         self.beginResetModel()
         self._rows = rows
