@@ -11,9 +11,7 @@ load_dotenv()
 
 DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./data/screener.db")
 
-_connect_args: dict = (
-    {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-)
+_connect_args: dict = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 
 engine = create_engine(DATABASE_URL, connect_args=_connect_args)
 

@@ -12,9 +12,7 @@ if TYPE_CHECKING:
 
 class PriceHistory(Base):
     __tablename__ = "price_history"
-    __table_args__ = (
-        UniqueConstraint("company_id", "date", name="uq_price_company_date"),
-    )
+    __table_args__ = (UniqueConstraint("company_id", "date", name="uq_price_company_date"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)

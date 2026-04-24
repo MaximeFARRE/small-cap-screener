@@ -12,9 +12,7 @@ def _make_company(session) -> Company:
 
 def test_create_and_get_by_id(db_session):
     company = _make_company(db_session)
-    stmt = FinancialStatement(
-        company_id=company.id, fiscal_year=2023, revenue=200_000_000.0
-    )
+    stmt = FinancialStatement(company_id=company.id, fiscal_year=2023, revenue=200_000_000.0)
     financial_statement_repository.create(db_session, stmt)
     result = financial_statement_repository.get_by_id(db_session, stmt.id)
     assert result is not None
@@ -52,21 +50,14 @@ def test_get_by_company_and_year(db_session):
             period_type=PeriodType.ANNUAL,
         ),
     )
-    result = financial_statement_repository.get_by_company_and_year(
-        db_session, company.id, 2023
-    )
+    result = financial_statement_repository.get_by_company_and_year(db_session, company.id, 2023)
     assert result is not None
     assert result.period_type == PeriodType.ANNUAL
 
 
 def test_get_by_company_and_year_not_found(db_session):
     company = _make_company(db_session)
-    assert (
-        financial_statement_repository.get_by_company_and_year(
-            db_session, company.id, 2020
-        )
-        is None
-    )
+    assert financial_statement_repository.get_by_company_and_year(db_session, company.id, 2020) is None
 
 
 def test_delete(db_session):

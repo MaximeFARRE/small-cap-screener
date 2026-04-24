@@ -22,13 +22,9 @@ class Company(Base):
     market: Mapped[str | None] = mapped_column(String(100))
     currency: Mapped[str] = mapped_column(String(3), default="EUR")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     financial_statements: Mapped[list["FinancialStatement"]] = relationship(
         back_populates="company", cascade="all, delete-orphan"
     )
-    price_history: Mapped[list["PriceHistory"]] = relationship(
-        back_populates="company", cascade="all, delete-orphan"
-    )
+    price_history: Mapped[list["PriceHistory"]] = relationship(back_populates="company", cascade="all, delete-orphan")

@@ -12,9 +12,7 @@ from src.repositories.providers.yfinance_provider import YFinanceProvider
 TICKER = "TTE.PA"
 
 
-def _mock_ticker(
-    info=None, history=None, financials=None, balance_sheet=None, cashflow=None
-):
+def _mock_ticker(info=None, history=None, financials=None, balance_sheet=None, cashflow=None):
     t = MagicMock()
     t.info = info or {}
     t.history.return_value = history if history is not None else pd.DataFrame()

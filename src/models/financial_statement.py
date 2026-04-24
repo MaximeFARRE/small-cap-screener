@@ -21,9 +21,7 @@ class FinancialStatement(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
     fiscal_year: Mapped[int]
-    period_type: Mapped[str] = mapped_column(
-        String(20), default=PeriodType.ANNUAL, nullable=False
-    )
+    period_type: Mapped[str] = mapped_column(String(20), default=PeriodType.ANNUAL, nullable=False)
 
     revenue: Mapped[float | None]
     ebit: Mapped[float | None]
