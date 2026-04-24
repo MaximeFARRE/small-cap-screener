@@ -1,6 +1,60 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
+from src.models.financial_statement import FinancialStatement
+
 _ZERO: float = 1e-9
+
+
+@dataclass
+class CompanyRatios:
+    company_id: int
+    fiscal_year: int
+    price: float
+    mkt_cap: float
+    ev: float
+    pe_ratio: float | None = None
+    pb_ratio: float | None = None
+    ev_ebitda: float | None = None
+    ev_ebit: float | None = None
+    price_to_fcf: float | None = None
+    roe: float | None = None
+    roa: float | None = None
+    ebit_margin: float | None = None
+    ebitda_margin: float | None = None
+    net_margin: float | None = None
+    debt_to_equity: float | None = None
+    net_debt_to_ebitda: float | None = None
+
+
+def compute_all(
+    company_id: int,
+    fiscal_year: int,
+    price: float,
+    stmt: FinancialStatement,
+) -> CompanyRatios:
+    mkt = market_cap(price, stmt.shares_outstanding or 0.0)
+    ev = enterprise_value(mkt, stmt.net_debt or 0.0)
+    return CompanyRatios(
+        company_id=company_id,
+        fiscal_year=fiscal_year,
+        price=price,
+        mkt_cap=mkt,
+        ev=ev,
+        pe_ratio=pe_ratio(price, stmt.net_income, stmt.shares_outstanding),
+        pb_ratio=pb_ratio(mkt, stmt.total_equity),
+        ev_ebitda=ev_ebitda(ev, stmt.ebitda),
+        ev_ebit=ev_ebit(ev, stmt.ebit),
+        price_to_fcf=price_to_fcf(mkt, stmt.free_cash_flow),
+        roe=roe(stmt.net_income, stmt.total_equity),
+        roa=roa(stmt.net_income, stmt.total_assets),
+        ebit_margin=ebit_margin(stmt.ebit, stmt.revenue),
+        ebitda_margin=ebitda_margin(stmt.ebitda, stmt.revenue),
+        net_margin=net_margin(stmt.net_income, stmt.revenue),
+        debt_to_equity=debt_to_equity(stmt.total_debt, stmt.total_equity),
+        net_debt_to_ebitda=net_debt_to_ebitda(stmt.net_debt, stmt.ebitda),
+    )
 
 
 def market_cap(price: float, shares_outstanding: float) -> float:
