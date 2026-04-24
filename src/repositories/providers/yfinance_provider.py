@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import time
-from typing import Callable, TypeVar
+from collections.abc import Callable
+from typing import TypeVar
 
 import pandas as pd
 import yfinance as yf
@@ -63,7 +64,11 @@ def _parse_price_row(ts: pd.Timestamp, row: pd.Series) -> PriceRecord:
         low=_safe_float(row, "Low"),
         close=float(row["Close"]),
         adjusted_close=_safe_float(row, "Adj Close"),
-        volume=int(volume_raw) if volume_raw is not None and not pd.isna(volume_raw) else None,
+        volume=(
+            int(volume_raw)
+            if volume_raw is not None and not pd.isna(volume_raw)
+            else None
+        ),
     )
 
 
@@ -89,9 +94,17 @@ def _parse_statement(
         if da is not None:
             ebitda = ebit + da
     total_debt = _df_float(balance, "Total Debt", col) if balance is not None else None
-    cash = _df_float(balance, "Cash And Cash Equivalents", col) if balance is not None else None
-    net_debt = (total_debt - cash) if total_debt is not None and cash is not None else None
-    equity = _df_float(balance, "Stockholders Equity", col) if balance is not None else None
+    cash = (
+        _df_float(balance, "Cash And Cash Equivalents", col)
+        if balance is not None
+        else None
+    )
+    net_debt = (
+        (total_debt - cash) if total_debt is not None and cash is not None else None
+    )
+    equity = (
+        _df_float(balance, "Stockholders Equity", col) if balance is not None else None
+    )
     return FinancialData(
         fiscal_year=col.year,
         period_type=PeriodType.ANNUAL,
@@ -99,11 +112,15 @@ def _parse_statement(
         ebit=ebit,
         ebitda=ebitda,
         net_income=_df_float(income, "Net Income", col),
-        total_assets=_df_float(balance, "Total Assets", col) if balance is not None else None,
+        total_assets=(
+            _df_float(balance, "Total Assets", col) if balance is not None else None
+        ),
         total_equity=equity,
         total_debt=total_debt,
         net_debt=net_debt,
-        free_cash_flow=_df_float(cashflow, "Free Cash Flow", col) if cashflow is not None else None,
+        free_cash_flow=(
+            _df_float(cashflow, "Free Cash Flow", col) if cashflow is not None else None
+        ),
         shares_outstanding=shares,
     )
 
@@ -137,7 +154,9 @@ class YFinanceProvider(BaseProvider):
     def get_price_history(self, ticker: str, period: str = "5y") -> list[PriceRecord]:
         return _get_price_history(ticker, period)
 
-    def get_financial_statements(self, ticker: str, years: int = 5) -> list[FinancialData]:
+    def get_financial_statements(
+        self, ticker: str, years: int = 5
+    ) -> list[FinancialData]:
         return _get_financial_statements(ticker, years)
 
     def get_current_price(self, ticker: str) -> float:

@@ -1,7 +1,7 @@
 import pytest
 
-from src.services.ratio_service import CompanyRatios
 from src.services import scoring_service as ss
+from src.services.ratio_service import CompanyRatios
 
 
 def _make_ratios(**kwargs) -> CompanyRatios:

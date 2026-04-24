@@ -5,13 +5,16 @@ from src.repositories import company_repository, financial_statement_repository
 
 def _make_company(session) -> Company:
     return company_repository.create(
-        session, Company(isin="FR0000120271", name="TotalEnergies", currency="EUR")
+        session,
+        Company(isin="FR0000120271", name="TotalEnergies", currency="EUR"),
     )
 
 
 def test_create_and_get_by_id(db_session):
     company = _make_company(db_session)
-    stmt = FinancialStatement(company_id=company.id, fiscal_year=2023, revenue=200_000_000.0)
+    stmt = FinancialStatement(
+        company_id=company.id, fiscal_year=2023, revenue=200_000_000.0
+    )
     financial_statement_repository.create(db_session, stmt)
     result = financial_statement_repository.get_by_id(db_session, stmt.id)
     assert result is not None
@@ -21,8 +24,14 @@ def test_create_and_get_by_id(db_session):
 
 def test_get_by_company_ordered_desc(db_session):
     company = _make_company(db_session)
-    financial_statement_repository.create(db_session, FinancialStatement(company_id=company.id, fiscal_year=2022))
-    financial_statement_repository.create(db_session, FinancialStatement(company_id=company.id, fiscal_year=2023))
+    financial_statement_repository.create(
+        db_session,
+        FinancialStatement(company_id=company.id, fiscal_year=2022),
+    )
+    financial_statement_repository.create(
+        db_session,
+        FinancialStatement(company_id=company.id, fiscal_year=2023),
+    )
     results = financial_statement_repository.get_by_company(db_session, company.id)
     assert len(results) == 2
     assert results[0].fiscal_year == 2023
@@ -37,16 +46,27 @@ def test_get_by_company_and_year(db_session):
     company = _make_company(db_session)
     financial_statement_repository.create(
         db_session,
-        FinancialStatement(company_id=company.id, fiscal_year=2023, period_type=PeriodType.ANNUAL),
+        FinancialStatement(
+            company_id=company.id,
+            fiscal_year=2023,
+            period_type=PeriodType.ANNUAL,
+        ),
     )
-    result = financial_statement_repository.get_by_company_and_year(db_session, company.id, 2023)
+    result = financial_statement_repository.get_by_company_and_year(
+        db_session, company.id, 2023
+    )
     assert result is not None
     assert result.period_type == PeriodType.ANNUAL
 
 
 def test_get_by_company_and_year_not_found(db_session):
     company = _make_company(db_session)
-    assert financial_statement_repository.get_by_company_and_year(db_session, company.id, 2020) is None
+    assert (
+        financial_statement_repository.get_by_company_and_year(
+            db_session, company.id, 2020
+        )
+        is None
+    )
 
 
 def test_delete(db_session):

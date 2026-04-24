@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from src.services.ratio_service import CompanyRatios
 from src.services.scoring_service import compute_score

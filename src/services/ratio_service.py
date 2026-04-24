@@ -134,7 +134,9 @@ def net_margin(net_income: float | None, revenue: float | None) -> float | None:
     return net_income / revenue
 
 
-def debt_to_equity(total_debt: float | None, total_equity: float | None) -> float | None:
+def debt_to_equity(
+    total_debt: float | None, total_equity: float | None
+) -> float | None:
     if total_debt is None or total_equity is None or abs(total_equity) < _ZERO:
         return None
     return total_debt / total_equity

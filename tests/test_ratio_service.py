@@ -3,8 +3,8 @@ import pytest
 from src.models.financial_statement import FinancialStatement
 from src.services import ratio_service as rs
 
-
 # --- helpers ---
+
 
 def test_market_cap():
     assert rs.market_cap(10.0, 1_000_000) == pytest.approx(10_000_000.0)
@@ -19,6 +19,7 @@ def test_enterprise_value_negative_net_debt():
 
 
 # --- valuation ---
+
 
 def test_pe_ratio():
     assert rs.pe_ratio(20.0, 1_000_000.0, 500_000.0) == pytest.approx(10.0)
@@ -65,6 +66,7 @@ def test_price_to_fcf_none_when_negative_fcf():
 
 # --- profitability ---
 
+
 def test_roe():
     assert rs.roe(1_000_000.0, 5_000_000.0) == pytest.approx(0.20)
 
@@ -95,6 +97,7 @@ def test_net_margin_none_when_zero_revenue():
 
 # --- leverage ---
 
+
 def test_debt_to_equity():
     assert rs.debt_to_equity(3_000_000.0, 6_000_000.0) == pytest.approx(0.5)
 
@@ -108,6 +111,7 @@ def test_net_debt_to_ebitda_none_when_zero_ebitda():
 
 
 # --- compute_all ---
+
 
 def _make_stmt(**kwargs) -> FinancialStatement:
     defaults = dict(

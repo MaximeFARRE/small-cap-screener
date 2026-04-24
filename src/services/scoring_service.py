@@ -27,7 +27,9 @@ _THRESHOLDS: dict[str, tuple[float, float, bool]] = {
 }
 
 
-def _score_metric(value: float, good: float, bad: float, lower_is_better: bool) -> float:
+def _score_metric(
+    value: float, good: float, bad: float, lower_is_better: bool
+) -> float:
     if lower_is_better:
         if value <= good:
             return 1.0
