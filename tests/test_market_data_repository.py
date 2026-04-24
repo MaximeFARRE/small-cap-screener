@@ -22,9 +22,7 @@ def _make_provider(
     statements: list[FinancialData] | None = None,
 ) -> MagicMock:
     provider = MagicMock()
-    provider.get_company_info.return_value = CompanyInfo(
-        name=name, sector="Energy", market="PAR", currency="EUR"
-    )
+    provider.get_company_info.return_value = CompanyInfo(name=name, sector="Energy", market="PAR", currency="EUR")
     provider.get_current_price.return_value = price
     provider.get_price_history.return_value = prices or [
         PriceRecord(
@@ -86,9 +84,7 @@ def test_sync_stores_financial_statements(db_session):
 
 def test_sync_upserts_existing_company(db_session):
     sync_company(db_session, _make_provider(name="Old Name"), "TTE.PA", "FR0000120271")
-    sync_company(
-        db_session, _make_provider(name="TotalEnergies SE"), "TTE.PA", "FR0000120271"
-    )
+    sync_company(db_session, _make_provider(name="TotalEnergies SE"), "TTE.PA", "FR0000120271")
     companies = company_repository.get_all(db_session)
     assert len(companies) == 1
     assert companies[0].name == "TotalEnergies SE"

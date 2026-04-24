@@ -26,23 +26,15 @@ def test_get_by_isin_not_found(db_session):
 
 
 def test_get_all_ordered_by_name(db_session):
-    company_repository.create(
-        db_session, _make_company(isin="FR0000000001", name="Beta")
-    )
-    company_repository.create(
-        db_session, _make_company(isin="FR0000000002", name="Alpha")
-    )
+    company_repository.create(db_session, _make_company(isin="FR0000000001", name="Beta"))
+    company_repository.create(db_session, _make_company(isin="FR0000000002", name="Alpha"))
     results = company_repository.get_all(db_session)
     assert [c.name for c in results] == ["Alpha", "Beta"]
 
 
 def test_search_by_name_case_insensitive(db_session):
-    company_repository.create(
-        db_session, _make_company(isin="FR0000000001", name="TotalEnergies SA")
-    )
-    company_repository.create(
-        db_session, _make_company(isin="FR0000000002", name="Renault")
-    )
+    company_repository.create(db_session, _make_company(isin="FR0000000001", name="TotalEnergies SA"))
+    company_repository.create(db_session, _make_company(isin="FR0000000002", name="Renault"))
     results = company_repository.search_by_name(db_session, "total")
     assert len(results) == 1
     assert results[0].name == "TotalEnergies SA"

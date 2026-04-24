@@ -25,9 +25,7 @@ def get_all(session: Session) -> list[Company]:
 
 
 def search_by_name(session: Session, query: str) -> list[Company]:
-    stmt = (
-        select(Company).where(Company.name.ilike(f"%{query}%")).order_by(Company.name)
-    )
+    stmt = select(Company).where(Company.name.ilike(f"%{query}%")).order_by(Company.name)
     return list(session.execute(stmt).scalars())
 
 

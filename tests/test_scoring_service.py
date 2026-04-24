@@ -55,9 +55,7 @@ def test_missing_metrics_do_not_crash():
 
 
 def test_all_metrics_none_returns_zero():
-    ratios = CompanyRatios(
-        company_id=1, fiscal_year=2023, price=1.0, mkt_cap=0.0, ev=0.0
-    )
+    ratios = CompanyRatios(company_id=1, fiscal_year=2023, price=1.0, mkt_cap=0.0, ev=0.0)
     assert ss.compute_score(ratios) == pytest.approx(0.0)
 
 

@@ -49,9 +49,5 @@ def apply_filters(
     candidates: list[CompanyRatios],
     criteria: ScreeningCriteria,
 ) -> list[ScreeningResult]:
-    results = [
-        ScreeningResult(ratios=r, score=compute_score(r))
-        for r in candidates
-        if _passes(r, criteria)
-    ]
+    results = [ScreeningResult(ratios=r, score=compute_score(r)) for r in candidates if _passes(r, criteria)]
     return sorted(results, key=lambda x: x.score, reverse=True)

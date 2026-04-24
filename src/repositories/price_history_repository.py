@@ -17,17 +17,11 @@ def get_by_id(session: Session, record_id: int) -> PriceHistory | None:
 
 
 def get_by_company(session: Session, company_id: int) -> list[PriceHistory]:
-    stmt = (
-        select(PriceHistory)
-        .where(PriceHistory.company_id == company_id)
-        .order_by(PriceHistory.date.desc())
-    )
+    stmt = select(PriceHistory).where(PriceHistory.company_id == company_id).order_by(PriceHistory.date.desc())
     return list(session.execute(stmt).scalars())
 
 
-def get_by_company_and_date(
-    session: Session, company_id: int, record_date: date
-) -> PriceHistory | None:
+def get_by_company_and_date(session: Session, company_id: int, record_date: date) -> PriceHistory | None:
     stmt = select(PriceHistory).where(
         PriceHistory.company_id == company_id,
         PriceHistory.date == record_date,
@@ -36,12 +30,7 @@ def get_by_company_and_date(
 
 
 def get_latest(session: Session, company_id: int) -> PriceHistory | None:
-    stmt = (
-        select(PriceHistory)
-        .where(PriceHistory.company_id == company_id)
-        .order_by(PriceHistory.date.desc())
-        .limit(1)
-    )
+    stmt = select(PriceHistory).where(PriceHistory.company_id == company_id).order_by(PriceHistory.date.desc()).limit(1)
     return session.execute(stmt).scalar_one_or_none()
 
 
