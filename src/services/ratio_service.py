@@ -48,3 +48,33 @@ def price_to_fcf(mkt_cap: float, free_cash_flow: float | None) -> float | None:
     if free_cash_flow is None or abs(free_cash_flow) < _ZERO:
         return None
     return mkt_cap / free_cash_flow
+
+
+def roe(net_income: float | None, total_equity: float | None) -> float | None:
+    if net_income is None or total_equity is None or abs(total_equity) < _ZERO:
+        return None
+    return net_income / total_equity
+
+
+def roa(net_income: float | None, total_assets: float | None) -> float | None:
+    if net_income is None or total_assets is None or abs(total_assets) < _ZERO:
+        return None
+    return net_income / total_assets
+
+
+def ebit_margin(ebit: float | None, revenue: float | None) -> float | None:
+    if ebit is None or revenue is None or abs(revenue) < _ZERO:
+        return None
+    return ebit / revenue
+
+
+def ebitda_margin(ebitda: float | None, revenue: float | None) -> float | None:
+    if ebitda is None or revenue is None or abs(revenue) < _ZERO:
+        return None
+    return ebitda / revenue
+
+
+def net_margin(net_income: float | None, revenue: float | None) -> float | None:
+    if net_income is None or revenue is None or abs(revenue) < _ZERO:
+        return None
+    return net_income / revenue
