@@ -29,7 +29,22 @@ jobs:
       - name: Install python-semantic-release
         run: pip install python-semantic-release
 
+      - name: Check release tags
+        id: release_tags
+        shell: bash
+        run: |
+          if git tag --list 'v*' | grep -q .; then
+            echo "has_release_tags=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_release_tags=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run semantic release
+        if: steps.release_tags.outputs.has_release_tags == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: semantic-release publish
+
+      - name: Skip semantic release (no tags found)
+        if: steps.release_tags.outputs.has_release_tags != 'true'
+        run: echo "No v* tags found. Create an initial tag (for example v0.1.0) to bootstrap semantic-release."
