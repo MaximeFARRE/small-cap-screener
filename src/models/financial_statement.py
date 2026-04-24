@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from src.models.company import Company
 
 
-class PeriodType(str, enum.Enum):
+class PeriodType(enum.StrEnum):
     ANNUAL = "annual"
     HALF_YEAR = "half_year"
 
