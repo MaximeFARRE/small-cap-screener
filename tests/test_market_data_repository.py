@@ -5,14 +5,17 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.models.company import Company
 from src.models.financial_statement import PeriodType
 from src.repositories import (
     company_repository,
+    dividend_repository,
     financial_statement_repository,
     price_history_repository,
+    split_repository,
 )
-from src.repositories.market_data_repository import SyncResult, sync_company
-from src.repositories.providers.base import CompanyInfo, FinancialData, PriceRecord
+from src.repositories.market_data_repository import SyncResult, sync_company, sync_company_from_payload
+from src.repositories.providers.base import CompanyInfo, DividendData, FinancialData, PriceRecord, SplitData
 
 
 def _make_provider(
@@ -106,3 +109,65 @@ def test_sync_returns_correct_company_id(db_session):
     result = sync_company(db_session, _make_provider(), "TTE.PA", "FR0000120271")
     company = company_repository.get_by_isin(db_session, "FR0000120271")
     assert result.company_id == company.id
+
+
+def test_sync_company_from_payload_stores_dividends_and_splits(db_session):
+    company = company_repository.create(
+        db_session,
+        Company(
+            isin="FR0000120999",
+            ticker="PAY.PA",
+            name="Payload Corp",
+            country="France",
+            sector="Industrial",
+            market="PAR",
+            currency="EUR",
+            is_active=True,
+        ),
+    )
+    price_history = [
+        PriceRecord(
+            date=date(2024, 1, 2),
+            open=10.0,
+            high=11.0,
+            low=9.5,
+            close=10.5,
+            adjusted_close=10.5,
+            volume=80_000,
+        )
+    ]
+    statements = [
+        FinancialData(
+            fiscal_year=2023,
+            period_type=PeriodType.ANNUAL,
+            revenue=100e6,
+            ebit=10e6,
+            ebitda=12e6,
+            net_income=6e6,
+            total_assets=250e6,
+            total_equity=110e6,
+            total_debt=50e6,
+            net_debt=30e6,
+            free_cash_flow=7e6,
+            shares_outstanding=4e6,
+        )
+    ]
+    dividends = [DividendData(ex_date=date(2024, 5, 2), amount=0.45, payment_date=date(2024, 5, 25))]
+    splits = [SplitData(split_date=date(2024, 6, 5), ratio_from=1.0, ratio_to=2.0)]
+
+    result = sync_company_from_payload(
+        db_session,
+        company=company,
+        price_history=price_history,
+        financial_statements=statements,
+        dividends=dividends,
+        splits=splits,
+    )
+
+    assert result.company_id == company.id
+    assert result.prices_added == 1
+    assert result.statements_added == 1
+    assert result.dividends_added == 1
+    assert result.splits_added == 1
+    assert len(dividend_repository.get_by_company_id(db_session, company.id)) == 1
+    assert len(split_repository.get_by_company_id(db_session, company.id)) == 1

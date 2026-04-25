@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import time
 from collections.abc import Callable
 from typing import TypeVar
@@ -27,21 +28,37 @@ _T = TypeVar("_T")
 _MAX_ATTEMPTS: int = 3
 _RETRY_DELAY: float = 2.0
 _SOURCE_NAME: str = "yfinance"
+_LOGGER = logging.getLogger(__name__)
 
 
 def _fetched_at_now() -> dt.datetime:
     return dt.datetime.now(dt.UTC)
 
 
-def _with_retry(fn: Callable[[], _T]) -> _T:
+def _with_retry(fn: Callable[[], _T], operation: str) -> _T:
     last_exc: Exception | None = None
     for attempt in range(_MAX_ATTEMPTS):
         try:
             return fn()
         except Exception as exc:
             last_exc = exc
+            attempt_number = attempt + 1
             if attempt < _MAX_ATTEMPTS - 1:
+                _LOGGER.warning(
+                    "provider retry scheduled: operation=%s attempt=%s/%s error=%s",
+                    operation,
+                    attempt_number,
+                    _MAX_ATTEMPTS,
+                    exc,
+                )
                 time.sleep(_RETRY_DELAY)
+            else:
+                _LOGGER.error(
+                    "provider fetch failed after retries: operation=%s attempts=%s error=%s",
+                    operation,
+                    _MAX_ATTEMPTS,
+                    exc,
+                )
     raise DataFetchError(f"Failed after {_MAX_ATTEMPTS} attempts") from last_exc
 
 
@@ -68,7 +85,7 @@ def _to_int(value: object) -> int | None:
 
 
 def _get_ticker_info(ticker: str) -> dict:
-    return _with_retry(lambda: yf.Ticker(ticker).info)
+    return _with_retry(lambda: yf.Ticker(ticker).info, operation=f"ticker_info:{ticker}")
 
 
 def _ensure_ticker_exists(ticker: str) -> None:
@@ -160,11 +177,11 @@ def _parse_statement(
 
 def _get_financial_statements(ticker: str, years: int) -> list[FinancialData]:
     t = yf.Ticker(ticker)
-    income: pd.DataFrame = _with_retry(lambda: t.financials)
+    income: pd.DataFrame = _with_retry(lambda: t.financials, operation=f"financials:{ticker}")
     if income is None or income.empty:
         raise TickerNotFoundError(f"No financial data for ticker '{ticker}'")
-    balance: pd.DataFrame | None = _with_retry(lambda: t.balance_sheet)
-    cashflow: pd.DataFrame | None = _with_retry(lambda: t.cashflow)
+    balance: pd.DataFrame | None = _with_retry(lambda: t.balance_sheet, operation=f"balance_sheet:{ticker}")
+    cashflow: pd.DataFrame | None = _with_retry(lambda: t.cashflow, operation=f"cashflow:{ticker}")
     shares_raw = _get_ticker_info(ticker).get("sharesOutstanding")
     shares = float(shares_raw) if shares_raw else None
     cols = list(income.columns)[:years]
@@ -172,7 +189,10 @@ def _get_financial_statements(ticker: str, years: int) -> list[FinancialData]:
 
 
 def _get_price_history(ticker: str, period: str) -> list[PriceHistory]:
-    hist: pd.DataFrame = _with_retry(lambda: yf.Ticker(ticker).history(period=period, auto_adjust=False))
+    hist: pd.DataFrame = _with_retry(
+        lambda: yf.Ticker(ticker).history(period=period, auto_adjust=False),
+        operation=f"price_history:{ticker}:{period}",
+    )
     if hist.empty:
         raise TickerNotFoundError(f"No price history for ticker '{ticker}'")
     fetched_at = _fetched_at_now()
@@ -211,7 +231,7 @@ def _parse_ratio(value: float) -> tuple[float, float]:
 
 
 def _get_dividends(ticker: str) -> list[DividendData]:
-    dividends: pd.Series = _with_retry(lambda: yf.Ticker(ticker).dividends)
+    dividends: pd.Series = _with_retry(lambda: yf.Ticker(ticker).dividends, operation=f"dividends:{ticker}")
     if dividends is None or dividends.empty:
         _ensure_ticker_exists(ticker)
         return []
@@ -234,7 +254,7 @@ def _get_dividends(ticker: str) -> list[DividendData]:
 
 
 def _get_splits(ticker: str) -> list[SplitData]:
-    splits: pd.Series = _with_retry(lambda: yf.Ticker(ticker).splits)
+    splits: pd.Series = _with_retry(lambda: yf.Ticker(ticker).splits, operation=f"splits:{ticker}")
     if splits is None or splits.empty:
         _ensure_ticker_exists(ticker)
         return []
