@@ -29,11 +29,11 @@ def test_create_and_get_by_id(db_session):
     assert result.metrics["quality_score"] == 80.0
 
 
-def test_get_by_company_ordered_desc(db_session):
+def test_get_by_company_id_ordered_desc(db_session):
     company = _make_company(db_session)
     kpi_snapshot_repository.create(db_session, _make_snapshot(company.id, date(2024, 1, 1), score=70.0))
     kpi_snapshot_repository.create(db_session, _make_snapshot(company.id, date(2024, 2, 1), score=90.0))
-    snapshots = kpi_snapshot_repository.get_by_company(db_session, company.id)
+    snapshots = kpi_snapshot_repository.get_by_company_id(db_session, company.id)
     assert snapshots[0].snapshot_date == date(2024, 2, 1)
 
 
@@ -45,13 +45,24 @@ def test_get_by_company_and_date(db_session):
     assert result.metrics["quality_score"] == 88.0
 
 
-def test_get_latest(db_session):
+def test_get_latest_by_company(db_session):
     company = _make_company(db_session)
     kpi_snapshot_repository.create(db_session, _make_snapshot(company.id, date(2024, 1, 31), score=75.0))
     kpi_snapshot_repository.create(db_session, _make_snapshot(company.id, date(2024, 2, 29), score=85.0))
-    latest = kpi_snapshot_repository.get_latest(db_session, company.id)
+    latest = kpi_snapshot_repository.get_latest_by_company(db_session, company.id)
     assert latest is not None
     assert latest.snapshot_date == date(2024, 2, 29)
+
+
+def test_upsert_updates_existing_snapshot(db_session):
+    company = _make_company(db_session)
+    kpi_snapshot_repository.create(db_session, _make_snapshot(company.id, date(2024, 1, 31), score=70.0))
+
+    updated = kpi_snapshot_repository.upsert(db_session, _make_snapshot(company.id, date(2024, 1, 31), score=95.0))
+
+    assert updated.metrics["quality_score"] == 95.0
+    snapshots = kpi_snapshot_repository.get_by_company_id(db_session, company.id)
+    assert len(snapshots) == 1
 
 
 def test_delete(db_session):
