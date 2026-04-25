@@ -180,7 +180,78 @@ def test_get_financial_statements_raises_on_empty(mock_ticker_cls):
         YFinanceProvider().get_financial_statements(TICKER)
 
 
-# --- get_current_price ---
+# --- get_dividends / get_splits ---
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_dividends_returns_records(mock_ticker_cls):
+    dividends = pd.Series(
+        data=[0.74, 0.79],
+        index=pd.DatetimeIndex([pd.Timestamp("2024-04-01"), pd.Timestamp("2024-05-01")]),
+    )
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"longName": "TotalEnergies SE", "currency": "EUR"},
+        dividends=dividends,
+    )
+    records = YFinanceProvider().get_dividends(TICKER)
+    assert len(records) == 2
+    assert records[0].ex_date == date(2024, 4, 1)
+    assert records[1].amount == pytest.approx(0.79)
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_dividends_returns_empty_when_no_events(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"longName": "TotalEnergies SE", "currency": "EUR"},
+        dividends=pd.Series(dtype="float64"),
+    )
+    records = YFinanceProvider().get_dividends(TICKER)
+    assert records == []
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_dividends_raises_on_unknown_ticker(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(info={}, dividends=pd.Series(dtype="float64"))
+    with pytest.raises(TickerNotFoundError):
+        YFinanceProvider().get_dividends(TICKER)
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_splits_returns_records(mock_ticker_cls):
+    splits = pd.Series(
+        data=[2.0, 0.2],
+        index=pd.DatetimeIndex([pd.Timestamp("2020-01-10"), pd.Timestamp("2024-07-01")]),
+    )
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"longName": "TotalEnergies SE", "currency": "EUR"},
+        splits=splits,
+    )
+    records = YFinanceProvider().get_splits(TICKER)
+    assert len(records) == 2
+    assert records[0].ratio_from == pytest.approx(1.0)
+    assert records[0].ratio_to == pytest.approx(2.0)
+    assert records[1].ratio_from == pytest.approx(5.0)
+    assert records[1].ratio_to == pytest.approx(1.0)
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_splits_returns_empty_when_no_events(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"longName": "TotalEnergies SE", "currency": "EUR"},
+        splits=pd.Series(dtype="float64"),
+    )
+    records = YFinanceProvider().get_splits(TICKER)
+    assert records == []
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_splits_raises_on_unknown_ticker(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(info={}, splits=pd.Series(dtype="float64"))
+    with pytest.raises(TickerNotFoundError):
+        YFinanceProvider().get_splits(TICKER)
+
+
+# --- get_current_market_data / get_current_price ---
 
 
 @patch("src.repositories.providers.yfinance_provider.yf.Ticker")
