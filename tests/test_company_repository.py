@@ -168,3 +168,187 @@ def test_bulk_upsert_from_seed_updates_existing_company(db_session):
     assert company.sector == "Energy"
     assert company.market == "PAR"
     assert company.currency == "EUR"
+
+
+def test_filter_small_caps_by_market_cap(db_session):
+    company_repository.create(
+        db_session,
+        _make_company(
+            isin="FR0000000101",
+            ticker="SMALL.PA",
+            name="Small Cap",
+            country="France",
+            is_active=True,
+            market_cap=150_000_000.0,
+        ),
+    )
+    company_repository.create(
+        db_session,
+        _make_company(
+            isin="FR0000000102",
+            ticker="BIG.PA",
+            name="Big Cap",
+            country="France",
+            is_active=True,
+            market_cap=2_000_000_000.0,
+        ),
+    )
+
+    results = company_repository.filter_small_caps(db_session, max_market_cap=500_000_000.0)
+
+    assert len(results) == 1
+    assert results[0].ticker == "SMALL.PA"
+
+
+def test_get_investable_universe_excludes_inactive(db_session):
+    company_repository.create(
+        db_session,
+        _make_company(
+            isin="FR0000000201",
+            ticker="ACTIVE.PA",
+            name="Active Co",
+            country="France",
+            is_active=True,
+            market_cap=200_000_000.0,
+        ),
+    )
+    company_repository.create(
+        db_session,
+        _make_company(
+            isin="FR0000000202",
+            ticker="INACTIVE.PA",
+            name="Inactive Co",
+            country="France",
+            is_active=False,
+            market_cap=180_000_000.0,
+        ),
+    )
+
+    results = company_repository.get_investable_universe(db_session, max_market_cap=500_000_000.0)
+
+    assert len(results) == 1
+    assert results[0].ticker == "ACTIVE.PA"
+
+
+def test_get_investable_universe_excludes_inconsistent_data(db_session):
+    company_repository.create(
+        db_session,
+        _make_company(
+            isin="FR0000000301",
+            ticker="VALID.PA",
+            name="Valid Co",
+            country="France",
+            is_active=True,
+            market_cap=100_000_000.0,
+        ),
+    )
+    company_repository.create(
+        db_session,
+        _make_company(
+            isin="FR0000000302",
+            ticker="",
+            name="Empty Ticker",
+            country="France",
+            is_active=True,
+            market_cap=120_000_000.0,
+        ),
+    )
+    company_repository.create(
+        db_session,
+        _make_company(
+            isin="",
+            ticker="NOISIN.PA",
+            name="No ISIN",
+            country="France",
+            is_active=True,
+            market_cap=130_000_000.0,
+        ),
+    )
+
+    results = company_repository.get_investable_universe(db_session, max_market_cap=500_000_000.0)
+
+    assert len(results) == 1
+    assert results[0].ticker == "VALID.PA"
+
+
+def test_get_investable_universe_is_stable(db_session):
+    company_repository.create(
+        db_session,
+        _make_company(
+            isin="FR0000000401",
+            ticker="ALPHA.PA",
+            name="Alpha",
+            country="France",
+            is_active=True,
+            market_cap=250_000_000.0,
+            average_daily_volume=200_000.0,
+        ),
+    )
+    company_repository.create(
+        db_session,
+        _make_company(
+            isin="FR0000000402",
+            ticker="BETA.PA",
+            name="Beta",
+            country="France",
+            is_active=True,
+            market_cap=300_000_000.0,
+            average_daily_volume=50_000.0,
+        ),
+    )
+    company_repository.create(
+        db_session,
+        _make_company(
+            isin="FR0000000403",
+            ticker="GAMMA.PA",
+            name="Gamma",
+            country="France",
+            is_active=True,
+            market_cap=1_200_000_000.0,
+            average_daily_volume=300_000.0,
+        ),
+    )
+    company_repository.create(
+        db_session,
+        _make_company(
+            isin="DE0000000404",
+            ticker="DELTA.DE",
+            name="Delta",
+            country="Germany",
+            is_active=True,
+            market_cap=200_000_000.0,
+            average_daily_volume=220_000.0,
+        ),
+    )
+    company_repository.create(
+        db_session,
+        _make_company(
+            isin="FR0000000405",
+            ticker="EPSI.PA",
+            name="Epsilon",
+            country="France",
+            is_active=True,
+            market_cap=240_000_000.0,
+            average_daily_volume=None,
+        ),
+    )
+    company_repository.create(
+        db_session,
+        _make_company(
+            isin="FR0000000406",
+            ticker="ZETA.PA",
+            name="Zeta",
+            country="France",
+            is_active=False,
+            market_cap=180_000_000.0,
+            average_daily_volume=190_000.0,
+        ),
+    )
+
+    results = company_repository.get_investable_universe(
+        db_session,
+        max_market_cap=500_000_000.0,
+        min_average_daily_volume=100_000.0,
+    )
+
+    assert [company.name for company in results] == ["Alpha", "Epsilon"]
