@@ -1,51 +1,27 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
-from src.services.ratio_service import CompanyRatios
-from src.services.screening_service import ScreeningResult
+from src.services.screening_service import UniverseScreeningEntry
 
 _HEADERS: list[str] = [
-    "Nom",
     "Ticker",
+    "Nom",
     "Secteur",
-    "Marché",
-    "Score",
-    "P/E",
-    "P/B",
-    "EV/EBITDA",
-    "ROE %",
-    "Marge nette %",
-    "Dette/CP",
+    "Score total",
+    "Rang global",
+    "Rang secteur",
 ]
 
 _NA = "—"
 
 
-@dataclass
-class ScreenerRow:
-    name: str
-    ticker: str | None
-    sector: str | None
-    market: str | None
-    result: ScreeningResult
-
-    @property
-    def ratios(self) -> CompanyRatios:
-        return self.result.ratios
-
-    @property
-    def score(self) -> float:
-        return self.result.score
+ScreenerRow = UniverseScreeningEntry
 
 
-def _fmt_ratio(value: float | None, pct: bool = False) -> str:
+def _fmt_score(value: float | None) -> str:
     if value is None:
         return _NA
-    if pct:
-        return f"{value * 100:.1f} %"
     return f"{value:.2f}"
 
 
@@ -88,7 +64,7 @@ class CompanyTableModel(QAbstractTableModel):
         col = index.column()
 
         if role == Qt.ItemDataRole.TextAlignmentRole:
-            if col >= 4:
+            if col >= 3:
                 return Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
             return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 
@@ -97,25 +73,15 @@ class CompanyTableModel(QAbstractTableModel):
 
         match col:
             case 0:
-                return row.name
-            case 1:
                 return row.ticker or _NA
+            case 1:
+                return row.name
             case 2:
                 return row.sector or _NA
             case 3:
-                return row.market or _NA
+                return _fmt_score(row.total_score)
             case 4:
-                return f"{row.score:.1f}"
+                return row.rank if row.rank is not None else _NA
             case 5:
-                return _fmt_ratio(row.ratios.pe_ratio)
-            case 6:
-                return _fmt_ratio(row.ratios.pb_ratio)
-            case 7:
-                return _fmt_ratio(row.ratios.ev_ebitda)
-            case 8:
-                return _fmt_ratio(row.ratios.roe, pct=True)
-            case 9:
-                return _fmt_ratio(row.ratios.net_margin, pct=True)
-            case 10:
-                return _fmt_ratio(row.ratios.debt_to_equity)
+                return row.sector_rank if row.sector_rank is not None else _NA
         return None
