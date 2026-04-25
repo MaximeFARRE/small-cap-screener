@@ -53,6 +53,34 @@ def test_normalization_detects_currency_inconsistency():
     assert "currencies are inconsistent across sources" in result.errors
 
 
+def test_normalization_rejects_invalid_isin():
+    service = NormalizationService()
+
+    result = service.normalize_company_payload(
+        ticker="TTE.PA",
+        isin="INVALID",
+        currency="EUR",
+        market_cap=1.0,
+    )
+
+    assert result.is_normalized is False
+    assert "isin format is invalid" in result.errors
+
+
+def test_normalization_rejects_negative_market_cap():
+    service = NormalizationService()
+
+    result = service.normalize_company_payload(
+        ticker="TTE.PA",
+        isin="FR0000120271",
+        currency="EUR",
+        market_cap=-1.0,
+    )
+
+    assert result.is_normalized is False
+    assert "market_cap cannot be negative" in result.errors
+
+
 def test_normalization_normalizes_dates_for_market_records():
     service = NormalizationService()
 
