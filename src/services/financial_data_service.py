@@ -21,6 +21,7 @@ from src.repositories.providers.base import (
     SplitData,
 )
 from src.services.data_validation_service import DataValidationService
+from src.services.normalization_service import NormalizationService, NormalizedCompanyData
 
 SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
 _LOGGER = logging.getLogger(__name__)
@@ -71,6 +72,7 @@ class UniverseDataRefreshResult:
 class FinancialDataService:
     provider: BaseProvider
     session_scope_factory: SessionScopeFactory = get_session
+    normalization_service: NormalizationService = field(default_factory=NormalizationService)
     validation_service: DataValidationService = field(default_factory=DataValidationService)
     default_period: str = "5y"
     default_years: int = 5
@@ -104,12 +106,6 @@ class FinancialDataService:
             _LOGGER.error("provider fetch failed: ticker=%s error=%s", normalized_ticker, exc)
             raise FinancialDataServiceError("fetch", normalized_ticker, str(exc)) from exc
 
-        if not price_history and not financial_statements:
-            raise FinancialDataServiceError(
-                "validate",
-                normalized_ticker,
-                "provider returned no price history and no financial statements",
-            )
         return FetchedCompanyData(
             ticker=normalized_ticker,
             profile=profile,
@@ -155,15 +151,54 @@ class FinancialDataService:
 
             try:
                 fetched = self.fetch_company_data(company.ticker)
-                validation = self.validation_service.validate_company_data(
+                normalization = self.normalization_service.normalize_company_payload(
                     ticker=fetched.ticker,
-                    profile=fetched.profile,
-                    market_data=fetched.market_data,
-                    price_history=fetched.price_history,
+                    isin=company.isin,
+                    currency=fetched.market_data.currency if fetched.market_data is not None else None,
+                    market_cap=fetched.market_data.market_cap if fetched.market_data is not None else None,
                     financial_statements=fetched.financial_statements,
+                    price_history=fetched.price_history,
                     dividends=fetched.dividends,
                     splits=fetched.splits,
+                    profile_ticker=fetched.profile.ticker if fetched.profile is not None else None,
+                    market_ticker=fetched.market_data.ticker if fetched.market_data is not None else None,
+                    profile_currency=fetched.profile.currency if fetched.profile is not None else None,
+                    market_currency=fetched.market_data.currency if fetched.market_data is not None else None,
                 )
+                if normalization.warnings:
+                    _LOGGER.warning(
+                        "normalization warning: company_id=%s ticker=%s warnings=%s",
+                        company.id,
+                        company.ticker,
+                        "; ".join(normalization.warnings),
+                    )
+                if not normalization.is_normalized:
+                    _LOGGER.error(
+                        "normalization blocked storage: company_id=%s ticker=%s errors=%s",
+                        company.id,
+                        company.ticker,
+                        "; ".join(normalization.errors),
+                    )
+                    return CompanyDataRefreshResult(
+                        company_id=company.id,
+                        ticker=company.ticker,
+                        success=False,
+                        error="; ".join(normalization.errors),
+                        stage="normalize",
+                        warnings=normalization.warnings,
+                    )
+
+                normalized_payload = _build_payload_from_normalized(normalization.data, fetched)
+                validation = self.validation_service.validate_company_data(
+                    ticker=normalized_payload.ticker,
+                    profile=normalized_payload.profile,
+                    market_data=normalized_payload.market_data,
+                    price_history=normalized_payload.price_history,
+                    financial_statements=normalized_payload.financial_statements,
+                    dividends=normalized_payload.dividends,
+                    splits=normalized_payload.splits,
+                )
+                combined_warnings = _merge_warnings(normalization.warnings, validation.warnings)
                 if validation.warnings:
                     _LOGGER.warning(
                         "validation warning: company_id=%s ticker=%s warnings=%s",
@@ -184,7 +219,7 @@ class FinancialDataService:
                         success=False,
                         error="; ".join(validation.errors),
                         stage="validate",
-                        warnings=validation.warnings,
+                        warnings=combined_warnings,
                     )
 
                 validated_data = validation.data
@@ -198,15 +233,7 @@ class FinancialDataService:
                 )
                 _apply_company_metadata(
                     company,
-                    FetchedCompanyData(
-                        ticker=validated_data.ticker,
-                        profile=validated_data.profile,
-                        market_data=validated_data.market_data,
-                        price_history=validated_data.price_history,
-                        financial_statements=validated_data.financial_statements,
-                        dividends=validated_data.dividends,
-                        splits=validated_data.splits,
-                    ),
+                    _validation_data_to_fetched_data(validated_data),
                 )
                 company_repository.update(session, company)
                 _LOGGER.info(
@@ -227,7 +254,7 @@ class FinancialDataService:
                     success=True,
                     prices_added=sync.prices_added,
                     statements_added=sync.statements_added,
-                    warnings=validation.warnings,
+                    warnings=combined_warnings,
                 )
             except FinancialDataServiceError as exc:
                 _LOGGER.error(
@@ -293,3 +320,125 @@ def _apply_company_metadata(company: Company, fetched: FetchedCompanyData) -> No
         company.average_daily_volume = fetched.market_data.volume
         if fetched.market_data.currency is not None:
             company.currency = fetched.market_data.currency
+
+
+def _build_payload_from_normalized(
+    normalized: NormalizedCompanyData, fetched: FetchedCompanyData
+) -> FetchedCompanyData:
+    profile = _normalized_profile(normalized, fetched.profile)
+    market_data = _normalized_market_data(normalized, fetched.market_data)
+    return FetchedCompanyData(
+        ticker=normalized.ticker,
+        profile=profile,
+        market_data=market_data,
+        price_history=[
+            PriceHistory(
+                date=record.date,
+                open=record.open,
+                high=record.high,
+                low=record.low,
+                close=record.close,
+                adjusted_close=record.adjusted_close,
+                volume=record.volume,
+                source="normalized",
+                fetched_at=None,
+            )
+            for record in normalized.price_history
+        ],
+        financial_statements=[
+            FinancialData(
+                fiscal_year=record.fiscal_year,
+                period_type=record.period_type,
+                revenue=record.revenue,
+                ebit=record.ebit,
+                ebitda=record.ebitda,
+                net_income=record.net_income,
+                total_assets=record.total_assets,
+                total_equity=record.total_equity,
+                total_debt=record.total_debt,
+                net_debt=record.net_debt,
+                free_cash_flow=record.free_cash_flow,
+                shares_outstanding=record.shares_outstanding,
+            )
+            for record in normalized.financial_statements
+        ],
+        dividends=[
+            DividendData(
+                ex_date=record.ex_date,
+                amount=record.amount,
+                payment_date=record.payment_date,
+                source="normalized",
+                fetched_at=None,
+            )
+            for record in normalized.dividends
+        ],
+        splits=[
+            SplitData(
+                split_date=record.split_date,
+                ratio_from=record.ratio_from,
+                ratio_to=record.ratio_to,
+                source="normalized",
+                fetched_at=None,
+            )
+            for record in normalized.splits
+        ],
+    )
+
+
+def _normalized_profile(normalized: NormalizedCompanyData, profile: CompanyProfile | None) -> CompanyProfile | None:
+    if profile is None:
+        return None
+    return CompanyProfile(
+        ticker=normalized.ticker,
+        name=profile.name,
+        sector=profile.sector,
+        industry=profile.industry,
+        market=profile.market,
+        country=profile.country,
+        currency=normalized.currency if normalized.currency is not None else profile.currency,
+        website=profile.website,
+        source=profile.source,
+        fetched_at=profile.fetched_at,
+    )
+
+
+def _normalized_market_data(normalized: NormalizedCompanyData, market_data: MarketData | None) -> MarketData | None:
+    if market_data is None:
+        return None
+    return MarketData(
+        ticker=normalized.ticker,
+        current_price=market_data.current_price,
+        previous_close=market_data.previous_close,
+        open=market_data.open,
+        day_high=market_data.day_high,
+        day_low=market_data.day_low,
+        volume=market_data.volume,
+        market_cap=normalized.market_cap,
+        currency=normalized.currency,
+        source=market_data.source,
+        fetched_at=market_data.fetched_at,
+    )
+
+
+def _validation_data_to_fetched_data(validated_data) -> FetchedCompanyData:
+    return FetchedCompanyData(
+        ticker=validated_data.ticker,
+        profile=validated_data.profile,
+        market_data=validated_data.market_data,
+        price_history=validated_data.price_history,
+        financial_statements=validated_data.financial_statements,
+        dividends=validated_data.dividends,
+        splits=validated_data.splits,
+    )
+
+
+def _merge_warnings(*warning_lists: list[str]) -> list[str]:
+    merged: list[str] = []
+    seen: set[str] = set()
+    for warnings in warning_lists:
+        for warning in warnings:
+            if warning in seen:
+                continue
+            seen.add(warning)
+            merged.append(warning)
+    return merged

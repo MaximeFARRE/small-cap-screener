@@ -26,7 +26,12 @@ def _make_service(db_session, provider):
     return FinancialDataService(provider=provider, session_scope_factory=session_scope)
 
 
-def _make_provider(failing_ticker: str | None = None, negative_price_ticker: str | None = None) -> MagicMock:
+def _make_provider(
+    failing_ticker: str | None = None,
+    negative_price_ticker: str | None = None,
+    duplicate_date_ticker: str | None = None,
+    currency_alias_ticker: str | None = None,
+) -> MagicMock:
     provider = MagicMock()
 
     def _company_info(ticker: str) -> CompanyInfo:
@@ -46,6 +51,7 @@ def _make_provider(failing_ticker: str | None = None, negative_price_ticker: str
         )
 
     def _market_data(ticker: str) -> MarketData:
+        currency = "euro" if currency_alias_ticker is not None and ticker == currency_alias_ticker else "EUR"
         return MarketData(
             ticker=ticker,
             current_price=25.0,
@@ -55,13 +61,36 @@ def _make_provider(failing_ticker: str | None = None, negative_price_ticker: str
             day_low=24.4,
             volume=250_000,
             market_cap=400_000_000.0,
-            currency="EUR",
+            currency=currency,
             source="mock-provider",
         )
 
     def _price_history(ticker: str, period: str = "5y") -> list[PriceHistory]:
         if failing_ticker is not None and ticker == failing_ticker:
             raise DataFetchError("simulated provider outage")
+        if duplicate_date_ticker is not None and ticker == duplicate_date_ticker:
+            return [
+                PriceHistory(
+                    date=date(2024, 1, 2),
+                    open=20.0,
+                    high=21.0,
+                    low=19.8,
+                    close=20.7,
+                    adjusted_close=20.7,
+                    volume=180_000,
+                    source="mock-provider",
+                ),
+                PriceHistory(
+                    date=date(2024, 1, 2),
+                    open=20.1,
+                    high=21.1,
+                    low=19.9,
+                    close=20.8,
+                    adjusted_close=20.8,
+                    volume=181_000,
+                    source="mock-provider",
+                ),
+            ]
         close = -20.7 if negative_price_ticker is not None and ticker == negative_price_ticker else 20.7
         return [
             PriceHistory(
@@ -240,6 +269,87 @@ def test_refresh_company_data_blocks_invalid_payload(db_session):
     assert "non-positive close" in result.error
     assert len(price_history_repository.get_by_company(db_session, company.id)) == 0
     assert len(financial_statement_repository.get_by_company(db_session, company.id)) == 0
+
+
+def test_refresh_company_data_blocks_invalid_normalization(db_session):
+    company = company_repository.create(
+        db_session,
+        Company(
+            isin="INVALID",
+            ticker="NORM.PA",
+            name="Normalize",
+            country="France",
+            sector="Industrial",
+            market="PAR",
+            currency="EUR",
+            is_active=True,
+            market_cap=300_000_000.0,
+            average_daily_volume=120_000.0,
+        ),
+    )
+    service = _make_service(db_session, _make_provider())
+
+    result = service.refresh_company_data(company.id)
+
+    assert result.success is False
+    assert result.stage == "normalize"
+    assert result.error is not None
+    assert "isin format is invalid" in result.error
+    assert len(price_history_repository.get_by_company(db_session, company.id)) == 0
+    assert len(financial_statement_repository.get_by_company(db_session, company.id)) == 0
+
+
+def test_refresh_company_data_keeps_normalization_warnings(db_session, caplog):
+    company = company_repository.create(
+        db_session,
+        Company(
+            isin="FR0000007004",
+            ticker="WARN.PA",
+            name="Warning",
+            country="France",
+            sector="Industrial",
+            market="PAR",
+            currency="EUR",
+            is_active=True,
+            market_cap=300_000_000.0,
+            average_daily_volume=120_000.0,
+        ),
+    )
+    service = _make_service(db_session, _make_provider(duplicate_date_ticker="WARN.PA"))
+
+    with caplog.at_level(logging.WARNING, logger="src.services.financial_data_service"):
+        result = service.refresh_company_data(company.id)
+
+    assert result.success is True
+    assert any("price_history duplicate date normalized" in warning for warning in result.warnings)
+    assert any("normalization warning" in record.message for record in caplog.records)
+    assert len(price_history_repository.get_by_company(db_session, company.id)) == 1
+
+
+def test_refresh_company_data_accepts_currency_alias_after_normalization(db_session):
+    company = company_repository.create(
+        db_session,
+        Company(
+            isin="FR0000007005",
+            ticker="ALIAS.PA",
+            name="Alias",
+            country="France",
+            sector="Industrial",
+            market="PAR",
+            currency="EUR",
+            is_active=True,
+            market_cap=300_000_000.0,
+            average_daily_volume=120_000.0,
+        ),
+    )
+    service = _make_service(db_session, _make_provider(currency_alias_ticker="ALIAS.PA"))
+
+    result = service.refresh_company_data(company.id)
+    updated = company_repository.get_by_id(db_session, company.id)
+
+    assert result.success is True
+    assert updated is not None
+    assert updated.currency == "EUR"
 
 
 def test_refresh_company_data_logs_skipped_company(db_session, caplog):
