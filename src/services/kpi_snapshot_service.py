@@ -18,6 +18,7 @@ from src.repositories import (
 )
 from src.repositories.database import get_session
 from src.services.ratio_service import CompanyRatios, RatioService
+from src.services.scoring_service import ScoringService
 
 SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
 
@@ -67,6 +68,7 @@ class CompanyKpiContextLoadResult:
 class KpiSnapshotService:
     session_scope_factory: SessionScopeFactory = get_session
     ratio_service: RatioService = field(default_factory=RatioService)
+    scoring_service: ScoringService = field(default_factory=ScoringService)
     source_name: str = "ratio_service_v1"
     default_country: str = "France"
     default_max_market_cap: float = 2_000_000_000.0
@@ -104,13 +106,14 @@ class KpiSnapshotService:
                 metrics=metrics,
                 source=self.source_name,
             )
-            stored = kpi_snapshot_repository.upsert(session, snapshot)
+            scored_snapshot = self.scoring_service.apply_scores(snapshot)
+            stored = kpi_snapshot_repository.upsert(session, scored_snapshot)
             return KpiSnapshotServiceResult(
                 company_id=company_id,
                 snapshot_date=snapshot_date,
                 success=True,
                 snapshot_id=stored.id,
-                metrics=metrics,
+                metrics=stored.metrics,
             )
 
     def refresh_universe_kpi_snapshots(
