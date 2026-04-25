@@ -307,6 +307,7 @@ def _load_universe_company_total_scores(
                 company_id=company.id,
                 ticker=company.ticker,
                 total_score=scoring_service.get_snapshot_total_score(snapshot),
+                sector=company.sector,
             )
         )
     return company_scores
