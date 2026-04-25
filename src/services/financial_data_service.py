@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
@@ -22,6 +23,7 @@ from src.repositories.providers.base import (
 from src.services.data_validation_service import DataValidationService
 
 SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
+_LOGGER = logging.getLogger(__name__)
 
 
 class FinancialDataServiceError(Exception):
@@ -96,8 +98,10 @@ class FinancialDataService:
             )
             splits = self.provider.get_splits(normalized_ticker) if hasattr(self.provider, "get_splits") else []
         except ProviderError as exc:
+            _LOGGER.error("provider fetch failed: ticker=%s error=%s", normalized_ticker, exc)
             raise FinancialDataServiceError("fetch", normalized_ticker, str(exc)) from exc
         except Exception as exc:  # pragma: no cover - defensive wrapper
+            _LOGGER.error("provider fetch failed: ticker=%s error=%s", normalized_ticker, exc)
             raise FinancialDataServiceError("fetch", normalized_ticker, str(exc)) from exc
 
         if not price_history and not financial_statements:
@@ -120,6 +124,7 @@ class FinancialDataService:
         with self.session_scope_factory() as session:
             company = company_repository.get_by_id(session, company_id)
             if company is None:
+                _LOGGER.warning("company skipped: company_id=%s reason=not_found", company_id)
                 return CompanyDataRefreshResult(
                     company_id=company_id,
                     ticker="",
@@ -128,6 +133,7 @@ class FinancialDataService:
                     stage="validate",
                 )
             if _is_blank(company.ticker):
+                _LOGGER.warning("company skipped: company_id=%s reason=empty_ticker", company.id)
                 return CompanyDataRefreshResult(
                     company_id=company.id,
                     ticker="",
@@ -136,6 +142,9 @@ class FinancialDataService:
                     stage="validate",
                 )
             if _is_blank(company.isin):
+                _LOGGER.warning(
+                    "company skipped: company_id=%s ticker=%s reason=empty_isin", company.id, company.ticker
+                )
                 return CompanyDataRefreshResult(
                     company_id=company.id,
                     ticker=company.ticker,
@@ -155,7 +164,20 @@ class FinancialDataService:
                     dividends=fetched.dividends,
                     splits=fetched.splits,
                 )
+                if validation.warnings:
+                    _LOGGER.warning(
+                        "validation warning: company_id=%s ticker=%s warnings=%s",
+                        company.id,
+                        company.ticker,
+                        "; ".join(validation.warnings),
+                    )
                 if not validation.is_valid:
+                    _LOGGER.error(
+                        "validation blocked storage: company_id=%s ticker=%s errors=%s",
+                        company.id,
+                        company.ticker,
+                        "; ".join(validation.errors),
+                    )
                     return CompanyDataRefreshResult(
                         company_id=company.id,
                         ticker=company.ticker,
@@ -187,6 +209,18 @@ class FinancialDataService:
                     ),
                 )
                 company_repository.update(session, company)
+                _LOGGER.info(
+                    (
+                        "company storage succeeded: company_id=%s ticker=%s "
+                        "prices_added=%s statements_added=%s dividends_added=%s splits_added=%s"
+                    ),
+                    sync.company_id,
+                    company.ticker,
+                    sync.prices_added,
+                    sync.statements_added,
+                    sync.dividends_added,
+                    sync.splits_added,
+                )
                 return CompanyDataRefreshResult(
                     company_id=sync.company_id,
                     ticker=company.ticker,
@@ -196,6 +230,13 @@ class FinancialDataService:
                     warnings=validation.warnings,
                 )
             except FinancialDataServiceError as exc:
+                _LOGGER.error(
+                    "company refresh failed: company_id=%s ticker=%s stage=%s error=%s",
+                    company.id,
+                    company.ticker,
+                    exc.stage,
+                    exc.message,
+                )
                 return CompanyDataRefreshResult(
                     company_id=company.id,
                     ticker=company.ticker,
@@ -213,10 +254,17 @@ class FinancialDataService:
                 country=self.default_country,
             )
             company_ids = [company.id for company in companies]
+        _LOGGER.info("universe refresh started: total_companies=%s", len(company_ids))
 
         results = [self.refresh_company_data(company_id) for company_id in company_ids]
         refreshed_count = sum(1 for result in results if result.success)
         failed_count = len(results) - refreshed_count
+        _LOGGER.info(
+            "universe refresh completed: total_companies=%s refreshed=%s failed=%s",
+            len(company_ids),
+            refreshed_count,
+            failed_count,
+        )
         return UniverseDataRefreshResult(
             total_companies=len(company_ids),
             refreshed_count=refreshed_count,
