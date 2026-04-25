@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from contextlib import contextmanager
 from datetime import date
 from unittest.mock import MagicMock
@@ -239,3 +240,64 @@ def test_refresh_company_data_blocks_invalid_payload(db_session):
     assert "non-positive close" in result.error
     assert len(price_history_repository.get_by_company(db_session, company.id)) == 0
     assert len(financial_statement_repository.get_by_company(db_session, company.id)) == 0
+
+
+def test_refresh_company_data_logs_skipped_company(db_session, caplog):
+    service = _make_service(db_session, _make_provider())
+
+    with caplog.at_level(logging.WARNING, logger="src.services.financial_data_service"):
+        result = service.refresh_company_data(999999)
+
+    assert result.success is False
+    assert any("company skipped" in record.message for record in caplog.records)
+
+
+def test_refresh_company_data_logs_validation_block(db_session, caplog):
+    company = company_repository.create(
+        db_session,
+        Company(
+            isin="FR0000007003",
+            ticker="NEG2.PA",
+            name="Negative 2",
+            country="France",
+            sector="Industrial",
+            market="PAR",
+            currency="EUR",
+            is_active=True,
+            market_cap=300_000_000.0,
+            average_daily_volume=120_000.0,
+        ),
+    )
+    service = _make_service(db_session, _make_provider(negative_price_ticker="NEG2.PA"))
+
+    with caplog.at_level(logging.ERROR, logger="src.services.financial_data_service"):
+        result = service.refresh_company_data(company.id)
+
+    assert result.success is False
+    assert result.stage == "validate"
+    assert any("validation blocked storage" in record.message for record in caplog.records)
+
+
+def test_refresh_universe_data_logs_completion(db_session, caplog):
+    company_repository.create(
+        db_session,
+        Company(
+            isin="FR0000008001",
+            ticker="LOG1.PA",
+            name="Log One",
+            country="France",
+            sector="Industrial",
+            market="PAR",
+            currency="EUR",
+            is_active=True,
+            market_cap=320_000_000.0,
+            average_daily_volume=120_000.0,
+        ),
+    )
+    service = _make_service(db_session, _make_provider())
+
+    with caplog.at_level(logging.INFO, logger="src.services.financial_data_service"):
+        result = service.refresh_universe_data()
+
+    assert result.total_companies == 1
+    assert any("universe refresh completed" in record.message for record in caplog.records)
