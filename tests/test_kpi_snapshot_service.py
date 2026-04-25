@@ -32,7 +32,12 @@ def _make_service(db_session):
     return KpiSnapshotService(session_scope_factory=session_scope)
 
 
-def _create_company_with_financials(db_session, isin: str = "FR0000120271", ticker: str = "TTE.PA") -> Company:
+def _create_company_with_financials(
+    db_session,
+    isin: str = "FR0000120271",
+    ticker: str = "TTE.PA",
+    sector: str | None = "Energy",
+) -> Company:
     company = company_repository.create(
         db_session,
         Company(
@@ -40,7 +45,7 @@ def _create_company_with_financials(db_session, isin: str = "FR0000120271", tick
             ticker=ticker,
             name="TotalEnergies",
             country="France",
-            sector="Energy",
+            sector=sector,
             market="PAR",
             currency="EUR",
             is_active=True,
@@ -380,6 +385,7 @@ def test_rank_universe_by_total_score_is_descending_and_stable(db_session):
     assert first == second
     assert [entry.company_id for entry in first] == [beta.id, alpha.id, gamma.id]
     assert [entry.rank for entry in first] == [1, 2, 3]
+    assert [entry.sector_rank for entry in first] == [1, 2, 3]
     assert [entry.total_score for entry in first] == [95.0, 82.5, 82.5]
 
 
@@ -422,10 +428,83 @@ def test_rank_universe_by_total_score_handles_missing_scores(db_session):
 
     assert ranking[0].company_id == scored.id
     assert ranking[0].rank == 1
+    assert ranking[0].sector_rank == 1
     assert ranking[0].total_score == 88.0
 
     tail = ranking[1:]
     expected_tail = sorted([missing_key.id, explicit_none.id, no_snapshot.id])
     assert [entry.company_id for entry in tail] == expected_tail
     assert all(entry.rank is None for entry in tail)
+    assert all(entry.sector_rank is None for entry in tail)
     assert all(entry.total_score is None for entry in tail)
+
+
+def test_rank_universe_by_total_score_computes_sector_rank(db_session):
+    energy_top = _create_company_with_financials(
+        db_session,
+        isin="FR0000230001",
+        ticker="ENER1.PA",
+        sector="Energy",
+    )
+    energy_second = _create_company_with_financials(
+        db_session,
+        isin="FR0000230002",
+        ticker="ENER2.PA",
+        sector="Energy",
+    )
+    tech_only = _create_company_with_financials(
+        db_session,
+        isin="FR0000230003",
+        ticker="TECH1.PA",
+        sector="Tech",
+    )
+    no_sector = _create_company_with_financials(
+        db_session,
+        isin="FR0000230004",
+        ticker="NOSECT.PA",
+        sector=None,
+    )
+
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=energy_top.id,
+            snapshot_date=date(2024, 7, 31),
+            metrics={TOTAL_SCORE_KEY: 91.0},
+            source="s1",
+        ),
+    )
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=energy_second.id,
+            snapshot_date=date(2024, 7, 31),
+            metrics={TOTAL_SCORE_KEY: 83.0},
+            source="s1",
+        ),
+    )
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=tech_only.id,
+            snapshot_date=date(2024, 7, 31),
+            metrics={TOTAL_SCORE_KEY: 87.0},
+            source="s1",
+        ),
+    )
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=no_sector.id,
+            snapshot_date=date(2024, 7, 31),
+            metrics={TOTAL_SCORE_KEY: 95.0},
+            source="s1",
+        ),
+    )
+
+    service = _make_service(db_session)
+    ranking = service.rank_universe_by_total_score()
+
+    assert [entry.company_id for entry in ranking] == [no_sector.id, energy_top.id, tech_only.id, energy_second.id]
+    assert [entry.rank for entry in ranking] == [1, 2, 3, 4]
+    assert [entry.sector_rank for entry in ranking] == [None, 1, 1, 2]

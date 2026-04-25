@@ -9,9 +9,11 @@ from src.services.scoring_service import (
     RISK_SCORE_KEY,
     TOTAL_SCORE_KEY,
     VALUE_SCORE_KEY,
+    CompanyTotalScore,
     ScoringService,
     apply_scores,
     compute_snapshot_scores,
+    rank_companies_by_total_score,
 )
 
 
@@ -118,3 +120,32 @@ def test_total_score_is_deterministic():
 
     assert first == second
     assert first.total == pytest.approx(69.95)
+
+
+def test_rank_companies_by_total_score_computes_sector_rank():
+    ranking = rank_companies_by_total_score(
+        [
+            CompanyTotalScore(company_id=1, ticker="A.PA", total_score=80.0, sector="Energy"),
+            CompanyTotalScore(company_id=2, ticker="B.PA", total_score=90.0, sector="Energy"),
+            CompanyTotalScore(company_id=3, ticker="C.PA", total_score=85.0, sector="Tech"),
+            CompanyTotalScore(company_id=4, ticker="D.PA", total_score=88.0, sector=None),
+        ]
+    )
+
+    assert [entry.company_id for entry in ranking] == [2, 4, 3, 1]
+    assert [entry.rank for entry in ranking] == [1, 2, 3, 4]
+    assert [entry.sector_rank for entry in ranking] == [1, None, 1, 2]
+
+
+def test_rank_companies_by_total_score_handles_missing_sector_or_score():
+    ranking = rank_companies_by_total_score(
+        [
+            CompanyTotalScore(company_id=5, ticker="E.PA", total_score=70.0, sector=""),
+            CompanyTotalScore(company_id=6, ticker="F.PA", total_score=None, sector="Energy"),
+            CompanyTotalScore(company_id=7, ticker="G.PA", total_score=65.0, sector="Energy"),
+        ]
+    )
+
+    assert [entry.company_id for entry in ranking] == [5, 7, 6]
+    assert [entry.rank for entry in ranking] == [1, 2, None]
+    assert [entry.sector_rank for entry in ranking] == [None, 1, None]
