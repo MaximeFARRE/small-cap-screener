@@ -36,6 +36,8 @@ def _create_company_with_financials(db_session, isin: str = "FR0000120271", tick
             market="PAR",
             currency="EUR",
             is_active=True,
+            market_cap=300_000_000.0,
+            average_daily_volume=200_000.0,
         ),
     )
     financial_statement_repository.create(
@@ -288,3 +290,18 @@ def test_snapshot_metrics_include_growth_when_previous_statement_exists(db_sessi
     assert result.success is True
     assert result.metrics["revenue_growth"] == (200_000_000.0 - 180_000_000.0) / 180_000_000.0
     assert result.metrics["ebitda_growth"] == (30_000_000.0 - 28_000_000.0) / 28_000_000.0
+
+
+def test_refresh_universe_kpi_snapshots_complete(db_session):
+    company_a = _create_company_with_financials(db_session, isin="FR0000444444", ticker="U1.PA")
+    company_b = _create_company_with_financials(db_session, isin="FR0000333333", ticker="U2.PA")
+    service = _make_service(db_session)
+
+    result = service.refresh_universe_kpi_snapshots(snapshot_date=date(2024, 3, 31))
+
+    assert result.total == 2
+    assert result.success_count == 2
+    assert result.failed_count == 0
+    assert result.errors == []
+    assert kpi_snapshot_repository.get_latest_by_company(db_session, company_a.id) is not None
+    assert kpi_snapshot_repository.get_latest_by_company(db_session, company_b.id) is not None
