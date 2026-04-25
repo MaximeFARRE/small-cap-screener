@@ -1,6 +1,8 @@
 from contextlib import contextmanager
 from datetime import date
 
+import pytest
+
 from src.models.company import Company
 from src.models.kpi_snapshot import KpiSnapshot
 from src.repositories import company_repository, kpi_snapshot_repository
@@ -414,3 +416,138 @@ def test_filter_universe_with_scores_orders_by_rank_then_ticker(db_session):
         companies["delta"].id,
         companies["gamma"].id,
     ]
+
+
+def test_filter_universe_with_scores_sort_by_total_score_descending(db_session):
+    _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+
+    rows = service.filter_universe_with_scores(
+        UniverseScreeningFilters(sort_by="total_score", descending=True),
+    )
+
+    assert [row.ticker for row in rows] == [
+        "ALP.PA",
+        "BET.PA",
+        "EPS.PA",
+        "DEL.PA",
+        "GAM.PA",
+    ]
+
+
+def test_filter_universe_with_scores_sort_by_total_score_ascending(db_session):
+    _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+
+    rows = service.filter_universe_with_scores(
+        UniverseScreeningFilters(sort_by="total_score", descending=False),
+    )
+
+    assert [row.ticker for row in rows] == [
+        "EPS.PA",
+        "BET.PA",
+        "ALP.PA",
+        "DEL.PA",
+        "GAM.PA",
+    ]
+
+
+def test_filter_universe_with_scores_sort_by_rank_descending(db_session):
+    _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+
+    rows = service.filter_universe_with_scores(
+        UniverseScreeningFilters(sort_by="rank", descending=True),
+    )
+
+    assert [row.ticker for row in rows] == [
+        "EPS.PA",
+        "BET.PA",
+        "ALP.PA",
+        "DEL.PA",
+        "GAM.PA",
+    ]
+
+
+def test_filter_universe_with_scores_sort_by_ticker_descending(db_session):
+    _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+
+    rows = service.filter_universe_with_scores(
+        UniverseScreeningFilters(sort_by="ticker", descending=True),
+    )
+
+    assert [row.ticker for row in rows] == [
+        "GAM.PA",
+        "EPS.PA",
+        "DEL.PA",
+        "BET.PA",
+        "ALP.PA",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("sort_by", "expected_tickers"),
+    [
+        ("quality_score", ["GAM.PA", "ALP.PA", "BET.PA", "DEL.PA", "EPS.PA"]),
+        ("value_score", ["ALP.PA", "BET.PA", "DEL.PA", "EPS.PA", "GAM.PA"]),
+        ("growth_score", ["ALP.PA", "BET.PA", "DEL.PA", "EPS.PA", "GAM.PA"]),
+        ("risk_score", ["ALP.PA", "BET.PA", "DEL.PA", "EPS.PA", "GAM.PA"]),
+    ],
+)
+def test_filter_universe_with_scores_sort_by_sub_scores_handles_none_values(
+    db_session,
+    sort_by: str,
+    expected_tickers: list[str],
+):
+    _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+
+    rows = service.filter_universe_with_scores(
+        UniverseScreeningFilters(sort_by=sort_by, descending=True),
+    )
+
+    assert [row.ticker for row in rows] == expected_tickers
+
+
+def test_filter_universe_with_scores_uses_ticker_fallback_for_equal_primary_value(db_session):
+    zeta = _make_company(
+        db_session,
+        isin="FR0000920001",
+        ticker="ZZZ.PA",
+        name="Zeta",
+        sector="Tech",
+    )
+    alpha = _make_company(
+        db_session,
+        isin="FR0000920002",
+        ticker="AAA.PA",
+        name="Alpha tie",
+        sector="Tech",
+    )
+
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=zeta.id,
+            snapshot_date=date(2024, 12, 31),
+            metrics={"total_score": 80.0},
+            source="tie",
+        ),
+    )
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=alpha.id,
+            snapshot_date=date(2024, 12, 31),
+            metrics={"total_score": 80.0},
+            source="tie",
+        ),
+    )
+
+    service = _make_screening_service(db_session)
+    rows = service.filter_universe_with_scores(
+        UniverseScreeningFilters(sort_by="total_score", descending=True),
+    )
+
+    assert [row.ticker for row in rows] == ["AAA.PA", "ZZZ.PA"]
