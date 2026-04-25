@@ -1,8 +1,38 @@
 # CHANGELOG
 
+## v0.3.0 (2026-04-25)
+
+### Feature
+
+* feat: add csv export for filtered screening ([`81829da`](https://github.com/MaximeFARRE/small-cap-screener/commit/81829da5370192eda2af96c69876e1ea239ca1d7))
+
+* feat: add configurable universe sorting ([`da1ff59`](https://github.com/MaximeFARRE/small-cap-screener/commit/da1ff596bac886d67352eb7116bbc50c8bec7a07))
+
+* feat: add universe screening filters in service ([`c48c7b7`](https://github.com/MaximeFARRE/small-cap-screener/commit/c48c7b7d12b5e1583570f6b6c24d5a4ed2b60d2f))
+
+* feat: add investable universe listing in screening service ([`dc2acf3`](https://github.com/MaximeFARRE/small-cap-screener/commit/dc2acf3c1b8bf2e2a0a8974d14a8153834d44c45))
+
+### Test
+
+* test: add coverage for screening csv export ([`0c2d07a`](https://github.com/MaximeFARRE/small-cap-screener/commit/0c2d07a485e8c58c58f85c5d274b86cfbe6cc67d))
+
+* test: add coverage for configurable screening sort ([`6e55858`](https://github.com/MaximeFARRE/small-cap-screener/commit/6e558582d08c6b25418eb7fb6de5b6931c5f1634))
+
+* test: add coverage for universe screening filters ([`8994f0a`](https://github.com/MaximeFARRE/small-cap-screener/commit/8994f0a6640fd615e7663e1f4118c1aa3538969e))
+
+* test: add coverage for investable universe scoring view ([`a67868d`](https://github.com/MaximeFARRE/small-cap-screener/commit/a67868d08004f376a07ce8405377be80cb6a13a1))
+
+### Unknown
+
+* Merge pull request #13 from MaximeFARRE/feat/phase9-screening-service
+
+Feat/phase9 screening service ([`d81cc29`](https://github.com/MaximeFARRE/small-cap-screener/commit/d81cc29c3b15fd1dd96d5d8cde31df4ec6997597))
+
 ## v0.2.0 (2026-04-25)
 
 ### Chore
+
+* chore(release): 0.2.0 [skip ci] ([`4cdeb84`](https://github.com/MaximeFARRE/small-cap-screener/commit/4cdeb840faf7e3f62387f3c81201e0367aa9750e))
 
 * chore: simplify semantic-release workflow on main ([`0740b25`](https://github.com/MaximeFARRE/small-cap-screener/commit/0740b25f7ce5e9da11949039c996e4820ab97457))
 
