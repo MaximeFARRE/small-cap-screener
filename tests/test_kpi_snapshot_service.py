@@ -305,3 +305,34 @@ def test_refresh_universe_kpi_snapshots_complete(db_session):
     assert result.errors == []
     assert kpi_snapshot_repository.get_latest_by_company(db_session, company_a.id) is not None
     assert kpi_snapshot_repository.get_latest_by_company(db_session, company_b.id) is not None
+
+
+def test_refresh_universe_kpi_snapshots_partial_failure_does_not_block(db_session):
+    success_company = _create_company_with_financials(db_session, isin="FR0000222222", ticker="OK.PA")
+    failing_company = company_repository.create(
+        db_session,
+        Company(
+            isin="FR0000111111",
+            ticker="FAIL.PA",
+            name="Failing Corp",
+            country="France",
+            sector="Industrial",
+            market="PAR",
+            currency="EUR",
+            is_active=True,
+            market_cap=250_000_000.0,
+            average_daily_volume=180_000.0,
+        ),
+    )
+    service = _make_service(db_session)
+
+    result = service.refresh_universe_kpi_snapshots(snapshot_date=date(2024, 4, 30))
+
+    assert result.total == 2
+    assert result.success_count == 1
+    assert result.failed_count == 1
+    assert len(result.errors) == 1
+    assert result.errors[0].company_id == failing_company.id
+    assert result.errors[0].stage == "load"
+    assert kpi_snapshot_repository.get_latest_by_company(db_session, success_company.id) is not None
+    assert kpi_snapshot_repository.get_latest_by_company(db_session, failing_company.id) is None
