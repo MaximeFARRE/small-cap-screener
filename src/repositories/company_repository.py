@@ -61,6 +61,7 @@ def bulk_upsert_from_seed(session: Session, entries: list[SeedUniverseEntry]) ->
                     isin=entry.isin,
                     ticker=entry.ticker,
                     name=entry.name,
+                    country=entry.country,
                     sector=entry.sector,
                     market=entry.exchange,
                     currency=entry.currency,
@@ -70,6 +71,7 @@ def bulk_upsert_from_seed(session: Session, entries: list[SeedUniverseEntry]) ->
             target.isin = entry.isin
             target.ticker = entry.ticker
             target.name = entry.name
+            target.country = entry.country
             target.sector = entry.sector
             target.market = entry.exchange
             target.currency = entry.currency
