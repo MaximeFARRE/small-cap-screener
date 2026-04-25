@@ -34,6 +34,22 @@ class KpiSnapshotServiceResult:
 
 
 @dataclass
+class UniverseKpiSnapshotError:
+    company_id: int
+    ticker: str | None
+    error: str
+    stage: str | None = None
+
+
+@dataclass
+class UniverseKpiSnapshotRefreshResult:
+    total: int
+    success_count: int
+    failed_count: int
+    errors: list[UniverseKpiSnapshotError] = field(default_factory=list)
+
+
+@dataclass
 class CompanyKpiContext:
     company: Company
     latest_statement: FinancialStatement
@@ -52,6 +68,9 @@ class KpiSnapshotService:
     session_scope_factory: SessionScopeFactory = get_session
     ratio_service: RatioService = field(default_factory=RatioService)
     source_name: str = "ratio_service_v1"
+    default_country: str = "France"
+    default_max_market_cap: float = 2_000_000_000.0
+    default_min_average_daily_volume: float | None = None
 
     def compute_and_upsert_for_company(
         self,
@@ -93,6 +112,15 @@ class KpiSnapshotService:
                 snapshot_id=stored.id,
                 metrics=metrics,
             )
+
+    def refresh_universe_kpi_snapshots(
+        self,
+        snapshot_date: date,
+        max_market_cap: float | None = None,
+        min_average_daily_volume: float | None = None,
+        country: str | None = None,
+    ) -> UniverseKpiSnapshotRefreshResult:
+        raise NotImplementedError
 
 
 def build_snapshot_payload(
