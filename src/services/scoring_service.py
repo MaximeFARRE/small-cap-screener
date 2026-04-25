@@ -27,6 +27,21 @@ class SnapshotScores:
     total: float
 
 
+@dataclass(frozen=True)
+class CompanyTotalScore:
+    company_id: int
+    ticker: str | None
+    total_score: float | None
+
+
+@dataclass(frozen=True)
+class RankedCompanyTotalScore:
+    company_id: int
+    ticker: str | None
+    total_score: float | None
+    rank: int | None
+
+
 # Category weights must sum to 1.0.
 SNAPSHOT_SUB_SCORE_WEIGHTS: dict[str, float] = {
     "quality": 0.35,
@@ -107,6 +122,27 @@ class ScoringService:
         snapshot.metrics = updated_metrics
         return snapshot
 
+    def rank_companies_by_total_score(self, company_scores: list[CompanyTotalScore]) -> list[RankedCompanyTotalScore]:
+        scored = [item for item in company_scores if _as_finite_float(item.total_score) is not None]
+        unscored = [item for item in company_scores if _as_finite_float(item.total_score) is None]
+
+        ranked_scored = _rank_scored_companies(scored)
+        ranked_unscored = [
+            RankedCompanyTotalScore(
+                company_id=item.company_id,
+                ticker=item.ticker,
+                total_score=None,
+                rank=None,
+            )
+            for item in sorted(unscored, key=lambda x: (x.company_id, x.ticker or ""))
+        ]
+        return ranked_scored + ranked_unscored
+
+    def get_snapshot_total_score(self, snapshot: KpiSnapshot | None) -> float | None:
+        if snapshot is None:
+            return None
+        return _as_finite_float(snapshot.metrics.get(TOTAL_SCORE_KEY))
+
 
 def _compute_sub_score(metrics: Mapping[str, object], rules: Mapping[str, MetricRule]) -> float:
     weighted_sum = 0.0
@@ -151,6 +187,21 @@ def _as_finite_float(value: object) -> float | None:
     if not math.isfinite(numeric):
         return None
     return numeric
+
+
+def _rank_scored_companies(scored: list[CompanyTotalScore]) -> list[RankedCompanyTotalScore]:
+    ranked: list[RankedCompanyTotalScore] = []
+    ordered = sorted(scored, key=lambda x: (-float(x.total_score), x.company_id, x.ticker or ""))
+    for index, item in enumerate(ordered, start=1):
+        ranked.append(
+            RankedCompanyTotalScore(
+                company_id=item.company_id,
+                ticker=item.ticker,
+                total_score=float(item.total_score),
+                rank=index,
+            )
+        )
+    return ranked
 
 
 # Weights must sum to 1.0
@@ -220,3 +271,7 @@ def compute_snapshot_scores(snapshot: KpiSnapshot) -> SnapshotScores:
 
 def apply_scores(snapshot: KpiSnapshot) -> KpiSnapshot:
     return _SERVICE.apply_scores(snapshot)
+
+
+def rank_companies_by_total_score(company_scores: list[CompanyTotalScore]) -> list[RankedCompanyTotalScore]:
+    return _SERVICE.rank_companies_by_total_score(company_scores)
