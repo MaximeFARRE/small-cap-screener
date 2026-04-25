@@ -26,6 +26,18 @@ class CompanyInfo:
 
 
 @dataclass
+class CompanyProfile:
+    ticker: str
+    name: str
+    sector: str | None
+    industry: str | None
+    market: str | None
+    country: str | None
+    currency: str
+    website: str | None
+
+
+@dataclass
 class PriceRecord:
     date: date
     open: float | None
@@ -50,6 +62,33 @@ class FinancialData:
     net_debt: float | None
     free_cash_flow: float | None
     shares_outstanding: float | None
+
+
+@dataclass
+class MarketData:
+    ticker: str
+    current_price: float
+    previous_close: float | None
+    open: float | None
+    day_high: float | None
+    day_low: float | None
+    volume: int | None
+    market_cap: float | None
+    currency: str | None
+
+
+@dataclass
+class DividendData:
+    ex_date: date
+    amount: float
+    payment_date: date | None
+
+
+@dataclass
+class SplitData:
+    split_date: date
+    ratio_from: float
+    ratio_to: float
 
 
 class BaseProvider(ABC):
