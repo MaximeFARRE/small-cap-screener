@@ -59,6 +59,14 @@ class UniverseScreeningEntry:
     sector_rank: int | None
 
 
+@dataclass(frozen=True)
+class UniverseScreeningFilters:
+    sector: str | None = None
+    min_total_score: float | None = None
+    scored_only: bool = False
+    top_n: int | None = None
+
+
 @dataclass
 class ScreeningService:
     session_scope_factory: SessionScopeFactory = get_session
@@ -115,6 +123,27 @@ class ScreeningService:
             companies_by_id=companies_by_id,
             snapshots_by_company_id=snapshots_by_company_id,
         )
+
+    def filter_universe_with_scores(
+        self,
+        filters: UniverseScreeningFilters,
+        *,
+        max_market_cap: float | None = None,
+        min_average_daily_volume: float | None = None,
+        country: str | None = None,
+    ) -> list[UniverseScreeningEntry]:
+        universe = self.list_universe_with_scores(
+            max_market_cap=max_market_cap,
+            min_average_daily_volume=min_average_daily_volume,
+            country=country,
+        )
+        filtered = _apply_universe_screening_filters(universe, filters)
+        ordered = _sort_universe_screening_entries(filtered)
+        if filters.top_n is None:
+            return ordered
+        if filters.top_n <= 0:
+            return []
+        return ordered[: filters.top_n]
 
 
 def _passes(ratios: CompanyRatios, criteria: ScreeningCriteria) -> bool:
@@ -189,3 +218,42 @@ def _snapshot_metric_as_float(snapshot: KpiSnapshot | None, metric_key: str) -> 
     if not math.isfinite(value):
         return None
     return value
+
+
+def _apply_universe_screening_filters(
+    entries: list[UniverseScreeningEntry],
+    filters: UniverseScreeningFilters,
+) -> list[UniverseScreeningEntry]:
+    target_sector = _normalize_optional_text(filters.sector)
+    output: list[UniverseScreeningEntry] = []
+    for entry in entries:
+        if target_sector is not None:
+            sector = _normalize_optional_text(entry.sector)
+            if sector != target_sector:
+                continue
+        if filters.scored_only and entry.total_score is None:
+            continue
+        if filters.min_total_score is not None:
+            if entry.total_score is None or entry.total_score < filters.min_total_score:
+                continue
+        output.append(entry)
+    return output
+
+
+def _sort_universe_screening_entries(entries: list[UniverseScreeningEntry]) -> list[UniverseScreeningEntry]:
+    return sorted(entries, key=_universe_screening_sort_key)
+
+
+def _universe_screening_sort_key(entry: UniverseScreeningEntry) -> tuple[bool, float, bool, str, int]:
+    rank = float(entry.rank) if entry.rank is not None else math.inf
+    ticker = entry.ticker or ""
+    return (entry.rank is None, rank, entry.ticker is None, ticker, entry.company_id)
+
+
+def _normalize_optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    if not normalized:
+        return None
+    return normalized
