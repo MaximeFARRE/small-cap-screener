@@ -12,13 +12,17 @@ from src.repositories.providers.yfinance_provider import YFinanceProvider
 TICKER = "TTE.PA"
 
 
-def _mock_ticker(info=None, history=None, financials=None, balance_sheet=None, cashflow=None):
+def _mock_ticker(
+    info=None, history=None, financials=None, balance_sheet=None, cashflow=None, dividends=None, splits=None
+):
     t = MagicMock()
     t.info = info or {}
     t.history.return_value = history if history is not None else pd.DataFrame()
     t.financials = financials if financials is not None else pd.DataFrame()
     t.balance_sheet = balance_sheet if balance_sheet is not None else pd.DataFrame()
     t.cashflow = cashflow if cashflow is not None else pd.DataFrame()
+    t.dividends = dividends if dividends is not None else pd.Series(dtype="float64")
+    t.splits = splits if splits is not None else pd.Series(dtype="float64")
     return t
 
 
@@ -39,6 +43,26 @@ def test_get_company_info_returns_parsed_data(mock_ticker_cls):
     assert info.name == "TotalEnergies SE"
     assert info.sector == "Energy"
     assert info.currency == "EUR"
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_company_profile_returns_parsed_data(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={
+            "longName": "TotalEnergies SE",
+            "sector": "Energy",
+            "industry": "Oil & Gas Integrated",
+            "exchange": "PAR",
+            "country": "France",
+            "currency": "EUR",
+            "website": "https://totalenergies.com",
+        }
+    )
+    profile = YFinanceProvider().get_company_profile(TICKER)
+    assert profile.ticker == TICKER
+    assert profile.name == "TotalEnergies SE"
+    assert profile.industry == "Oil & Gas Integrated"
+    assert profile.country == "France"
 
 
 @patch("src.repositories.providers.yfinance_provider.yf.Ticker")
@@ -157,6 +181,34 @@ def test_get_financial_statements_raises_on_empty(mock_ticker_cls):
 
 
 # --- get_current_price ---
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_current_market_data(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={
+            "currentPrice": 55.30,
+            "previousClose": 54.80,
+            "open": 55.00,
+            "dayHigh": 56.0,
+            "dayLow": 54.5,
+            "volume": 500_000,
+            "marketCap": 120_000_000_000,
+            "currency": "EUR",
+        }
+    )
+    data = YFinanceProvider().get_current_market_data(TICKER)
+    assert data.current_price == pytest.approx(55.30)
+    assert data.previous_close == pytest.approx(54.80)
+    assert data.volume == 500_000
+    assert data.currency == "EUR"
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_current_market_data_raises_when_missing(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(info={})
+    with pytest.raises(TickerNotFoundError):
+        YFinanceProvider().get_current_market_data(TICKER)
 
 
 @patch("src.repositories.providers.yfinance_provider.yf.Ticker")
