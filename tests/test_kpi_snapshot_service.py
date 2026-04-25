@@ -14,6 +14,13 @@ from src.repositories import (
 )
 from src.services.kpi_snapshot_service import KpiSnapshotService
 from src.services.ratio_service import RatioService
+from src.services.scoring_service import (
+    GROWTH_SCORE_KEY,
+    QUALITY_SCORE_KEY,
+    RISK_SCORE_KEY,
+    TOTAL_SCORE_KEY,
+    VALUE_SCORE_KEY,
+)
 
 
 def _make_service(db_session):
@@ -87,6 +94,11 @@ def test_create_snapshot_for_company(db_session):
     assert latest.snapshot_date == date(2024, 1, 31)
     assert "pe_ratio" in latest.metrics
     assert "roe" in latest.metrics
+    assert QUALITY_SCORE_KEY in latest.metrics
+    assert VALUE_SCORE_KEY in latest.metrics
+    assert GROWTH_SCORE_KEY in latest.metrics
+    assert RISK_SCORE_KEY in latest.metrics
+    assert TOTAL_SCORE_KEY in latest.metrics
 
 
 def test_update_existing_snapshot(db_session):
@@ -303,8 +315,12 @@ def test_refresh_universe_kpi_snapshots_complete(db_session):
     assert result.success_count == 2
     assert result.failed_count == 0
     assert result.errors == []
-    assert kpi_snapshot_repository.get_latest_by_company(db_session, company_a.id) is not None
-    assert kpi_snapshot_repository.get_latest_by_company(db_session, company_b.id) is not None
+    latest_a = kpi_snapshot_repository.get_latest_by_company(db_session, company_a.id)
+    latest_b = kpi_snapshot_repository.get_latest_by_company(db_session, company_b.id)
+    assert latest_a is not None
+    assert latest_b is not None
+    assert TOTAL_SCORE_KEY in latest_a.metrics
+    assert TOTAL_SCORE_KEY in latest_b.metrics
 
 
 def test_refresh_universe_kpi_snapshots_partial_failure_does_not_block(db_session):
