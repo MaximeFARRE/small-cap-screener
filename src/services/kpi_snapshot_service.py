@@ -133,13 +133,47 @@ class KpiSnapshotService:
                 min_average_daily_volume=target_min_avg_daily_volume,
                 country=target_country,
             )
-            company_ids = [company.id for company in investable]
+            companies = [(company.id, company.ticker) for company in investable]
 
+        success_count = 0
+        errors: list[UniverseKpiSnapshotError] = []
+
+        for company_id, ticker in companies:
+            try:
+                result = self.compute_and_upsert_for_company(
+                    company_id=company_id,
+                    snapshot_date=snapshot_date,
+                )
+            except Exception as exc:  # pragma: no cover - defensive guard
+                errors.append(
+                    UniverseKpiSnapshotError(
+                        company_id=company_id,
+                        ticker=ticker,
+                        error=str(exc),
+                        stage="unexpected",
+                    )
+                )
+                continue
+
+            if result.success:
+                success_count += 1
+                continue
+
+            errors.append(
+                UniverseKpiSnapshotError(
+                    company_id=company_id,
+                    ticker=ticker,
+                    error=result.error or "unknown error",
+                    stage=result.stage,
+                )
+            )
+
+        failed_count = len(errors)
         return UniverseKpiSnapshotRefreshResult(
-            total=len(company_ids),
-            success_count=0,
-            failed_count=0,
-            errors=[],
+            total=len(companies),
+            success_count=success_count,
+            failed_count=failed_count,
+            errors=errors,
         )
 
 
