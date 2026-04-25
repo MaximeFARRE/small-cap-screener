@@ -3,9 +3,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 import src.models.company  # noqa: F401
+import src.models.dividend  # noqa: F401
 import src.models.financial_statement  # noqa: F401
+import src.models.kpi_snapshot  # noqa: F401
 import src.models.price_history  # noqa: F401
 import src.models.screening_snapshot  # noqa: F401
+import src.models.split  # noqa: F401
 from src.repositories.database import Base
 
 

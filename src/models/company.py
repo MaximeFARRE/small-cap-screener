@@ -7,8 +7,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.repositories.database import Base
 
 if TYPE_CHECKING:
+    from src.models.dividend import Dividend
     from src.models.financial_statement import FinancialStatement
+    from src.models.kpi_snapshot import KpiSnapshot
     from src.models.price_history import PriceHistory
+    from src.models.split import Split
 
 
 class Company(Base):
@@ -28,3 +31,6 @@ class Company(Base):
         back_populates="company", cascade="all, delete-orphan"
     )
     price_history: Mapped[list["PriceHistory"]] = relationship(back_populates="company", cascade="all, delete-orphan")
+    kpi_snapshots: Mapped[list["KpiSnapshot"]] = relationship(back_populates="company", cascade="all, delete-orphan")
+    dividends: Mapped[list["Dividend"]] = relationship(back_populates="company", cascade="all, delete-orphan")
+    splits: Mapped[list["Split"]] = relationship(back_populates="company", cascade="all, delete-orphan")
