@@ -68,6 +68,10 @@ Format: `feat|fix|docs|chore|test: <what and why in one line>`
 - One logical change = one commit.
 - Never batch unrelated changes in one commit.
 - Never leave many modified files uncommitted.
+- Commit continuously during development, not only at the end.
+- Prefer micro-commits: one focused adjustment, then commit immediately.
+- For medium tasks, target about 5 to 10 commits when changes are meaningfully separable.
+- Avoid large mixed commits; split by model/repository/service/test concern.
 - Commit and push before switching branches.
 
 ---
