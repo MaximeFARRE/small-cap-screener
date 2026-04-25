@@ -13,6 +13,7 @@ from src.services.scoring_service import (
     ScoringService,
     apply_scores,
     compute_snapshot_scores,
+    describe_snapshot_score,
     rank_companies_by_total_score,
 )
 
@@ -149,3 +150,67 @@ def test_rank_companies_by_total_score_handles_missing_sector_or_score():
     assert [entry.company_id for entry in ranking] == [5, 7, 6]
     assert [entry.rank for entry in ranking] == [1, 2, None]
     assert [entry.sector_rank for entry in ranking] == [None, 1, None]
+
+
+def test_describe_snapshot_score_is_readable_and_stable():
+    scored_snapshot = apply_scores(
+        _make_snapshot(
+            {
+                "roe": 0.20,
+                "roic": 0.16,
+                "operating_margin": 0.14,
+                "gross_margin": 0.33,
+                "pe_ratio": 8.5,
+                "pb_ratio": 1.1,
+                "ev_ebitda": 5.5,
+                "fcf_yield": 0.10,
+                "revenue_growth": 0.12,
+                "ebitda_growth": 0.09,
+                "net_debt_to_ebitda": 1.8,
+                "current_ratio": 1.3,
+                "interest_coverage": 5.0,
+            }
+        )
+    )
+
+    first = describe_snapshot_score(scored_snapshot)
+    second = describe_snapshot_score(scored_snapshot)
+
+    assert first == second
+    assert first.total_score is not None
+    assert first.quality is not None
+    assert first.value is not None
+    assert first.growth is not None
+    assert first.risk is not None
+    assert 1 <= len(first.strengths) <= 3
+    assert 1 <= len(first.weaknesses) <= 3
+    assert "total" in first.summary
+    assert "strengths:" in first.summary
+    assert "weaknesses:" in first.summary
+
+
+def test_describe_snapshot_score_handles_missing_sub_scores():
+    snapshot = _make_snapshot({"total_score": 78.0})
+
+    explanation = describe_snapshot_score(snapshot)
+
+    assert explanation.total_score == pytest.approx(78.0)
+    assert explanation.quality == pytest.approx(0.0)
+    assert explanation.value == pytest.approx(0.0)
+    assert explanation.growth == pytest.approx(0.0)
+    assert explanation.risk == pytest.approx(0.0)
+    assert len(explanation.strengths) == 1
+    assert 1 <= len(explanation.weaknesses) <= 3
+
+
+def test_describe_snapshot_score_handles_missing_snapshot():
+    explanation = describe_snapshot_score(None)
+
+    assert explanation.total_score is None
+    assert explanation.quality is None
+    assert explanation.value is None
+    assert explanation.growth is None
+    assert explanation.risk is None
+    assert explanation.strengths == ()
+    assert explanation.weaknesses == ()
+    assert explanation.summary == "score unavailable: no snapshot data."
