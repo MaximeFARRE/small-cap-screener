@@ -44,3 +44,21 @@ class WatchlistService:
     def list_entries(self) -> list[WatchlistEntry]:
         with self.session_scope_factory() as session:
             return watchlist_repository.list_all(session)
+
+    def update_company_notes(self, company_id: int, notes: str | None) -> WatchlistEntry | None:
+        with self.session_scope_factory() as session:
+            company = company_repository.get_by_id(session, company_id)
+            if company is None:
+                return None
+
+            updated = watchlist_repository.update_notes_by_company_id(session, company_id, notes)
+            if updated is not None:
+                return updated
+
+            return watchlist_repository.add(
+                session,
+                WatchlistEntry(
+                    company_id=company_id,
+                    notes=notes,
+                ),
+            )
