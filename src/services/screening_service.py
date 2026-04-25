@@ -4,6 +4,7 @@ import math
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
+from typing import Literal
 
 from sqlalchemy.orm import Session
 
@@ -24,6 +25,15 @@ from src.services.scoring_service import (
 )
 
 SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
+UniverseScreeningSortField = Literal[
+    "rank",
+    "total_score",
+    "quality_score",
+    "value_score",
+    "growth_score",
+    "risk_score",
+    "ticker",
+]
 
 
 @dataclass
@@ -65,6 +75,8 @@ class UniverseScreeningFilters:
     min_total_score: float | None = None
     scored_only: bool = False
     top_n: int | None = None
+    sort_by: UniverseScreeningSortField = "rank"
+    descending: bool = False
 
 
 @dataclass
@@ -138,7 +150,11 @@ class ScreeningService:
             country=country,
         )
         filtered = _apply_universe_screening_filters(universe, filters)
-        ordered = _sort_universe_screening_entries(filtered)
+        ordered = _sort_universe_screening_entries(
+            filtered,
+            sort_by=filters.sort_by,
+            descending=filters.descending,
+        )
         if filters.top_n is None:
             return ordered
         if filters.top_n <= 0:
@@ -240,14 +256,83 @@ def _apply_universe_screening_filters(
     return output
 
 
-def _sort_universe_screening_entries(entries: list[UniverseScreeningEntry]) -> list[UniverseScreeningEntry]:
-    return sorted(entries, key=_universe_screening_sort_key)
+def _sort_universe_screening_entries(
+    entries: list[UniverseScreeningEntry],
+    *,
+    sort_by: UniverseScreeningSortField,
+    descending: bool,
+) -> list[UniverseScreeningEntry]:
+    by_ticker = sorted(entries, key=_ticker_fallback_key)
+    if sort_by == "ticker":
+        return _sort_entries_by_ticker(by_ticker, descending=descending)
+    return _sort_entries_by_numeric_field(
+        by_ticker,
+        sort_by=sort_by,
+        descending=descending,
+    )
 
 
-def _universe_screening_sort_key(entry: UniverseScreeningEntry) -> tuple[bool, float, bool, str, int]:
-    rank = float(entry.rank) if entry.rank is not None else math.inf
-    ticker = entry.ticker or ""
-    return (entry.rank is None, rank, entry.ticker is None, ticker, entry.company_id)
+def _sort_entries_by_ticker(
+    entries: list[UniverseScreeningEntry],
+    *,
+    descending: bool,
+) -> list[UniverseScreeningEntry]:
+    with_ticker: list[UniverseScreeningEntry] = []
+    without_ticker: list[UniverseScreeningEntry] = []
+    for entry in entries:
+        if _normalize_optional_text(entry.ticker) is None:
+            without_ticker.append(entry)
+            continue
+        with_ticker.append(entry)
+    return sorted(with_ticker, key=_ticker_text_key, reverse=descending) + without_ticker
+
+
+def _sort_entries_by_numeric_field(
+    entries: list[UniverseScreeningEntry],
+    *,
+    sort_by: UniverseScreeningSortField,
+    descending: bool,
+) -> list[UniverseScreeningEntry]:
+    with_value: list[tuple[UniverseScreeningEntry, float]] = []
+    without_value: list[UniverseScreeningEntry] = []
+    for entry in entries:
+        value = _entry_numeric_value(entry, sort_by)
+        if value is None:
+            without_value.append(entry)
+            continue
+        with_value.append((entry, value))
+    with_value.sort(key=lambda item: item[1], reverse=descending)
+    return [entry for entry, _ in with_value] + without_value
+
+
+def _entry_numeric_value(entry: UniverseScreeningEntry, sort_by: UniverseScreeningSortField) -> float | None:
+    if sort_by == "rank":
+        if entry.rank is None:
+            return None
+        return float(entry.rank)
+    if sort_by == "total_score":
+        return entry.total_score
+    if sort_by == "quality_score":
+        return entry.quality_score
+    if sort_by == "value_score":
+        return entry.value_score
+    if sort_by == "growth_score":
+        return entry.growth_score
+    if sort_by == "risk_score":
+        return entry.risk_score
+    raise ValueError(f"unsupported sort field: {sort_by}")
+
+
+def _ticker_fallback_key(entry: UniverseScreeningEntry) -> tuple[bool, str, int]:
+    ticker = _normalize_optional_text(entry.ticker)
+    return (ticker is None, ticker or "", entry.company_id)
+
+
+def _ticker_text_key(entry: UniverseScreeningEntry) -> str:
+    ticker = _normalize_optional_text(entry.ticker)
+    if ticker is None:
+        return ""
+    return ticker
 
 
 def _normalize_optional_text(value: str | None) -> str | None:
