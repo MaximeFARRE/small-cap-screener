@@ -4,7 +4,8 @@ version = "0.1.0"
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
-branch = "master"
+branch = "main"
+tag_format = "v{version}"
 changelog_file = "CHANGELOG.md"
 upload_to_pypi = false
 upload_to_release = true
