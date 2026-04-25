@@ -21,9 +21,13 @@ class Company(Base):
     isin: Mapped[str] = mapped_column(String(12), unique=True, index=True)
     ticker: Mapped[str | None] = mapped_column(String(20))
     name: Mapped[str] = mapped_column(String(200))
+    country: Mapped[str | None] = mapped_column(String(100))
     sector: Mapped[str | None] = mapped_column(String(100))
     market: Mapped[str | None] = mapped_column(String(100))
     currency: Mapped[str] = mapped_column(String(3), default="EUR")
+    is_active: Mapped[bool] = mapped_column(default=True)
+    market_cap: Mapped[float | None]
+    average_daily_volume: Mapped[float | None]
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
