@@ -17,11 +17,9 @@ _NA = "—"
 _PLACEHOLDER = "Sélectionnez une société"
 
 
-def _fmt(value: float | None, pct: bool = False, decimals: int = 2) -> str:
+def _fmt(value: float | None, decimals: int = 2) -> str:
     if value is None:
         return _NA
-    if pct:
-        return f"{value * 100:.{decimals}f} %"
     return f"{value:.{decimals}f}"
 
 
@@ -57,7 +55,7 @@ class CompanyDetailWidget(QWidget):
         scroll.setWidget(content)
 
         self._groups: dict[str, QFormLayout] = {}
-        for title in ("Société", "Valorisation", "Rentabilité", "Levier", "Score"):
+        for title in ("Société", "Scoring"):
             box = QGroupBox(title)
             form = QFormLayout(box)
             self._groups[title] = form
@@ -79,33 +77,12 @@ class CompanyDetailWidget(QWidget):
             while form.rowCount():
                 form.removeRow(0)
 
-        r = row.ratios
-
         self._set_field("Société", "Nom", row.name)
         self._set_field("Société", "Ticker", row.ticker or _NA)
         self._set_field("Société", "Secteur", row.sector or _NA)
-        self._set_field("Société", "Marché", row.market or _NA)
-        self._set_field("Société", "Prix", _fmt(r.price))
-        self._set_field("Société", "Année fiscale", str(r.fiscal_year))
-
-        self._set_field("Valorisation", "Mkt Cap", _fmt(r.mkt_cap))
-        self._set_field("Valorisation", "EV", _fmt(r.ev))
-        self._set_field("Valorisation", "P/E", _fmt(r.pe_ratio))
-        self._set_field("Valorisation", "P/B", _fmt(r.pb_ratio))
-        self._set_field("Valorisation", "EV/EBITDA", _fmt(r.ev_ebitda))
-        self._set_field("Valorisation", "EV/EBIT", _fmt(r.ev_ebit))
-        self._set_field("Valorisation", "P/FCF", _fmt(r.price_to_fcf))
-
-        self._set_field("Rentabilité", "ROE", _fmt(r.roe, pct=True))
-        self._set_field("Rentabilité", "ROA", _fmt(r.roa, pct=True))
-        self._set_field("Rentabilité", "Marge EBIT", _fmt(r.ebit_margin, pct=True))
-        self._set_field("Rentabilité", "Marge EBITDA", _fmt(r.ebitda_margin, pct=True))
-        self._set_field("Rentabilité", "Marge nette", _fmt(r.net_margin, pct=True))
-
-        self._set_field("Levier", "Dette/CP", _fmt(r.debt_to_equity))
-        self._set_field("Levier", "DN/EBITDA", _fmt(r.net_debt_to_ebitda))
-
-        self._set_field("Score", "Score", f"{row.score:.1f} / 100")
+        self._set_field("Scoring", "Score total", _fmt(row.total_score))
+        self._set_field("Scoring", "Rang global", str(row.rank) if row.rank is not None else _NA)
+        self._set_field("Scoring", "Rang secteur", str(row.sector_rank) if row.sector_rank is not None else _NA)
 
         self._placeholder.setVisible(False)
         self._scroll.setVisible(True)
