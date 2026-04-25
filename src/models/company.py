@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from src.models.kpi_snapshot import KpiSnapshot
     from src.models.price_history import PriceHistory
     from src.models.split import Split
+    from src.models.watchlist_entry import WatchlistEntry
 
 
 class Company(Base):
@@ -38,3 +39,6 @@ class Company(Base):
     kpi_snapshots: Mapped[list["KpiSnapshot"]] = relationship(back_populates="company", cascade="all, delete-orphan")
     dividends: Mapped[list["Dividend"]] = relationship(back_populates="company", cascade="all, delete-orphan")
     splits: Mapped[list["Split"]] = relationship(back_populates="company", cascade="all, delete-orphan")
+    watchlist_entries: Mapped[list["WatchlistEntry"]] = relationship(
+        back_populates="company", cascade="all, delete-orphan"
+    )

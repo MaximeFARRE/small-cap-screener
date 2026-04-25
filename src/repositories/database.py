@@ -34,6 +34,7 @@ def init_db() -> None:
     import src.models.price_history  # noqa: F401
     import src.models.screening_snapshot  # noqa: F401
     import src.models.split  # noqa: F401
+    import src.models.watchlist_entry  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
 
