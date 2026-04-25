@@ -166,21 +166,6 @@ def _normalize_isin(value: str | None, errors: list[str], warnings: list[str]) -
     return normalized
 
 
-def _normalize_currency(value: str | None, errors: list[str], warnings: list[str]) -> str | None:
-    if value is None:
-        warnings.append("currency is missing")
-        return None
-    raw = value.strip().upper()
-    if not raw:
-        warnings.append("currency is missing")
-        return None
-    normalized = _CURRENCY_ALIASES.get(raw, raw)
-    if len(normalized) != 3 or not normalized.isalpha():
-        errors.append("currency format is invalid")
-        return None
-    return normalized
-
-
 def _resolve_currency(
     primary: str | None,
     profile_currency: str | None,
@@ -188,12 +173,31 @@ def _resolve_currency(
     errors: list[str],
     warnings: list[str],
 ) -> str | None:
-    normalized_primary = _normalize_currency(primary, errors, warnings)
-    normalized_profile = _normalize_currency(profile_currency, errors, warnings)
-    normalized_market = _normalize_currency(market_currency, errors, warnings)
+    normalized_primary = _normalize_currency(
+        primary,
+        errors,
+        warnings,
+        source_name="currency",
+        emit_missing_warning=False,
+    )
+    normalized_profile = _normalize_currency(
+        profile_currency,
+        errors,
+        warnings,
+        source_name="profile_currency",
+        emit_missing_warning=False,
+    )
+    normalized_market = _normalize_currency(
+        market_currency,
+        errors,
+        warnings,
+        source_name="market_currency",
+        emit_missing_warning=False,
+    )
 
     candidates = [value for value in (normalized_primary, normalized_profile, normalized_market) if value is not None]
     if not candidates:
+        warnings.append("currency is missing")
         return None
     first = candidates[0]
     inconsistent = [value for value in candidates[1:] if value != first]
@@ -250,6 +254,29 @@ def _normalize_financial_statements(
             )
         )
     return sorted(normalized, key=lambda statement: statement.fiscal_date)
+
+
+def _normalize_currency(
+    value: str | None,
+    errors: list[str],
+    warnings: list[str],
+    source_name: str = "currency",
+    emit_missing_warning: bool = True,
+) -> str | None:
+    if value is None:
+        if emit_missing_warning:
+            warnings.append(f"{source_name} is missing")
+        return None
+    raw = value.strip().upper()
+    if not raw:
+        if emit_missing_warning:
+            warnings.append(f"{source_name} is missing")
+        return None
+    normalized = _CURRENCY_ALIASES.get(raw, raw)
+    if len(normalized) != 3 or not normalized.isalpha():
+        errors.append(f"{source_name} format is invalid")
+        return None
+    return normalized
 
 
 def _normalize_price_history(
