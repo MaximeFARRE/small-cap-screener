@@ -32,6 +32,14 @@ See `STACK.md` for details.
 
 ---
 
+## Releases
+
+Automated releases are managed with `python-semantic-release` from Conventional Commits.
+
+See `docs/RELEASE.md`.
+
+---
+
 ## Architecture
 
 ```
