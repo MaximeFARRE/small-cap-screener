@@ -11,8 +11,10 @@ from src.models.financial_statement import PeriodType
 from src.repositories.providers.base import (
     BaseProvider,
     CompanyInfo,
+    CompanyProfile,
     DataFetchError,
     FinancialData,
+    MarketData,
     PriceRecord,
     TickerNotFoundError,
 )
@@ -36,15 +38,45 @@ def _with_retry(fn: Callable[[], _T]) -> _T:
 
 
 def _get_company_info(ticker: str) -> CompanyInfo:
-    info: dict = _with_retry(lambda: yf.Ticker(ticker).info)
+    profile = _get_company_profile(ticker)
+    return CompanyInfo(
+        name=profile.name,
+        sector=profile.sector,
+        market=profile.market,
+        currency=profile.currency,
+    )
+
+
+def _to_float(value: object) -> float | None:
+    if value is None or pd.isna(value):
+        return None
+    return float(value)
+
+
+def _to_int(value: object) -> int | None:
+    if value is None or pd.isna(value):
+        return None
+    return int(value)
+
+
+def _get_ticker_info(ticker: str) -> dict:
+    return _with_retry(lambda: yf.Ticker(ticker).info)
+
+
+def _get_company_profile(ticker: str) -> CompanyProfile:
+    info = _get_ticker_info(ticker)
     name = info.get("longName") or info.get("shortName")
     if not name:
         raise TickerNotFoundError(f"No data found for ticker '{ticker}'")
-    return CompanyInfo(
+    return CompanyProfile(
+        ticker=ticker,
         name=name,
         sector=info.get("sector"),
+        industry=info.get("industry"),
         market=info.get("exchange"),
+        country=info.get("country"),
         currency=info.get("currency", "EUR"),
+        website=info.get("website"),
     )
 
 
@@ -116,7 +148,7 @@ def _get_financial_statements(ticker: str, years: int) -> list[FinancialData]:
         raise TickerNotFoundError(f"No financial data for ticker '{ticker}'")
     balance: pd.DataFrame | None = _with_retry(lambda: t.balance_sheet)
     cashflow: pd.DataFrame | None = _with_retry(lambda: t.cashflow)
-    shares_raw = _with_retry(lambda: t.info).get("sharesOutstanding")
+    shares_raw = _get_ticker_info(ticker).get("sharesOutstanding")
     shares = float(shares_raw) if shares_raw else None
     cols = list(income.columns)[:years]
     return [_parse_statement(col, income, balance, cashflow, shares) for col in cols]
@@ -129,9 +161,34 @@ def _get_price_history(ticker: str, period: str) -> list[PriceRecord]:
     return [_parse_price_row(ts, row) for ts, row in hist.iterrows()]
 
 
+def _get_current_market_data(ticker: str) -> MarketData:
+    info = _get_ticker_info(ticker)
+    current_price = info.get("currentPrice") or info.get("regularMarketPrice")
+    if current_price is None:
+        raise TickerNotFoundError(f"No current market data for ticker '{ticker}'")
+
+    return MarketData(
+        ticker=ticker,
+        current_price=float(current_price),
+        previous_close=_to_float(info.get("previousClose") or info.get("regularMarketPreviousClose")),
+        open=_to_float(info.get("open") or info.get("regularMarketOpen")),
+        day_high=_to_float(info.get("dayHigh") or info.get("regularMarketDayHigh")),
+        day_low=_to_float(info.get("dayLow") or info.get("regularMarketDayLow")),
+        volume=_to_int(info.get("volume") or info.get("regularMarketVolume")),
+        market_cap=_to_float(info.get("marketCap")),
+        currency=info.get("currency"),
+    )
+
+
 class YFinanceProvider(BaseProvider):
+    def get_company_profile(self, ticker: str) -> CompanyProfile:
+        return _get_company_profile(ticker)
+
     def get_company_info(self, ticker: str) -> CompanyInfo:
         return _get_company_info(ticker)
+
+    def get_current_market_data(self, ticker: str) -> MarketData:
+        return _get_current_market_data(ticker)
 
     def get_price_history(self, ticker: str, period: str = "5y") -> list[PriceRecord]:
         return _get_price_history(ticker, period)
@@ -140,8 +197,4 @@ class YFinanceProvider(BaseProvider):
         return _get_financial_statements(ticker, years)
 
     def get_current_price(self, ticker: str) -> float:
-        info: dict = _with_retry(lambda: yf.Ticker(ticker).info)
-        price = info.get("currentPrice") or info.get("regularMarketPrice")
-        if price is None:
-            raise TickerNotFoundError(f"No current price for ticker '{ticker}'")
-        return float(price)
+        return self.get_current_market_data(ticker).current_price
