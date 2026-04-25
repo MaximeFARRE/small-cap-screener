@@ -5,7 +5,12 @@ from src.models.company import Company
 from src.models.kpi_snapshot import KpiSnapshot
 from src.repositories import company_repository, kpi_snapshot_repository
 from src.services.ratio_service import CompanyRatios
-from src.services.screening_service import ScreeningCriteria, ScreeningService, apply_filters
+from src.services.screening_service import (
+    ScreeningCriteria,
+    ScreeningService,
+    UniverseScreeningFilters,
+    apply_filters,
+)
 
 
 def _make_ratios(company_id: int, **kwargs) -> CompanyRatios:
@@ -234,3 +239,178 @@ def test_list_universe_with_scores_returns_ranked_rows(db_session):
     assert delta_row.risk_score is None
     assert delta_row.rank is None
     assert delta_row.sector_rank is None
+
+
+def _seed_scored_universe_for_filters(db_session) -> dict[str, Company]:
+    alpha = _make_company(
+        db_session,
+        isin="FR0000910001",
+        ticker="ALP.PA",
+        name="Alpha",
+        sector="Energy",
+    )
+    beta = _make_company(
+        db_session,
+        isin="FR0000910002",
+        ticker="BET.PA",
+        name="Beta",
+        sector="Tech",
+    )
+    epsilon = _make_company(
+        db_session,
+        isin="FR0000910003",
+        ticker="EPS.PA",
+        name="Epsilon",
+        sector="Energy",
+    )
+    gamma = _make_company(
+        db_session,
+        isin="FR0000910004",
+        ticker="GAM.PA",
+        name="Gamma",
+        sector="Energy",
+    )
+    delta = _make_company(
+        db_session,
+        isin="FR0000910005",
+        ticker="DEL.PA",
+        name="Delta",
+        sector="Industrial",
+    )
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=alpha.id,
+            snapshot_date=date(2024, 11, 30),
+            metrics={"total_score": 92.0},
+            source="seed",
+        ),
+    )
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=beta.id,
+            snapshot_date=date(2024, 11, 30),
+            metrics={"total_score": 80.0},
+            source="seed",
+        ),
+    )
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=epsilon.id,
+            snapshot_date=date(2024, 11, 30),
+            metrics={"total_score": 70.0},
+            source="seed",
+        ),
+    )
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=gamma.id,
+            snapshot_date=date(2024, 11, 30),
+            metrics={"quality_score": 64.0},
+            source="seed",
+        ),
+    )
+    return {
+        "alpha": alpha,
+        "beta": beta,
+        "epsilon": epsilon,
+        "gamma": gamma,
+        "delta": delta,
+    }
+
+
+def test_filter_universe_with_scores_by_sector(db_session):
+    companies = _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+
+    rows = service.filter_universe_with_scores(
+        UniverseScreeningFilters(sector="  energy  "),
+    )
+
+    assert [row.company_id for row in rows] == [
+        companies["alpha"].id,
+        companies["epsilon"].id,
+        companies["gamma"].id,
+    ]
+
+
+def test_filter_universe_with_scores_by_min_total_score(db_session):
+    _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+
+    rows = service.filter_universe_with_scores(
+        UniverseScreeningFilters(min_total_score=85.0),
+    )
+
+    assert [row.ticker for row in rows] == ["ALP.PA"]
+
+
+def test_filter_universe_with_scores_scored_only(db_session):
+    companies = _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+
+    rows = service.filter_universe_with_scores(
+        UniverseScreeningFilters(scored_only=True),
+    )
+
+    assert [row.company_id for row in rows] == [
+        companies["alpha"].id,
+        companies["beta"].id,
+        companies["epsilon"].id,
+    ]
+
+
+def test_filter_universe_with_scores_top_n(db_session):
+    _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+
+    rows = service.filter_universe_with_scores(
+        UniverseScreeningFilters(top_n=2),
+    )
+
+    assert [row.ticker for row in rows] == ["ALP.PA", "BET.PA"]
+
+
+def test_filter_universe_with_scores_top_n_zero_returns_empty(db_session):
+    _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+
+    rows = service.filter_universe_with_scores(
+        UniverseScreeningFilters(top_n=0),
+    )
+
+    assert rows == []
+
+
+def test_filter_universe_with_scores_combines_filters(db_session):
+    _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+
+    rows = service.filter_universe_with_scores(
+        UniverseScreeningFilters(
+            sector="Energy",
+            min_total_score=75.0,
+            scored_only=True,
+            top_n=5,
+        ),
+    )
+
+    assert [row.ticker for row in rows] == ["ALP.PA"]
+
+
+def test_filter_universe_with_scores_orders_by_rank_then_ticker(db_session):
+    companies = _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+
+    rows = service.filter_universe_with_scores(UniverseScreeningFilters())
+
+    assert [row.company_id for row in rows] == [
+        companies["alpha"].id,
+        companies["beta"].id,
+        companies["epsilon"].id,
+        companies["delta"].id,
+        companies["gamma"].id,
+    ]
