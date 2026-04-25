@@ -13,9 +13,11 @@ from src.repositories.providers.base import (
     CompanyInfo,
     CompanyProfile,
     DataFetchError,
+    DividendData,
     FinancialData,
     MarketData,
     PriceRecord,
+    SplitData,
     TickerNotFoundError,
 )
 
@@ -61,6 +63,10 @@ def _to_int(value: object) -> int | None:
 
 def _get_ticker_info(ticker: str) -> dict:
     return _with_retry(lambda: yf.Ticker(ticker).info)
+
+
+def _ensure_ticker_exists(ticker: str) -> None:
+    _get_company_profile(ticker)
 
 
 def _get_company_profile(ticker: str) -> CompanyProfile:
@@ -180,6 +186,56 @@ def _get_current_market_data(ticker: str) -> MarketData:
     )
 
 
+def _parse_ratio(value: float) -> tuple[float, float]:
+    ratio = float(value)
+    if ratio <= 0:
+        raise DataFetchError("Invalid split ratio returned by yfinance")
+    if ratio >= 1:
+        return 1.0, ratio
+    return 1.0 / ratio, 1.0
+
+
+def _get_dividends(ticker: str) -> list[DividendData]:
+    dividends: pd.Series = _with_retry(lambda: yf.Ticker(ticker).dividends)
+    if dividends is None or dividends.empty:
+        _ensure_ticker_exists(ticker)
+        return []
+
+    records: list[DividendData] = []
+    for ts, amount in dividends.items():
+        if pd.isna(amount):
+            continue
+        records.append(
+            DividendData(
+                ex_date=pd.Timestamp(ts).date(),
+                amount=float(amount),
+                payment_date=None,
+            )
+        )
+    return records
+
+
+def _get_splits(ticker: str) -> list[SplitData]:
+    splits: pd.Series = _with_retry(lambda: yf.Ticker(ticker).splits)
+    if splits is None or splits.empty:
+        _ensure_ticker_exists(ticker)
+        return []
+
+    records: list[SplitData] = []
+    for ts, raw_ratio in splits.items():
+        if pd.isna(raw_ratio):
+            continue
+        ratio_from, ratio_to = _parse_ratio(float(raw_ratio))
+        records.append(
+            SplitData(
+                split_date=pd.Timestamp(ts).date(),
+                ratio_from=ratio_from,
+                ratio_to=ratio_to,
+            )
+        )
+    return records
+
+
 class YFinanceProvider(BaseProvider):
     def get_company_profile(self, ticker: str) -> CompanyProfile:
         return _get_company_profile(ticker)
@@ -192,6 +248,12 @@ class YFinanceProvider(BaseProvider):
 
     def get_price_history(self, ticker: str, period: str = "5y") -> list[PriceRecord]:
         return _get_price_history(ticker, period)
+
+    def get_dividends(self, ticker: str) -> list[DividendData]:
+        return _get_dividends(ticker)
+
+    def get_splits(self, ticker: str) -> list[SplitData]:
+        return _get_splits(ticker)
 
     def get_financial_statements(self, ticker: str, years: int = 5) -> list[FinancialData]:
         return _get_financial_statements(ticker, years)
