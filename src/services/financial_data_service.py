@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import AbstractContextManager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,7 @@ from src.repositories.providers.base import (
     ProviderError,
     SplitData,
 )
+from src.services.data_validation_service import DataValidationService
 
 SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
 
@@ -53,6 +54,7 @@ class CompanyDataRefreshResult:
     statements_added: int = 0
     error: str | None = None
     stage: str | None = None
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -67,6 +69,7 @@ class UniverseDataRefreshResult:
 class FinancialDataService:
     provider: BaseProvider
     session_scope_factory: SessionScopeFactory = get_session
+    validation_service: DataValidationService = field(default_factory=DataValidationService)
     default_period: str = "5y"
     default_years: int = 5
     default_country: str = "France"
@@ -143,15 +146,46 @@ class FinancialDataService:
 
             try:
                 fetched = self.fetch_company_data(company.ticker)
-                sync = market_data_repository.sync_company(
-                    session,
-                    self.provider,
-                    ticker=company.ticker,
-                    isin=company.isin,
-                    period=self.default_period,
-                    years=self.default_years,
+                validation = self.validation_service.validate_company_data(
+                    ticker=fetched.ticker,
+                    profile=fetched.profile,
+                    market_data=fetched.market_data,
+                    price_history=fetched.price_history,
+                    financial_statements=fetched.financial_statements,
+                    dividends=fetched.dividends,
+                    splits=fetched.splits,
                 )
-                _apply_company_metadata(company, fetched)
+                if not validation.is_valid:
+                    return CompanyDataRefreshResult(
+                        company_id=company.id,
+                        ticker=company.ticker,
+                        success=False,
+                        error="; ".join(validation.errors),
+                        stage="validate",
+                        warnings=validation.warnings,
+                    )
+
+                validated_data = validation.data
+                sync = market_data_repository.sync_company_from_payload(
+                    session,
+                    company=company,
+                    price_history=validated_data.price_history,
+                    financial_statements=validated_data.financial_statements,
+                    dividends=validated_data.dividends,
+                    splits=validated_data.splits,
+                )
+                _apply_company_metadata(
+                    company,
+                    FetchedCompanyData(
+                        ticker=validated_data.ticker,
+                        profile=validated_data.profile,
+                        market_data=validated_data.market_data,
+                        price_history=validated_data.price_history,
+                        financial_statements=validated_data.financial_statements,
+                        dividends=validated_data.dividends,
+                        splits=validated_data.splits,
+                    ),
+                )
                 company_repository.update(session, company)
                 return CompanyDataRefreshResult(
                     company_id=sync.company_id,
@@ -159,6 +193,7 @@ class FinancialDataService:
                     success=True,
                     prices_added=sync.prices_added,
                     statements_added=sync.statements_added,
+                    warnings=validation.warnings,
                 )
             except FinancialDataServiceError as exc:
                 return CompanyDataRefreshResult(

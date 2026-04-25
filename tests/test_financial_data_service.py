@@ -25,7 +25,7 @@ def _make_service(db_session, provider):
     return FinancialDataService(provider=provider, session_scope_factory=session_scope)
 
 
-def _make_provider(failing_ticker: str | None = None) -> MagicMock:
+def _make_provider(failing_ticker: str | None = None, negative_price_ticker: str | None = None) -> MagicMock:
     provider = MagicMock()
 
     def _company_info(ticker: str) -> CompanyInfo:
@@ -61,14 +61,15 @@ def _make_provider(failing_ticker: str | None = None) -> MagicMock:
     def _price_history(ticker: str, period: str = "5y") -> list[PriceHistory]:
         if failing_ticker is not None and ticker == failing_ticker:
             raise DataFetchError("simulated provider outage")
+        close = -20.7 if negative_price_ticker is not None and ticker == negative_price_ticker else 20.7
         return [
             PriceHistory(
                 date=date(2024, 1, 2),
                 open=20.0,
                 high=21.0,
                 low=19.8,
-                close=20.7,
-                adjusted_close=20.7,
+                close=close,
+                adjusted_close=close,
                 volume=180_000,
                 source="mock-provider",
             )
@@ -210,3 +211,31 @@ def test_refresh_company_data_handles_provider_error(db_session):
     assert result.stage == "fetch"
     assert result.error is not None
     assert "simulated provider outage" in result.error
+
+
+def test_refresh_company_data_blocks_invalid_payload(db_session):
+    company = company_repository.create(
+        db_session,
+        Company(
+            isin="FR0000007002",
+            ticker="NEG.PA",
+            name="Negative",
+            country="France",
+            sector="Industrial",
+            market="PAR",
+            currency="EUR",
+            is_active=True,
+            market_cap=300_000_000.0,
+            average_daily_volume=120_000.0,
+        ),
+    )
+    service = _make_service(db_session, _make_provider(negative_price_ticker="NEG.PA"))
+
+    result = service.refresh_company_data(company.id)
+
+    assert result.success is False
+    assert result.stage == "validate"
+    assert result.error is not None
+    assert "non-positive close" in result.error
+    assert len(price_history_repository.get_by_company(db_session, company.id)) == 0
+    assert len(financial_statement_repository.get_by_company(db_session, company.id)) == 0
