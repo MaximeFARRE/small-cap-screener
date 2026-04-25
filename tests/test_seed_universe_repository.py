@@ -3,6 +3,8 @@ from __future__ import annotations
 import pytest
 
 from src.repositories.seed_universe_repository import (
+    EmptySeedFileError,
+    InvalidSeedRowError,
     MissingSeedColumnsError,
     read_seed_universe,
 )
@@ -35,4 +37,23 @@ def test_read_seed_universe_missing_required_column(tmp_path):
     )
 
     with pytest.raises(MissingSeedColumnsError, match="sector"):
+        read_seed_universe(csv_path)
+
+
+def test_read_seed_universe_empty_file(tmp_path):
+    csv_path = tmp_path / "seed_universe_empty.csv"
+    csv_path.write_text("", encoding="utf-8")
+
+    with pytest.raises(EmptySeedFileError):
+        read_seed_universe(csv_path)
+
+
+def test_read_seed_universe_invalid_row(tmp_path):
+    csv_path = tmp_path / "seed_universe_invalid_row.csv"
+    csv_path.write_text(
+        ("name,ticker,isin,exchange,country,sector,currency\n" "TotalEnergies,,FR0000120271,PAR,France,Energy,EUR\n"),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(InvalidSeedRowError, match="row 2"):
         read_seed_universe(csv_path)
