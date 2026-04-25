@@ -3,10 +3,8 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDockWidget, QFileDialog, QMainWindow, QMessageBox, QSplitter
 
-from src.services import export_service
-from src.services.export_service import ExportRow
+from src.services.screening_service import ScreeningService, UniverseScreeningFilters
 from src.ui.company_detail_widget import CompanyDetailWidget
-from src.ui.company_table_model import ScreenerRow
 from src.ui.filter_widget import FilterWidget
 from src.ui.screener_widget import ScreenerWidget
 
@@ -17,39 +15,14 @@ _SPLITTER_RATIO = (2, 1)
 _FILTER_DOCK_WIDTH = 220
 
 
-def _to_export_row(row: ScreenerRow) -> ExportRow:
-    r = row.ratios
-    return ExportRow(
-        nom=row.name,
-        ticker=row.ticker,
-        secteur=row.sector,
-        marche=row.market,
-        score=row.score,
-        pe=r.pe_ratio,
-        pb=r.pb_ratio,
-        ev_ebitda=r.ev_ebitda,
-        ev_ebit=r.ev_ebit,
-        p_fcf=r.price_to_fcf,
-        roe=r.roe,
-        roa=r.roa,
-        marge_ebit=r.ebit_margin,
-        marge_ebitda=r.ebitda_margin,
-        marge_nette=r.net_margin,
-        dette_cp=r.debt_to_equity,
-        dn_ebitda=r.net_debt_to_ebitda,
-        mkt_cap=r.mkt_cap,
-        ev=r.ev,
-        prix=r.price,
-        annee_fiscale=r.fiscal_year,
-    )
-
-
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
+        self._screening_service = ScreeningService()
         self.setWindowTitle(WINDOW_TITLE)
         self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
         self._setup_ui()
+        self._load_scored_universe()
 
     def _setup_ui(self) -> None:
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -82,25 +55,21 @@ class MainWindow(QMainWindow):
     def _setup_menu(self) -> None:
         file_menu = self.menuBar().addMenu("Fichier")
         file_menu.addAction("Exporter CSV…", self._export_csv)
-        file_menu.addAction("Exporter Excel…", self._export_excel)
 
-    def _current_export_rows(self) -> list[ExportRow]:
-        return [_to_export_row(r) for r in self._screener.rows()]
+    def _load_scored_universe(self) -> None:
+        rows = self._screening_service.list_universe_with_scores()
+        self._screener.load(rows)
+        if not rows:
+            self.statusBar().showMessage("Aucune société disponible dans l'univers scoré.")
 
     def _export_csv(self) -> None:
-        rows = self._current_export_rows()
+        rows = self._screener.rows()
         if not rows:
             QMessageBox.information(self, "Export", "Aucune donnée à exporter.")
             return
         path, _ = QFileDialog.getSaveFileName(self, "Exporter CSV", "screening.csv", "CSV (*.csv)")
         if path:
-            export_service.to_csv(rows, Path(path))
-
-    def _export_excel(self) -> None:
-        rows = self._current_export_rows()
-        if not rows:
-            QMessageBox.information(self, "Export", "Aucune donnée à exporter.")
-            return
-        path, _ = QFileDialog.getSaveFileName(self, "Exporter Excel", "screening.xlsx", "Excel (*.xlsx)")
-        if path:
-            export_service.to_excel(rows, Path(path))
+            csv_content = self._screening_service.export_universe_with_scores_csv(
+                UniverseScreeningFilters(),
+            )
+            Path(path).write_text(csv_content, encoding="utf-8-sig")
