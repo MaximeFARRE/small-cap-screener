@@ -1,3 +1,5 @@
+import csv
+import io
 from contextlib import contextmanager
 from datetime import date
 
@@ -13,6 +15,19 @@ from src.services.screening_service import (
     UniverseScreeningFilters,
     apply_filters,
 )
+
+_CSV_HEADERS = [
+    "ticker",
+    "name",
+    "sector",
+    "total_score",
+    "quality_score",
+    "value_score",
+    "growth_score",
+    "risk_score",
+    "rank",
+    "sector_rank",
+]
 
 
 def _make_ratios(company_id: int, **kwargs) -> CompanyRatios:
@@ -551,3 +566,38 @@ def test_filter_universe_with_scores_uses_ticker_fallback_for_equal_primary_valu
     )
 
     assert [row.ticker for row in rows] == ["AAA.PA", "ZZZ.PA"]
+
+
+def _read_csv_rows(content: str) -> list[dict[str, str]]:
+    reader = csv.DictReader(io.StringIO(content))
+    return list(reader)
+
+
+def test_export_universe_with_scores_csv_uses_filtered_sorted_order(db_session):
+    _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+
+    content = service.export_universe_with_scores_csv(
+        UniverseScreeningFilters(sort_by="ticker", descending=True, top_n=3),
+    )
+    rows = _read_csv_rows(content)
+
+    assert content.splitlines()[0] == ",".join(_CSV_HEADERS)
+    assert [row["ticker"] for row in rows] == ["GAM.PA", "EPS.PA", "DEL.PA"]
+
+
+def test_export_universe_with_scores_csv_serializes_none_as_empty(db_session):
+    _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+
+    content = service.export_universe_with_scores_csv(
+        UniverseScreeningFilters(sort_by="total_score", descending=True),
+    )
+    rows = _read_csv_rows(content)
+    by_ticker = {row["ticker"]: row for row in rows}
+
+    assert by_ticker["DEL.PA"]["total_score"] == ""
+    assert by_ticker["DEL.PA"]["quality_score"] == ""
+    assert by_ticker["DEL.PA"]["rank"] == ""
+    assert by_ticker["GAM.PA"]["total_score"] == ""
+    assert by_ticker["GAM.PA"]["quality_score"] == "64.0"
