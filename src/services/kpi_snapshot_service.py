@@ -42,6 +42,12 @@ class CompanyKpiContext:
 
 
 @dataclass
+class CompanyKpiContextLoadResult:
+    context: CompanyKpiContext | None
+    error: str | None = None
+
+
+@dataclass
 class KpiSnapshotService:
     session_scope_factory: SessionScopeFactory = get_session
     ratio_service: RatioService = field(default_factory=RatioService)
@@ -53,45 +59,23 @@ class KpiSnapshotService:
         snapshot_date: date,
     ) -> KpiSnapshotServiceResult:
         with self.session_scope_factory() as session:
-            company = company_repository.get_by_id(session, company_id)
-            if company is None:
+            load = _load_company_kpi_context(session, company_id)
+            if load.context is None:
                 return KpiSnapshotServiceResult(
                     company_id=company_id,
                     snapshot_date=snapshot_date,
                     success=False,
-                    error="company not found",
+                    error=load.error,
                     stage="load",
                 )
-
-            statements = financial_statement_repository.get_by_company(session, company_id)
-            annual_statements = _annual_statements(statements)
-            if not annual_statements:
-                return KpiSnapshotServiceResult(
-                    company_id=company_id,
-                    snapshot_date=snapshot_date,
-                    success=False,
-                    error="no annual financial statements",
-                    stage="load",
-                )
-
-            latest_statement = annual_statements[0]
-            previous_statement = annual_statements[1] if len(annual_statements) > 1 else None
-            price = _derive_company_price(session, company, latest_statement)
-            if price is None:
-                return KpiSnapshotServiceResult(
-                    company_id=company_id,
-                    snapshot_date=snapshot_date,
-                    success=False,
-                    error="no usable price data",
-                    stage="load",
-                )
+            context = load.context
 
             ratios = self.ratio_service.compute_all(
                 company_id=company_id,
-                fiscal_year=latest_statement.fiscal_year,
-                price=price,
-                stmt=latest_statement,
-                previous_stmt=previous_statement,
+                fiscal_year=context.latest_statement.fiscal_year,
+                price=context.price,
+                stmt=context.latest_statement,
+                previous_stmt=context.previous_statement,
             )
             metrics = _ratios_to_metrics_payload(ratios)
 
@@ -125,27 +109,29 @@ def build_snapshot_payload(
     )
 
 
-def _load_company_kpi_context(session: Session, company_id: int) -> CompanyKpiContext | None:
+def _load_company_kpi_context(session: Session, company_id: int) -> CompanyKpiContextLoadResult:
     company = company_repository.get_by_id(session, company_id)
     if company is None:
-        return None
+        return CompanyKpiContextLoadResult(context=None, error="company not found")
 
     statements = financial_statement_repository.get_by_company(session, company_id)
     annual_statements = _annual_statements(statements)
     if not annual_statements:
-        return None
+        return CompanyKpiContextLoadResult(context=None, error="no annual financial statements")
 
     latest_statement = annual_statements[0]
     previous_statement = annual_statements[1] if len(annual_statements) > 1 else None
     price = _derive_company_price(session, company, latest_statement)
     if price is None:
-        return None
+        return CompanyKpiContextLoadResult(context=None, error="no usable price data")
 
-    return CompanyKpiContext(
-        company=company,
-        latest_statement=latest_statement,
-        previous_statement=previous_statement,
-        price=price,
+    return CompanyKpiContextLoadResult(
+        context=CompanyKpiContext(
+            company=company,
+            latest_statement=latest_statement,
+            previous_statement=previous_statement,
+            price=price,
+        )
     )
 
 
