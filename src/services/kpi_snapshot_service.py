@@ -120,7 +120,27 @@ class KpiSnapshotService:
         min_average_daily_volume: float | None = None,
         country: str | None = None,
     ) -> UniverseKpiSnapshotRefreshResult:
-        raise NotImplementedError
+        target_max_market_cap = self.default_max_market_cap if max_market_cap is None else max_market_cap
+        target_min_avg_daily_volume = (
+            self.default_min_average_daily_volume if min_average_daily_volume is None else min_average_daily_volume
+        )
+        target_country = self.default_country if country is None else country
+
+        with self.session_scope_factory() as session:
+            investable = company_repository.get_investable_universe(
+                session,
+                max_market_cap=target_max_market_cap,
+                min_average_daily_volume=target_min_avg_daily_volume,
+                country=target_country,
+            )
+            company_ids = [company.id for company in investable]
+
+        return UniverseKpiSnapshotRefreshResult(
+            total=len(company_ids),
+            success_count=0,
+            failed_count=0,
+            errors=[],
+        )
 
 
 def build_snapshot_payload(
