@@ -1,5 +1,3 @@
-# DEVELOPMENT.md
-
 # Development Workflow
 
 This document describes the expected workflow for contributing to this project.
@@ -21,20 +19,31 @@ pre-commit install
 
 ---
 
-## 1. Never Work on `main`
+## 1. Branch Strategy
 
-The `main` branch must always stay stable and deployable.
+Never work directly on `main`.
 
-Before starting any work:
+Use one dedicated documentation branch for documentation updates:
 
-```bash id="yo06v5"
-git branch
-git checkout -b feat/my-feature
-````
+```text
+docs/update-docs
+```
+
+Use dedicated feature branches for major functional work:
+
+```text
+feat/<description>
+```
+
+Use dedicated fix branches for bug fixes:
+
+```text
+fix/<description>
+```
 
 Allowed branch patterns:
 
-```text id="w0tt1y"
+```text
 feat/<description>
 fix/<description>
 docs/<description>
@@ -43,12 +52,20 @@ test/<description>
 refactor/<description>
 ```
 
-Examples:
+Before switching to another branch, always:
 
-```text id="n1u3lq"
-feat/add-import-service
-fix/correct-login-validation
-docs/update-readme
+1. Commit current changes.
+2. Push current branch.
+3. Verify `git status` is clean.
+
+Example:
+
+```bash
+git status
+git add <files>
+git commit -m "docs: update development branch policy"
+git push
+git checkout feat/my-feature
 ```
 
 ---
@@ -57,17 +74,17 @@ docs/update-readme
 
 Before changing a file:
 
-* Read the existing implementation
-* Understand the current architecture
-* Check whether the logic already exists elsewhere
-* Avoid creating duplicate functionality
+- Read the existing implementation.
+- Understand the current architecture.
+- Check whether the logic already exists elsewhere.
+- Avoid creating duplicate functionality.
 
 Always check:
 
-* `README.md`
-* `AGENTS.md`
-* `CLAUDE.md`
-* `docs/ARCHITECTURE.md`
+- `README.md`
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/ARCHITECTURE.md`
 
 ---
 
@@ -77,16 +94,16 @@ Prefer multiple small commits over one large commit.
 
 Good workflow:
 
-1. Create or update one file
-2. Test it
-3. Commit it
-4. Move to the next logical change
+1. Create or update one file.
+2. Test it.
+3. Commit it.
+4. Move to the next logical change.
 
 Bad workflow:
 
-* Modify 20 files at once
-* Mix documentation, refactor, and features in the same commit
-* Rewrite a large file unnecessarily
+- Modify many files at once.
+- Mix documentation, refactor, and features in the same commit.
+- Rewrite a large file unnecessarily.
 
 ---
 
@@ -96,17 +113,17 @@ Commit after every logical step.
 
 Examples:
 
-```bash id="x3kr24"
+```bash
 git add src/services/import_service.py
 git commit -m "feat: add import validation service"
 ```
 
-```bash id="vpb9sd"
+```bash
 git add README.md docs/ARCHITECTURE.md
 git commit -m "docs: improve project documentation"
 ```
 
-A commit should ideally represent one idea.
+A commit should represent one idea.
 
 ---
 
@@ -114,7 +131,7 @@ A commit should ideally represent one idea.
 
 Always use one of these prefixes:
 
-```text id="w53qgh"
+```text
 feat:
 fix:
 docs:
@@ -125,10 +142,10 @@ refactor:
 
 Examples:
 
-```text id="xam8cl"
+```text
 feat: add user authentication service
 fix: prevent duplicate transaction import
-docs: update README installation section
+docs: update readme installation section
 chore: update .gitignore
 test: add tests for portfolio service
 refactor: move validation logic into service layer
@@ -140,22 +157,22 @@ refactor: move validation logic into service layer
 
 Architecture must remain:
 
-```text id="72h6tq"
+```text
 UI → Services → Repository / DB
 ```
 
 Rules:
 
-* No business logic in UI files
-* No database calls in UI files
-* No SQL or API logic in services unless explicitly intended
-* No duplicated logic
+- No business logic in UI files.
+- No database calls in UI files.
+- No SQL or API logic in services unless explicitly intended.
+- No duplicated logic.
 
 Before creating a new file:
 
-* Check if an existing file can be reused
-* Prefer extending an existing service
-* Avoid unnecessary files
+- Check if an existing file can be reused.
+- Prefer extending an existing service.
+- Avoid unnecessary files.
 
 ---
 
@@ -163,21 +180,21 @@ Before creating a new file:
 
 Run the following checks:
 
-```bash id="5v3zvv"
+```bash
 git status
 git diff
 ```
 
 Verify:
 
-* Only expected files were modified
-* No unrelated changes remain
-* No secrets or `.env` files are included
-* Documentation is updated if needed
+- Only expected files were modified.
+- No unrelated changes remain.
+- No secrets or `.env` files are included.
+- Documentation is updated if needed.
 
 Recommended checks:
 
-```bash id="cc1kmd"
+```bash
 pytest
 ruff check .
 black --check .
@@ -189,17 +206,17 @@ black --check .
 
 Documentation must be updated when:
 
-* A new feature is added
-* Installation changes
-* Architecture changes
-* Important limitations are discovered
+- A new feature is added.
+- Installation changes.
+- Architecture changes.
+- Important limitations are discovered.
 
 Files to keep updated:
 
-* `README.md`
-* `docs/ARCHITECTURE.md`
-* `docs/ROADMAP.md`
-* `CHANGELOG.md`
+- `README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/ROADMAP.md`
+- `CHANGELOG.md`
 
 ---
 
@@ -207,41 +224,39 @@ Files to keep updated:
 
 Refactoring is allowed only if:
 
-* It clearly improves readability or architecture
-* It does not change behavior
-* It remains small and isolated
+- It clearly improves readability or architecture.
+- It does not change behavior.
+- It remains small and isolated.
 
 If a refactor is large:
 
-* Split it into multiple commits
-* Keep feature work separate
-* Document the reason in the commit message
+- Split it into multiple commits.
+- Keep feature work separate.
+- Document the reason in the commit message.
 
 Bad example:
 
-```text id="paznjs"
+```text
 feat: add import feature and refactor whole project
 ```
 
 Good example:
 
-```text id="p3fnyv"
+```text
 refactor: move import logic into dedicated service
-feat: add CSV import feature
+feat: add csv import feature
 ```
 
 ---
 
 ## 10. Final Checklist Before Merging
 
-* [ ] Work was done on a dedicated branch
-* [ ] Commits are small and clean
-* [ ] Architecture rules are respected
-* [ ] No unrelated files were modified
-* [ ] Tests pass
-* [ ] Documentation is updated
-* [ ] `git diff` was reviewed
-* [ ] The branch is ready to merge into `main`
-
-```
-```
+- [ ] Work was done on a dedicated branch.
+- [ ] Commits are small and clean.
+- [ ] Architecture rules are respected.
+- [ ] No unrelated files were modified.
+- [ ] Tests pass.
+- [ ] Documentation is updated.
+- [ ] `git diff` was reviewed.
+- [ ] The branch is ready to merge into `main`.
+- [ ] Current branch was pushed before branch switching.
