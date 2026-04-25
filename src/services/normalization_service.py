@@ -25,7 +25,12 @@ class NormalizedFinancialStatement:
     ebitda: float | None
     ebit: float | None
     net_income: float | None
+    total_assets: float | None
+    total_equity: float | None
+    total_debt: float | None
+    net_debt: float | None
     free_cash_flow: float | None
+    shares_outstanding: float | None
 
 
 @dataclass
@@ -248,8 +253,21 @@ def _normalize_financial_statements(
                 net_income=_normalize_nullable_float(
                     record.net_income, f"financial_statements[{index}].net_income", errors
                 ),
+                total_assets=_normalize_nullable_float(
+                    record.total_assets, f"financial_statements[{index}].total_assets", errors
+                ),
+                total_equity=_normalize_nullable_float(
+                    record.total_equity, f"financial_statements[{index}].total_equity", errors
+                ),
+                total_debt=_normalize_nullable_float(
+                    record.total_debt, f"financial_statements[{index}].total_debt", errors
+                ),
+                net_debt=_normalize_nullable_float(record.net_debt, f"financial_statements[{index}].net_debt", errors),
                 free_cash_flow=_normalize_nullable_float(
                     record.free_cash_flow, f"financial_statements[{index}].free_cash_flow", errors
+                ),
+                shares_outstanding=_normalize_nullable_float(
+                    record.shares_outstanding, f"financial_statements[{index}].shares_outstanding", errors
                 ),
             )
         )
