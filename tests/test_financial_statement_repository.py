@@ -1,3 +1,6 @@
+import pytest
+from sqlalchemy.exc import IntegrityError
+
 from src.models.company import Company
 from src.models.financial_statement import FinancialStatement, PeriodType
 from src.repositories import company_repository, financial_statement_repository
@@ -71,3 +74,27 @@ def test_delete(db_session):
 
 def test_delete_nonexistent(db_session):
     assert financial_statement_repository.delete(db_session, 9999) is False
+
+
+def test_unique_constraint_company_year_period(db_session):
+    company = _make_company(db_session)
+    financial_statement_repository.create(
+        db_session,
+        FinancialStatement(
+            company_id=company.id,
+            fiscal_year=2023,
+            period_type=PeriodType.ANNUAL,
+            revenue=100.0,
+        ),
+    )
+    with pytest.raises(IntegrityError):
+        financial_statement_repository.create(
+            db_session,
+            FinancialStatement(
+                company_id=company.id,
+                fiscal_year=2023,
+                period_type=PeriodType.ANNUAL,
+                revenue=120.0,
+            ),
+        )
+    db_session.rollback()
