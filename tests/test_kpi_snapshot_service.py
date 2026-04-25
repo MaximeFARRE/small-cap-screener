@@ -183,3 +183,108 @@ def test_snapshot_metrics_match_ratio_service(db_session):
     assert result.metrics["pe_ratio"] == expected.pe_ratio
     assert result.metrics["ev_ebitda"] == expected.ev_ebitda
     assert result.metrics["roe"] == expected.roe
+
+
+def test_snapshot_uses_market_cap_fallback_when_price_history_missing(db_session):
+    company = company_repository.create(
+        db_session,
+        Company(
+            isin="FR0000666666",
+            ticker="FALLBACK.PA",
+            name="Fallback Price",
+            currency="EUR",
+            market_cap=110_000_000.0,
+        ),
+    )
+    financial_statement_repository.create(
+        db_session,
+        FinancialStatement(
+            company_id=company.id,
+            fiscal_year=2023,
+            period_type=PeriodType.ANNUAL,
+            revenue=200_000_000.0,
+            ebit=20_000_000.0,
+            ebitda=30_000_000.0,
+            net_income=15_000_000.0,
+            total_assets=500_000_000.0,
+            total_equity=150_000_000.0,
+            total_debt=80_000_000.0,
+            net_debt=50_000_000.0,
+            free_cash_flow=18_000_000.0,
+            shares_outstanding=2_000_000.0,
+        ),
+    )
+    service = _make_service(db_session)
+
+    result = service.compute_and_upsert_for_company(company.id, snapshot_date=date(2024, 1, 31))
+
+    assert result.success is True
+    assert result.metrics["price"] == 55.0
+
+
+def test_snapshot_metrics_include_growth_when_previous_statement_exists(db_session):
+    company = company_repository.create(
+        db_session,
+        Company(
+            isin="FR0000555555",
+            ticker="GROWTH.PA",
+            name="Growth Corp",
+            currency="EUR",
+        ),
+    )
+    financial_statement_repository.create(
+        db_session,
+        FinancialStatement(
+            company_id=company.id,
+            fiscal_year=2022,
+            period_type=PeriodType.ANNUAL,
+            revenue=180_000_000.0,
+            ebit=18_000_000.0,
+            ebitda=28_000_000.0,
+            net_income=13_000_000.0,
+            total_assets=480_000_000.0,
+            total_equity=140_000_000.0,
+            total_debt=82_000_000.0,
+            net_debt=55_000_000.0,
+            free_cash_flow=16_000_000.0,
+            shares_outstanding=2_000_000.0,
+        ),
+    )
+    financial_statement_repository.create(
+        db_session,
+        FinancialStatement(
+            company_id=company.id,
+            fiscal_year=2023,
+            period_type=PeriodType.ANNUAL,
+            revenue=200_000_000.0,
+            ebit=20_000_000.0,
+            ebitda=30_000_000.0,
+            net_income=15_000_000.0,
+            total_assets=500_000_000.0,
+            total_equity=150_000_000.0,
+            total_debt=80_000_000.0,
+            net_debt=50_000_000.0,
+            free_cash_flow=18_000_000.0,
+            shares_outstanding=2_000_000.0,
+        ),
+    )
+    price_history_repository.create(
+        db_session,
+        PriceHistory(
+            company_id=company.id,
+            date=date(2024, 1, 2),
+            open=54.0,
+            high=56.0,
+            low=53.5,
+            close=55.0,
+            adjusted_close=55.0,
+            volume=200_000,
+        ),
+    )
+    service = _make_service(db_session)
+
+    result = service.compute_and_upsert_for_company(company.id, snapshot_date=date(2024, 1, 31))
+
+    assert result.success is True
+    assert result.metrics["revenue_growth"] == (200_000_000.0 - 180_000_000.0) / 180_000_000.0
+    assert result.metrics["ebitda_growth"] == (30_000_000.0 - 28_000_000.0) / 28_000_000.0
