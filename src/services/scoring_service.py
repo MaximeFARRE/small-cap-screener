@@ -32,6 +32,7 @@ class CompanyTotalScore:
     company_id: int
     ticker: str | None
     total_score: float | None
+    sector: str | None = None
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,8 @@ class RankedCompanyTotalScore:
     ticker: str | None
     total_score: float | None
     rank: int | None
+    sector_rank: int | None
+    sector: str | None = None
 
 
 # Category weights must sum to 1.0.
@@ -133,8 +136,12 @@ class ScoringService:
                 ticker=item.ticker,
                 total_score=None,
                 rank=None,
+                sector_rank=None,
+                sector=_normalize_sector(item.sector),
             )
-            for item in sorted(unscored, key=lambda x: (x.company_id, x.ticker or ""))
+            for item in sorted(
+                unscored, key=lambda x: (x.company_id, x.ticker or "", _normalize_sector(x.sector) or "")
+            )
         ]
         return ranked_scored + ranked_unscored
 
@@ -192,6 +199,7 @@ def _as_finite_float(value: object) -> float | None:
 def _rank_scored_companies(scored: list[CompanyTotalScore]) -> list[RankedCompanyTotalScore]:
     ranked: list[RankedCompanyTotalScore] = []
     ordered = sorted(scored, key=lambda x: (-float(x.total_score), x.company_id, x.ticker or ""))
+    sector_ranks = _compute_sector_ranks(scored)
     for index, item in enumerate(ordered, start=1):
         ranked.append(
             RankedCompanyTotalScore(
@@ -199,9 +207,37 @@ def _rank_scored_companies(scored: list[CompanyTotalScore]) -> list[RankedCompan
                 ticker=item.ticker,
                 total_score=float(item.total_score),
                 rank=index,
+                sector_rank=sector_ranks.get(item.company_id),
+                sector=_normalize_sector(item.sector),
             )
         )
     return ranked
+
+
+def _compute_sector_ranks(scored: list[CompanyTotalScore]) -> dict[int, int]:
+    by_sector: dict[str, list[CompanyTotalScore]] = {}
+    for item in scored:
+        sector = _normalize_sector(item.sector)
+        if sector is None:
+            continue
+        bucket = by_sector.setdefault(sector, [])
+        bucket.append(item)
+
+    ranks_by_company_id: dict[int, int] = {}
+    for items in by_sector.values():
+        ordered = sorted(items, key=lambda x: (-float(x.total_score), x.company_id, x.ticker or ""))
+        for index, item in enumerate(ordered, start=1):
+            ranks_by_company_id[item.company_id] = index
+    return ranks_by_company_id
+
+
+def _normalize_sector(value: str | None) -> str | None:
+    if value is None:
+        return None
+    sector = value.strip()
+    if not sector:
+        return None
+    return sector
 
 
 # Weights must sum to 1.0
