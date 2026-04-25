@@ -11,7 +11,8 @@ Read this file **and `STACK.md`** before making any change.
 3. Create a branch: `feat/`, `fix/`, `docs/`, `chore/`, `test/`.
 4. Make small, focused changes. One concern per task.
 5. Commit after each logical step.
-6. Review `git diff` before finishing.
+6. Push your current branch before switching to another branch.
+7. Review `git diff` before finishing.
 
 ---
 
@@ -67,6 +68,7 @@ Format: `feat|fix|docs|chore|test: <what and why in one line>`
 - One logical change = one commit.
 - Never batch unrelated changes in one commit.
 - Never leave many modified files uncommitted.
+- Commit and push before switching branches.
 
 ---
 
@@ -92,3 +94,4 @@ Before finishing:
 - [ ] No business logic in UI.
 - [ ] No duplicated logic.
 - [ ] Tests run if they exist.
+- [ ] Current branch pushed before switching.
