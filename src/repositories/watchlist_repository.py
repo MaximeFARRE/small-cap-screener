@@ -20,6 +20,15 @@ def list_all(session: Session) -> list[WatchlistEntry]:
     return list(session.execute(stmt).scalars())
 
 
+def update_notes_by_company_id(session: Session, company_id: int, notes: str | None) -> WatchlistEntry | None:
+    entry = get_by_company_id(session, company_id)
+    if entry is None:
+        return None
+    entry.notes = notes
+    session.flush()
+    return entry
+
+
 def remove_by_company_id(session: Session, company_id: int) -> bool:
     entry = get_by_company_id(session, company_id)
     if entry is None:

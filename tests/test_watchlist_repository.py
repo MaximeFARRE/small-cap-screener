@@ -75,6 +75,23 @@ def test_remove_by_company_id_nonexistent(db_session):
     assert watchlist_repository.remove_by_company_id(db_session, 999999) is False
 
 
+def test_update_notes_by_company_id(db_session):
+    company = _make_company(db_session, isin="FR0000800006", ticker="WL6.PA")
+    watchlist_repository.add(db_session, _make_entry(company.id, notes="initial"))
+
+    updated = watchlist_repository.update_notes_by_company_id(db_session, company.id, "updated note")
+
+    assert updated is not None
+    assert updated.notes == "updated note"
+    stored = watchlist_repository.get_by_company_id(db_session, company.id)
+    assert stored is not None
+    assert stored.notes == "updated note"
+
+
+def test_update_notes_by_company_id_nonexistent(db_session):
+    assert watchlist_repository.update_notes_by_company_id(db_session, 999999, "new note") is None
+
+
 def test_unique_constraint_company_id(db_session):
     company = _make_company(db_session, isin="FR0000800005", ticker="WL5.PA")
     watchlist_repository.add(db_session, _make_entry(company.id, notes="first"))
