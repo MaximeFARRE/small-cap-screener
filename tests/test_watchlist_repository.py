@@ -4,7 +4,11 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from src.models.company import Company
-from src.models.watchlist_entry import WatchlistEntry
+from src.models.watchlist_entry import (
+    WATCHLIST_STATUS_REVIEW,
+    WATCHLIST_STATUS_WATCHING,
+    WatchlistEntry,
+)
 from src.repositories import company_repository, watchlist_repository
 
 
@@ -24,9 +28,12 @@ def _make_entry(
     company_id: int,
     *,
     notes: str | None = "analyst note",
+    status: str | None = None,
     added_at: datetime | None = None,
 ) -> WatchlistEntry:
     kwargs: dict[str, object] = {"company_id": company_id, "notes": notes}
+    if status is not None:
+        kwargs["status"] = status
     if added_at is not None:
         kwargs["added_at"] = added_at
     return WatchlistEntry(**kwargs)
@@ -41,6 +48,7 @@ def test_add_and_get_by_company_id(db_session):
     assert fetched is not None
     assert fetched.id == added.id
     assert fetched.notes == "watch earnings"
+    assert fetched.status == WATCHLIST_STATUS_WATCHING
 
 
 def test_list_all_ordered_by_added_at_desc(db_session):
@@ -90,6 +98,23 @@ def test_update_notes_by_company_id(db_session):
 
 def test_update_notes_by_company_id_nonexistent(db_session):
     assert watchlist_repository.update_notes_by_company_id(db_session, 999999, "new note") is None
+
+
+def test_update_status_by_company_id(db_session):
+    company = _make_company(db_session, isin="FR0000800007", ticker="WL7.PA")
+    watchlist_repository.add(db_session, _make_entry(company.id))
+
+    updated = watchlist_repository.update_status_by_company_id(db_session, company.id, WATCHLIST_STATUS_REVIEW)
+
+    assert updated is not None
+    assert updated.status == WATCHLIST_STATUS_REVIEW
+    stored = watchlist_repository.get_by_company_id(db_session, company.id)
+    assert stored is not None
+    assert stored.status == WATCHLIST_STATUS_REVIEW
+
+
+def test_update_status_by_company_id_nonexistent(db_session):
+    assert watchlist_repository.update_status_by_company_id(db_session, 999999, WATCHLIST_STATUS_REVIEW) is None
 
 
 def test_unique_constraint_company_id(db_session):

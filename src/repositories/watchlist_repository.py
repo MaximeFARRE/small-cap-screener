@@ -29,6 +29,15 @@ def update_notes_by_company_id(session: Session, company_id: int, notes: str | N
     return entry
 
 
+def update_status_by_company_id(session: Session, company_id: int, status: str) -> WatchlistEntry | None:
+    entry = get_by_company_id(session, company_id)
+    if entry is None:
+        return None
+    entry.status = status
+    session.flush()
+    return entry
+
+
 def remove_by_company_id(session: Session, company_id: int) -> bool:
     entry = get_by_company_id(session, company_id)
     if entry is None:
