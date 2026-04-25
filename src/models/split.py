@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 class Split(Base):
     __tablename__ = "splits"
-    __table_args__ = (UniqueConstraint("company_id", "split_date", "ratio_from", "ratio_to", name="uq_split_unique"),)
+    __table_args__ = (UniqueConstraint("company_id", "split_date", name="uq_split_company_split_date"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)

@@ -11,6 +11,8 @@ if TYPE_CHECKING:
 
 
 class KpiSnapshot(Base):
+    """Calculated KPIs for one company at a specific snapshot date."""
+
     __tablename__ = "kpi_snapshots"
     __table_args__ = (UniqueConstraint("company_id", "snapshot_date", name="uq_kpi_company_snapshot_date"),)
 

@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 class Dividend(Base):
     __tablename__ = "dividends"
-    __table_args__ = (UniqueConstraint("company_id", "ex_date", "amount", name="uq_dividend_company_date_amount"),)
+    __table_args__ = (UniqueConstraint("company_id", "ex_date", name="uq_dividend_company_ex_date"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)

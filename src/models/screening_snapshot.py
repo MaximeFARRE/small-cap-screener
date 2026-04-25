@@ -7,6 +7,8 @@ from src.repositories.database import Base
 
 
 class ScreeningSnapshot(Base):
+    """Global result of one screening/ranking run at a given creation time."""
+
     __tablename__ = "screening_snapshots"
 
     id: Mapped[int] = mapped_column(primary_key=True)
