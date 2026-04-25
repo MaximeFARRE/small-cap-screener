@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import csv
 import math
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
+from io import StringIO
 from typing import Literal
 
 from sqlalchemy.orm import Session
@@ -34,6 +36,18 @@ UniverseScreeningSortField = Literal[
     "risk_score",
     "ticker",
 ]
+_UNIVERSE_SCREENING_EXPORT_COLUMNS: tuple[str, ...] = (
+    "ticker",
+    "name",
+    "sector",
+    "total_score",
+    "quality_score",
+    "value_score",
+    "growth_score",
+    "risk_score",
+    "rank",
+    "sector_rank",
+)
 
 
 @dataclass
@@ -160,6 +174,22 @@ class ScreeningService:
         if filters.top_n <= 0:
             return []
         return ordered[: filters.top_n]
+
+    def export_universe_with_scores_csv(
+        self,
+        filters: UniverseScreeningFilters,
+        *,
+        max_market_cap: float | None = None,
+        min_average_daily_volume: float | None = None,
+        country: str | None = None,
+    ) -> str:
+        rows = self.filter_universe_with_scores(
+            filters,
+            max_market_cap=max_market_cap,
+            min_average_daily_volume=min_average_daily_volume,
+            country=country,
+        )
+        return _build_universe_screening_csv(rows)
 
 
 def _passes(ratios: CompanyRatios, criteria: ScreeningCriteria) -> bool:
@@ -342,3 +372,37 @@ def _normalize_optional_text(value: str | None) -> str | None:
     if not normalized:
         return None
     return normalized
+
+
+def _build_universe_screening_csv(entries: list[UniverseScreeningEntry]) -> str:
+    buffer = StringIO()
+    writer = csv.DictWriter(
+        buffer,
+        fieldnames=list(_UNIVERSE_SCREENING_EXPORT_COLUMNS),
+        lineterminator="\n",
+    )
+    writer.writeheader()
+    for entry in entries:
+        writer.writerow(_serialize_universe_screening_entry(entry))
+    return buffer.getvalue()
+
+
+def _serialize_universe_screening_entry(entry: UniverseScreeningEntry) -> dict[str, object]:
+    return {
+        "ticker": _csv_value(entry.ticker),
+        "name": _csv_value(entry.name),
+        "sector": _csv_value(entry.sector),
+        "total_score": _csv_value(entry.total_score),
+        "quality_score": _csv_value(entry.quality_score),
+        "value_score": _csv_value(entry.value_score),
+        "growth_score": _csv_value(entry.growth_score),
+        "risk_score": _csv_value(entry.risk_score),
+        "rank": _csv_value(entry.rank),
+        "sector_rank": _csv_value(entry.sector_rank),
+    }
+
+
+def _csv_value(value: object) -> object:
+    if value is None:
+        return ""
+    return value
