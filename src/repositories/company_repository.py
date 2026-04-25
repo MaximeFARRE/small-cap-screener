@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from src.models.company import Company
@@ -32,6 +32,62 @@ def get_all(session: Session) -> list[Company]:
 
 def search_by_name(session: Session, query: str) -> list[Company]:
     stmt = select(Company).where(Company.name.ilike(f"%{query}%")).order_by(Company.name)
+    return list(session.execute(stmt).scalars())
+
+
+def list_active_companies(session: Session, country: str = "France") -> list[Company]:
+    stmt = (
+        select(Company)
+        .where(
+            Company.country == country,
+            Company.is_active.is_(True),
+            Company.ticker.is_not(None),
+            func.length(func.trim(Company.ticker)) > 0,
+            func.length(func.trim(Company.isin)) > 0,
+        )
+        .order_by(Company.name)
+    )
+    return list(session.execute(stmt).scalars())
+
+
+def filter_small_caps(session: Session, max_market_cap: float, country: str = "France") -> list[Company]:
+    stmt = (
+        select(Company)
+        .where(
+            Company.country == country,
+            Company.market_cap.is_not(None),
+            Company.market_cap <= max_market_cap,
+        )
+        .order_by(Company.name)
+    )
+    return list(session.execute(stmt).scalars())
+
+
+def get_investable_universe(
+    session: Session,
+    max_market_cap: float,
+    min_average_daily_volume: float | None = None,
+    country: str = "France",
+) -> list[Company]:
+    liquidity_condition = (
+        or_(Company.average_daily_volume.is_(None), Company.average_daily_volume >= min_average_daily_volume)
+        if min_average_daily_volume is not None
+        else True
+    )
+    stmt = (
+        select(Company)
+        .where(
+            Company.country == country,
+            Company.is_active.is_(True),
+            Company.market_cap.is_not(None),
+            Company.market_cap <= max_market_cap,
+            Company.ticker.is_not(None),
+            func.length(func.trim(Company.ticker)) > 0,
+            func.length(func.trim(Company.isin)) > 0,
+            liquidity_condition,
+        )
+        .order_by(Company.name)
+    )
     return list(session.execute(stmt).scalars())
 
 
