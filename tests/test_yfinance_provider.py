@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import logging
 from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 
-from src.repositories.providers.base import TickerNotFoundError
+from src.repositories.providers.base import DataFetchError, TickerNotFoundError
 from src.repositories.providers.yfinance_provider import YFinanceProvider
 
 TICKER = "TTE.PA"
@@ -82,6 +83,22 @@ def test_get_company_info_retries_on_error(mock_sleep, mock_ticker_cls):
     ]
     info = YFinanceProvider().get_company_info(TICKER)
     assert info.name == "TotalEnergies SE"
+    assert mock_sleep.call_count == 2
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+@patch("src.repositories.providers.yfinance_provider.time.sleep")
+def test_get_company_info_logs_retry_and_final_failure(mock_sleep, mock_ticker_cls, caplog):
+    mock_ticker_cls.side_effect = RuntimeError("network")
+
+    with caplog.at_level(logging.WARNING, logger="src.repositories.providers.yfinance_provider"):
+        with pytest.raises(DataFetchError):
+            YFinanceProvider().get_company_info(TICKER)
+
+    retry_logs = [record for record in caplog.records if "provider retry scheduled" in record.message]
+    final_error_logs = [record for record in caplog.records if "provider fetch failed after retries" in record.message]
+    assert len(retry_logs) == 2
+    assert len(final_error_logs) == 1
     assert mock_sleep.call_count == 2
 
 
