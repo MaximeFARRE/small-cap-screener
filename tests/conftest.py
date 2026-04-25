@@ -9,6 +9,7 @@ import src.models.kpi_snapshot  # noqa: F401
 import src.models.price_history  # noqa: F401
 import src.models.screening_snapshot  # noqa: F401
 import src.models.split  # noqa: F401
+import src.models.watchlist_entry  # noqa: F401
 from src.repositories.database import Base
 
 
