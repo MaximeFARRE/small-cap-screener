@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 
 
 class ProviderError(Exception):
@@ -26,7 +26,21 @@ class CompanyInfo:
 
 
 @dataclass
-class PriceRecord:
+class CompanyProfile:
+    ticker: str
+    name: str
+    sector: str | None
+    industry: str | None
+    market: str | None
+    country: str | None
+    currency: str
+    website: str | None
+    source: str | None = None
+    fetched_at: datetime | None = None
+
+
+@dataclass
+class PriceHistory:
     date: date
     open: float | None
     high: float | None
@@ -34,6 +48,12 @@ class PriceRecord:
     close: float
     adjusted_close: float | None
     volume: int | None
+    source: str | None = None
+    fetched_at: datetime | None = None
+
+
+# Backward-compatible alias kept to avoid breaking existing imports.
+PriceRecord = PriceHistory
 
 
 @dataclass
@@ -52,6 +72,39 @@ class FinancialData:
     shares_outstanding: float | None
 
 
+@dataclass
+class MarketData:
+    ticker: str
+    current_price: float
+    previous_close: float | None
+    open: float | None
+    day_high: float | None
+    day_low: float | None
+    volume: int | None
+    market_cap: float | None
+    currency: str | None
+    source: str | None = None
+    fetched_at: datetime | None = None
+
+
+@dataclass
+class DividendData:
+    ex_date: date
+    amount: float
+    payment_date: date | None
+    source: str | None = None
+    fetched_at: datetime | None = None
+
+
+@dataclass
+class SplitData:
+    split_date: date
+    ratio_from: float
+    ratio_to: float
+    source: str | None = None
+    fetched_at: datetime | None = None
+
+
 class BaseProvider(ABC):
     """Contract that every financial data provider must fulfil.
 
@@ -63,7 +116,7 @@ class BaseProvider(ABC):
     def get_company_info(self, ticker: str) -> CompanyInfo: ...
 
     @abstractmethod
-    def get_price_history(self, ticker: str, period: str = "5y") -> list[PriceRecord]: ...
+    def get_price_history(self, ticker: str, period: str = "5y") -> list[PriceHistory]: ...
 
     @abstractmethod
     def get_financial_statements(self, ticker: str, years: int = 5) -> list[FinancialData]: ...

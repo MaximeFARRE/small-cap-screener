@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime as dt
 import time
 from collections.abc import Callable
 from typing import TypeVar
@@ -11,9 +12,13 @@ from src.models.financial_statement import PeriodType
 from src.repositories.providers.base import (
     BaseProvider,
     CompanyInfo,
+    CompanyProfile,
     DataFetchError,
+    DividendData,
     FinancialData,
-    PriceRecord,
+    MarketData,
+    PriceHistory,
+    SplitData,
     TickerNotFoundError,
 )
 
@@ -21,6 +26,11 @@ _T = TypeVar("_T")
 
 _MAX_ATTEMPTS: int = 3
 _RETRY_DELAY: float = 2.0
+_SOURCE_NAME: str = "yfinance"
+
+
+def _fetched_at_now() -> dt.datetime:
+    return dt.datetime.now(dt.UTC)
 
 
 def _with_retry(fn: Callable[[], _T]) -> _T:
@@ -36,15 +46,52 @@ def _with_retry(fn: Callable[[], _T]) -> _T:
 
 
 def _get_company_info(ticker: str) -> CompanyInfo:
-    info: dict = _with_retry(lambda: yf.Ticker(ticker).info)
+    profile = _get_company_profile(ticker)
+    return CompanyInfo(
+        name=profile.name,
+        sector=profile.sector,
+        market=profile.market,
+        currency=profile.currency,
+    )
+
+
+def _to_float(value: object) -> float | None:
+    if value is None or pd.isna(value):
+        return None
+    return float(value)
+
+
+def _to_int(value: object) -> int | None:
+    if value is None or pd.isna(value):
+        return None
+    return int(value)
+
+
+def _get_ticker_info(ticker: str) -> dict:
+    return _with_retry(lambda: yf.Ticker(ticker).info)
+
+
+def _ensure_ticker_exists(ticker: str) -> None:
+    _get_company_profile(ticker)
+
+
+def _get_company_profile(ticker: str) -> CompanyProfile:
+    info = _get_ticker_info(ticker)
     name = info.get("longName") or info.get("shortName")
     if not name:
         raise TickerNotFoundError(f"No data found for ticker '{ticker}'")
-    return CompanyInfo(
+    fetched_at = _fetched_at_now()
+    return CompanyProfile(
+        ticker=ticker,
         name=name,
         sector=info.get("sector"),
+        industry=info.get("industry"),
         market=info.get("exchange"),
+        country=info.get("country"),
         currency=info.get("currency", "EUR"),
+        website=info.get("website"),
+        source=_SOURCE_NAME,
+        fetched_at=fetched_at,
     )
 
 
@@ -55,9 +102,9 @@ def _safe_float(row: pd.Series, key: str) -> float | None:
     return float(val)
 
 
-def _parse_price_row(ts: pd.Timestamp, row: pd.Series) -> PriceRecord:
+def _parse_price_row(ts: pd.Timestamp, row: pd.Series, fetched_at: dt.datetime) -> PriceHistory:
     volume_raw = row.get("Volume")
-    return PriceRecord(
+    return PriceHistory(
         date=ts.date(),
         open=_safe_float(row, "Open"),
         high=_safe_float(row, "High"),
@@ -65,6 +112,8 @@ def _parse_price_row(ts: pd.Timestamp, row: pd.Series) -> PriceRecord:
         close=float(row["Close"]),
         adjusted_close=_safe_float(row, "Adj Close"),
         volume=(int(volume_raw) if volume_raw is not None and not pd.isna(volume_raw) else None),
+        source=_SOURCE_NAME,
+        fetched_at=fetched_at,
     )
 
 
@@ -116,32 +165,119 @@ def _get_financial_statements(ticker: str, years: int) -> list[FinancialData]:
         raise TickerNotFoundError(f"No financial data for ticker '{ticker}'")
     balance: pd.DataFrame | None = _with_retry(lambda: t.balance_sheet)
     cashflow: pd.DataFrame | None = _with_retry(lambda: t.cashflow)
-    shares_raw = _with_retry(lambda: t.info).get("sharesOutstanding")
+    shares_raw = _get_ticker_info(ticker).get("sharesOutstanding")
     shares = float(shares_raw) if shares_raw else None
     cols = list(income.columns)[:years]
     return [_parse_statement(col, income, balance, cashflow, shares) for col in cols]
 
 
-def _get_price_history(ticker: str, period: str) -> list[PriceRecord]:
+def _get_price_history(ticker: str, period: str) -> list[PriceHistory]:
     hist: pd.DataFrame = _with_retry(lambda: yf.Ticker(ticker).history(period=period, auto_adjust=False))
     if hist.empty:
         raise TickerNotFoundError(f"No price history for ticker '{ticker}'")
-    return [_parse_price_row(ts, row) for ts, row in hist.iterrows()]
+    fetched_at = _fetched_at_now()
+    return [_parse_price_row(ts, row, fetched_at) for ts, row in hist.iterrows()]
+
+
+def _get_current_market_data(ticker: str) -> MarketData:
+    info = _get_ticker_info(ticker)
+    current_price = info.get("currentPrice") or info.get("regularMarketPrice")
+    if current_price is None:
+        raise TickerNotFoundError(f"No current market data for ticker '{ticker}'")
+    fetched_at = _fetched_at_now()
+
+    return MarketData(
+        ticker=ticker,
+        current_price=float(current_price),
+        previous_close=_to_float(info.get("previousClose") or info.get("regularMarketPreviousClose")),
+        open=_to_float(info.get("open") or info.get("regularMarketOpen")),
+        day_high=_to_float(info.get("dayHigh") or info.get("regularMarketDayHigh")),
+        day_low=_to_float(info.get("dayLow") or info.get("regularMarketDayLow")),
+        volume=_to_int(info.get("volume") or info.get("regularMarketVolume")),
+        market_cap=_to_float(info.get("marketCap")),
+        currency=info.get("currency"),
+        source=_SOURCE_NAME,
+        fetched_at=fetched_at,
+    )
+
+
+def _parse_ratio(value: float) -> tuple[float, float]:
+    ratio = float(value)
+    if ratio <= 0:
+        raise DataFetchError("Invalid split ratio returned by yfinance")
+    if ratio >= 1:
+        return 1.0, ratio
+    return 1.0 / ratio, 1.0
+
+
+def _get_dividends(ticker: str) -> list[DividendData]:
+    dividends: pd.Series = _with_retry(lambda: yf.Ticker(ticker).dividends)
+    if dividends is None or dividends.empty:
+        _ensure_ticker_exists(ticker)
+        return []
+
+    fetched_at = _fetched_at_now()
+    records: list[DividendData] = []
+    for ts, amount in dividends.items():
+        if pd.isna(amount):
+            continue
+        records.append(
+            DividendData(
+                ex_date=pd.Timestamp(ts).date(),
+                amount=float(amount),
+                payment_date=None,
+                source=_SOURCE_NAME,
+                fetched_at=fetched_at,
+            )
+        )
+    return records
+
+
+def _get_splits(ticker: str) -> list[SplitData]:
+    splits: pd.Series = _with_retry(lambda: yf.Ticker(ticker).splits)
+    if splits is None or splits.empty:
+        _ensure_ticker_exists(ticker)
+        return []
+
+    fetched_at = _fetched_at_now()
+    records: list[SplitData] = []
+    for ts, raw_ratio in splits.items():
+        if pd.isna(raw_ratio):
+            continue
+        ratio_from, ratio_to = _parse_ratio(float(raw_ratio))
+        records.append(
+            SplitData(
+                split_date=pd.Timestamp(ts).date(),
+                ratio_from=ratio_from,
+                ratio_to=ratio_to,
+                source=_SOURCE_NAME,
+                fetched_at=fetched_at,
+            )
+        )
+    return records
 
 
 class YFinanceProvider(BaseProvider):
+    def get_company_profile(self, ticker: str) -> CompanyProfile:
+        return _get_company_profile(ticker)
+
     def get_company_info(self, ticker: str) -> CompanyInfo:
         return _get_company_info(ticker)
 
-    def get_price_history(self, ticker: str, period: str = "5y") -> list[PriceRecord]:
+    def get_current_market_data(self, ticker: str) -> MarketData:
+        return _get_current_market_data(ticker)
+
+    def get_price_history(self, ticker: str, period: str = "5y") -> list[PriceHistory]:
         return _get_price_history(ticker, period)
+
+    def get_dividends(self, ticker: str) -> list[DividendData]:
+        return _get_dividends(ticker)
+
+    def get_splits(self, ticker: str) -> list[SplitData]:
+        return _get_splits(ticker)
 
     def get_financial_statements(self, ticker: str, years: int = 5) -> list[FinancialData]:
         return _get_financial_statements(ticker, years)
 
     def get_current_price(self, ticker: str) -> float:
-        info: dict = _with_retry(lambda: yf.Ticker(ticker).info)
-        price = info.get("currentPrice") or info.get("regularMarketPrice")
-        if price is None:
-            raise TickerNotFoundError(f"No current price for ticker '{ticker}'")
-        return float(price)
+        return self.get_current_market_data(ticker).current_price
