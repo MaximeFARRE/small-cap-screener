@@ -28,9 +28,12 @@ def init_db() -> None:
         pathlib.Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
     import src.models.company  # noqa: F401
+    import src.models.dividend  # noqa: F401
     import src.models.financial_statement  # noqa: F401
+    import src.models.kpi_snapshot  # noqa: F401
     import src.models.price_history  # noqa: F401
     import src.models.screening_snapshot  # noqa: F401
+    import src.models.split  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
 

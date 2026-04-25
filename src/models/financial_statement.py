@@ -1,7 +1,7 @@
 import enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.repositories.database import Base
@@ -17,6 +17,7 @@ class PeriodType(enum.StrEnum):
 
 class FinancialStatement(Base):
     __tablename__ = "financial_statements"
+    __table_args__ = (UniqueConstraint("company_id", "fiscal_year", "period_type", name="uq_stmt_company_year_period"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
