@@ -54,5 +54,47 @@ class UniverseService:
                 min_average_daily_volume=self.default_min_average_daily_volume,
                 country=self.default_country,
             )
-            total = company_repository.get_all(session)
-        return CompanyUniverseSummary(total_companies=len(total), filtered_companies=len(investable), exclusions={})
+            companies = company_repository.get_all(session)
+
+        illiquid_count = 0
+        if self.default_min_average_daily_volume is not None:
+            illiquid_count = sum(
+                1
+                for company in companies
+                if company.country == self.default_country
+                and company.is_active
+                and company.market_cap is not None
+                and company.market_cap <= self.default_max_market_cap
+                and company.average_daily_volume is not None
+                and company.average_daily_volume < self.default_min_average_daily_volume
+            )
+
+        exclusions = {
+            "non_target_country": sum(1 for company in companies if company.country != self.default_country),
+            "inactive": sum(
+                1 for company in companies if company.country == self.default_country and not company.is_active
+            ),
+            "inconsistent_identity": sum(
+                1
+                for company in companies
+                if company.country == self.default_country and (_is_blank(company.ticker) or _is_blank(company.isin))
+            ),
+            "over_market_cap": sum(
+                1
+                for company in companies
+                if company.country == self.default_country
+                and company.is_active
+                and company.market_cap is not None
+                and company.market_cap > self.default_max_market_cap
+            ),
+            "illiquid": illiquid_count,
+        }
+        return CompanyUniverseSummary(
+            total_companies=len(companies),
+            filtered_companies=len(investable),
+            exclusions=exclusions,
+        )
+
+
+def _is_blank(value: str | None) -> bool:
+    return value is None or not value.strip()
