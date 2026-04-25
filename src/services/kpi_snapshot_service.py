@@ -18,6 +18,7 @@ from src.repositories import (
 )
 from src.repositories.database import get_session
 from src.services.ratio_service import CompanyRatios, RatioService
+from src.services.scoring_service import CompanyTotalScore, RankedCompanyTotalScore, ScoringService
 
 SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
 
@@ -67,6 +68,7 @@ class CompanyKpiContextLoadResult:
 class KpiSnapshotService:
     session_scope_factory: SessionScopeFactory = get_session
     ratio_service: RatioService = field(default_factory=RatioService)
+    scoring_service: ScoringService = field(default_factory=ScoringService)
     source_name: str = "ratio_service_v1"
     default_country: str = "France"
     default_max_market_cap: float = 2_000_000_000.0
@@ -104,13 +106,14 @@ class KpiSnapshotService:
                 metrics=metrics,
                 source=self.source_name,
             )
-            stored = kpi_snapshot_repository.upsert(session, snapshot)
+            scored_snapshot = self.scoring_service.apply_scores(snapshot)
+            stored = kpi_snapshot_repository.upsert(session, scored_snapshot)
             return KpiSnapshotServiceResult(
                 company_id=company_id,
                 snapshot_date=snapshot_date,
                 success=True,
                 snapshot_id=stored.id,
-                metrics=metrics,
+                metrics=stored.metrics,
             )
 
     def refresh_universe_kpi_snapshots(
@@ -175,6 +178,32 @@ class KpiSnapshotService:
             failed_count=failed_count,
             errors=errors,
         )
+
+    def rank_universe_by_total_score(
+        self,
+        max_market_cap: float | None = None,
+        min_average_daily_volume: float | None = None,
+        country: str | None = None,
+    ) -> list[RankedCompanyTotalScore]:
+        target_max_market_cap = self.default_max_market_cap if max_market_cap is None else max_market_cap
+        target_min_avg_daily_volume = (
+            self.default_min_average_daily_volume if min_average_daily_volume is None else min_average_daily_volume
+        )
+        target_country = self.default_country if country is None else country
+
+        with self.session_scope_factory() as session:
+            investable = company_repository.get_investable_universe(
+                session,
+                max_market_cap=target_max_market_cap,
+                min_average_daily_volume=target_min_avg_daily_volume,
+                country=target_country,
+            )
+            company_scores = _load_universe_company_total_scores(
+                session=session,
+                investable=investable,
+                scoring_service=self.scoring_service,
+            )
+        return self.scoring_service.rank_companies_by_total_score(company_scores)
 
 
 def build_snapshot_payload(
@@ -263,3 +292,22 @@ def _ratios_to_metrics_payload(ratios: CompanyRatios) -> dict[str, float | int |
         "current_ratio": ratios.current_ratio,
         "interest_coverage": ratios.interest_coverage,
     }
+
+
+def _load_universe_company_total_scores(
+    session: Session,
+    investable: list[Company],
+    scoring_service: ScoringService,
+) -> list[CompanyTotalScore]:
+    company_scores: list[CompanyTotalScore] = []
+    for company in investable:
+        snapshot = kpi_snapshot_repository.get_latest_by_company(session, company.id)
+        company_scores.append(
+            CompanyTotalScore(
+                company_id=company.id,
+                ticker=company.ticker,
+                total_score=scoring_service.get_snapshot_total_score(snapshot),
+                sector=company.sector,
+            )
+        )
+    return company_scores
