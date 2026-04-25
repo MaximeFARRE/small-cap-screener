@@ -13,6 +13,7 @@ from src.repositories import (
     price_history_repository,
 )
 from src.services.kpi_snapshot_service import KpiSnapshotService
+from src.services.ratio_service import RatioService
 
 
 def _make_service(db_session):
@@ -99,3 +100,86 @@ def test_update_existing_snapshot(db_session):
     assert second.success is True
     assert len(snapshots) == 1
     assert snapshots[0].snapshot_date == snapshot_date
+
+
+def test_snapshot_fails_when_company_missing(db_session):
+    service = _make_service(db_session)
+
+    result = service.compute_and_upsert_for_company(999999, snapshot_date=date(2024, 1, 31))
+
+    assert result.success is False
+    assert result.stage == "load"
+    assert result.error == "company not found"
+
+
+def test_snapshot_fails_when_financial_data_missing(db_session):
+    company = company_repository.create(
+        db_session,
+        Company(
+            isin="FR0000999999",
+            ticker="MISS.PA",
+            name="Missing Statement",
+            currency="EUR",
+        ),
+    )
+    service = _make_service(db_session)
+
+    result = service.compute_and_upsert_for_company(company.id, snapshot_date=date(2024, 1, 31))
+
+    assert result.success is False
+    assert result.stage == "load"
+    assert result.error == "no annual financial statements"
+    assert kpi_snapshot_repository.get_latest_by_company(db_session, company.id) is None
+
+
+def test_snapshot_fails_when_price_missing(db_session):
+    company = company_repository.create(
+        db_session,
+        Company(
+            isin="FR0000888888",
+            ticker="NOPRICE.PA",
+            name="No Price",
+            currency="EUR",
+        ),
+    )
+    financial_statement_repository.create(
+        db_session,
+        FinancialStatement(
+            company_id=company.id,
+            fiscal_year=2023,
+            period_type=PeriodType.ANNUAL,
+            revenue=100.0,
+            ebit=10.0,
+            ebitda=12.0,
+            net_income=7.0,
+            total_assets=200.0,
+            total_equity=80.0,
+            total_debt=50.0,
+            net_debt=20.0,
+            free_cash_flow=8.0,
+            shares_outstanding=None,
+        ),
+    )
+    service = _make_service(db_session)
+
+    result = service.compute_and_upsert_for_company(company.id, snapshot_date=date(2024, 1, 31))
+
+    assert result.success is False
+    assert result.stage == "load"
+    assert result.error == "no usable price data"
+    assert kpi_snapshot_repository.get_latest_by_company(db_session, company.id) is None
+
+
+def test_snapshot_metrics_match_ratio_service(db_session):
+    company = _create_company_with_financials(db_session, isin="FR0000777777", ticker="CONSIST.PA")
+    service = _make_service(db_session)
+    ratio_service = RatioService()
+
+    result = service.compute_and_upsert_for_company(company.id, snapshot_date=date(2024, 1, 31))
+    statement = financial_statement_repository.get_by_company(db_session, company.id)[0]
+    expected = ratio_service.compute_all(company.id, statement.fiscal_year, 55.0, statement)
+
+    assert result.success is True
+    assert result.metrics["pe_ratio"] == expected.pe_ratio
+    assert result.metrics["ev_ebitda"] == expected.ev_ebitda
+    assert result.metrics["roe"] == expected.roe
