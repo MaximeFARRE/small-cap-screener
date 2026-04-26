@@ -18,12 +18,23 @@ from src.repositories.providers.base import (
 from src.services.financial_data_service import FinancialDataService
 
 
-def _make_service(db_session, provider):
+def _make_service(
+    db_session,
+    provider,
+    *,
+    provider_call_max_attempts: int = 3,
+    provider_retry_delay_seconds: float = 0.0,
+):
     @contextmanager
     def session_scope():
         yield db_session
 
-    return FinancialDataService(provider=provider, session_scope_factory=session_scope)
+    return FinancialDataService(
+        provider=provider,
+        session_scope_factory=session_scope,
+        provider_call_max_attempts=provider_call_max_attempts,
+        provider_retry_delay_seconds=provider_retry_delay_seconds,
+    )
 
 
 def _make_provider(
@@ -241,6 +252,64 @@ def test_refresh_company_data_handles_provider_error(db_session):
     assert result.stage == "fetch"
     assert result.error is not None
     assert "simulated provider outage" in result.error
+    assert service.provider.get_price_history.call_count == service.provider_call_max_attempts
+
+
+def test_refresh_company_data_retries_and_succeeds_on_transient_failure(db_session):
+    company = company_repository.create(
+        db_session,
+        Company(
+            isin="FR0000007006",
+            ticker="RETRY.PA",
+            name="Retry",
+            country="France",
+            sector="Industrial",
+            market="PAR",
+            currency="EUR",
+            is_active=True,
+            market_cap=300_000_000.0,
+            average_daily_volume=120_000.0,
+        ),
+    )
+    provider = _make_provider()
+    price_call_count = {"value": 0}
+
+    def _transient_price_history(ticker: str, period: str = "5y") -> list[PriceHistory]:
+        price_call_count["value"] += 1
+        if price_call_count["value"] == 1:
+            raise DataFetchError("temporary outage")
+        return [
+            PriceHistory(
+                date=date(2024, 1, 2),
+                open=20.0,
+                high=21.0,
+                low=19.8,
+                close=20.7,
+                adjusted_close=20.7,
+                volume=180_000,
+                source="mock-provider",
+            )
+        ]
+
+    provider.get_price_history.side_effect = _transient_price_history
+    service = _make_service(db_session, provider, provider_call_max_attempts=3)
+
+    result = service.refresh_company_data(company.id)
+
+    assert result.success is True
+    assert service.provider.get_price_history.call_count == 2
+
+
+def test_fetch_company_data_uses_fallback_after_optional_retry_failure(db_session):
+    provider = _make_provider()
+    provider.get_current_market_data.side_effect = DataFetchError("market endpoint down")
+    service = _make_service(db_session, provider, provider_call_max_attempts=2)
+
+    fetched = service.fetch_company_data("ALPHA.PA")
+
+    assert fetched.ticker == "ALPHA.PA"
+    assert fetched.market_data is None
+    assert service.provider.get_current_market_data.call_count == 2
 
 
 def test_refresh_company_data_blocks_invalid_payload(db_session):
