@@ -1,6 +1,30 @@
 # CHANGELOG
 
+## v0.12.0 (2026-04-26)
+
+### Feature
+
+* feat: wire refresh company/watchlist/universe actions with progress locking and detailed error feedback ([`4f32fae`](https://github.com/MaximeFARRE/small-cap-screener/commit/4f32faec60d689b99ce2ffea16bb6395ca566d45))
+
+* feat: add Actualiser cette société button and refresh_company_requested signal to CompanyDetailWidget ([`6507316`](https://github.com/MaximeFARRE/small-cap-screener/commit/6507316619ccb4033acef9cdcc1eed7213d3f53f))
+
+* feat: add refresh_watchlist method to UniverseDiscoveryService ([`169e4dc`](https://github.com/MaximeFARRE/small-cap-screener/commit/169e4dc21fbb74cd2f76141e53bd595f313c951a))
+
+### Test
+
+* test: add refresh_watchlist tests covering analyst data preservation and partial failures ([`f5df863`](https://github.com/MaximeFARRE/small-cap-screener/commit/f5df8636cd3edd5def78735fdaf60feb08fd4637))
+
+### Unknown
+
+* Merge pull request #22 from MaximeFARRE/feat/phase18-full-refresh-workflow
+
+Feat/phase18 full refresh workflow ([`bc24283`](https://github.com/MaximeFARRE/small-cap-screener/commit/bc2428338ba935083f9319fd8b751e5ba60fa0da))
+
 ## v0.11.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.11.0 [skip ci] ([`d67a0e9`](https://github.com/MaximeFARRE/small-cap-screener/commit/d67a0e9714fc8786ff24515c047c06f9de542c36))
 
 ### Feature
 
