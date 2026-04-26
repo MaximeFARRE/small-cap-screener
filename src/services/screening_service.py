@@ -11,7 +11,7 @@ from typing import Literal
 from sqlalchemy.orm import Session
 
 from src.models.kpi_snapshot import KpiSnapshot
-from src.repositories import company_repository, kpi_snapshot_repository
+from src.repositories import company_repository, kpi_snapshot_repository, watchlist_repository
 from src.repositories.database import get_session
 from src.services.kpi_snapshot_service import KpiSnapshotService
 from src.services.ratio_service import CompanyRatios
@@ -88,6 +88,7 @@ class UniverseScreeningFilters:
     sector: str | None = None
     min_total_score: float | None = None
     scored_only: bool = False
+    include_excluded: bool = False
     top_n: int | None = None
     sort_by: UniverseScreeningSortField = "rank"
     descending: bool = False
@@ -163,7 +164,15 @@ class ScreeningService:
             min_average_daily_volume=min_average_daily_volume,
             country=country,
         )
-        filtered = _apply_universe_screening_filters(universe, filters)
+        excluded_company_ids: set[int] = set()
+        if not filters.include_excluded:
+            excluded_company_ids = self._list_excluded_company_ids()
+
+        filtered = _apply_universe_screening_filters(
+            universe,
+            filters,
+            excluded_company_ids=excluded_company_ids,
+        )
         ordered = _sort_universe_screening_entries(
             filtered,
             sort_by=filters.sort_by,
@@ -190,6 +199,10 @@ class ScreeningService:
             country=country,
         )
         return _build_universe_screening_csv(rows)
+
+    def _list_excluded_company_ids(self) -> set[int]:
+        with self.session_scope_factory() as session:
+            return watchlist_repository.list_excluded_company_ids(session)
 
 
 def _passes(ratios: CompanyRatios, criteria: ScreeningCriteria) -> bool:
@@ -269,10 +282,14 @@ def _snapshot_metric_as_float(snapshot: KpiSnapshot | None, metric_key: str) -> 
 def _apply_universe_screening_filters(
     entries: list[UniverseScreeningEntry],
     filters: UniverseScreeningFilters,
+    *,
+    excluded_company_ids: set[int],
 ) -> list[UniverseScreeningEntry]:
     target_sector = _normalize_optional_text(filters.sector)
     output: list[UniverseScreeningEntry] = []
     for entry in entries:
+        if entry.company_id in excluded_company_ids:
+            continue
         if target_sector is not None:
             sector = _normalize_optional_text(entry.sector)
             if sector != target_sector:

@@ -20,6 +20,11 @@ def list_all(session: Session) -> list[WatchlistEntry]:
     return list(session.execute(stmt).scalars())
 
 
+def list_excluded_company_ids(session: Session) -> set[int]:
+    stmt = select(WatchlistEntry.company_id).where(WatchlistEntry.is_excluded.is_(True))
+    return set(session.execute(stmt).scalars())
+
+
 def update_notes_by_company_id(session: Session, company_id: int, notes: str | None) -> WatchlistEntry | None:
     entry = get_by_company_id(session, company_id)
     if entry is None:
