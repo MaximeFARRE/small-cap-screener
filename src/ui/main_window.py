@@ -6,13 +6,14 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QDockWidget, QFileDialog, QInputDialog, QMainWindow, QMessageBox, QSplitter
 
 from src.repositories.providers.yfinance_provider import YFinanceProvider
+from src.services.company_charts_service import CompanyChartsService, ScoreBreakdownInput
 from src.services.company_detail_service import CompanyDetailService
 from src.services.financial_data_service import FinancialDataService
 from src.services.kpi_snapshot_service import KpiSnapshotService
 from src.services.screening_service import ScreeningService, ScreeningSnapshotSummary, UniverseScreeningFilters
 from src.services.ticker_ingestion_service import TickerIngestionService
 from src.services.universe_discovery_service import UniverseDiscoveryService
-from src.services.watchlist_service import AnalystMemo, WatchlistService
+from src.services.watchlist_service import AnalystMemo, CompanyAnalystDetail, WatchlistService
 from src.ui.add_ticker_dialog import AddTickerDialog
 from src.ui.company_detail_widget import CompanyDetailWidget
 from src.ui.company_table_model import ScreenerRow
@@ -33,6 +34,7 @@ class MainWindow(QMainWindow):
         self._screening_service = ScreeningService()
         self._watchlist_service = WatchlistService()
         self._company_detail_service = CompanyDetailService()
+        self._company_charts_service = CompanyChartsService()
         _financial_data_service = FinancialDataService(provider=YFinanceProvider())
         _kpi_snapshot_service = KpiSnapshotService()
         self._ticker_ingestion_service = TickerIngestionService(
@@ -124,7 +126,13 @@ class MainWindow(QMainWindow):
         self._selected_company_id = row.company_id
         analyst_detail = self._watchlist_service.get_company_analyst_detail(row.company_id)
         financial_detail = self._company_detail_service.get_financial_detail(row.company_id)
-        self._detail.load(row, analyst_detail, financial_detail)
+        score_breakdown = _score_breakdown_input(row, analyst_detail)
+        chart_data = self._company_charts_service.build_company_charts_data(
+            row.company_id,
+            financial_detail=financial_detail,
+            score_breakdown=score_breakdown,
+        )
+        self._detail.load(row, analyst_detail, financial_detail, chart_data)
 
     def _on_selection_cleared(self) -> None:
         self._selected_company_id = None
@@ -359,4 +367,22 @@ def _snapshot_summary_option(summary: ScreeningSnapshotSummary) -> str:
     return (
         f"#{summary.snapshot_id} | {summary.created_at:%Y-%m-%d %H:%M} | "
         f"{summary.company_count} société(s) | {summary.name} | {summary.filters_summary}"
+    )
+
+
+def _score_breakdown_input(row: ScreenerRow, analyst_detail: CompanyAnalystDetail | None) -> ScoreBreakdownInput:
+    quality = row.quality_score
+    value = row.value_score
+    growth = row.growth_score
+    risk = row.risk_score
+    if analyst_detail is not None:
+        quality = analyst_detail.quality_score
+        value = analyst_detail.value_score
+        growth = analyst_detail.growth_score
+        risk = analyst_detail.risk_score
+    return ScoreBreakdownInput(
+        quality=quality,
+        value=value,
+        growth=growth,
+        risk=risk,
     )
