@@ -1,6 +1,22 @@
 # CHANGELOG
 
+## v0.28.0 (2026-04-26)
+
+### Feature
+
+* feat: implement Phase 33 performance and scalability with background worker pattern ([`b1c8c92`](https://github.com/MaximeFARRE/small-cap-screener/commit/b1c8c92a44fbd5a85c8bb562bcceb09964c5252f))
+
+### Unknown
+
+* Merge pull request #40 from MaximeFARRE/feat/phase33-performance
+
+feat: implement Phase 33 performance and scalability with background … ([`8385044`](https://github.com/MaximeFARRE/small-cap-screener/commit/8385044f804d81ad6636563c21898e9370521e6d))
+
 ## v0.27.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.27.0 [skip ci] ([`a9b7a10`](https://github.com/MaximeFARRE/small-cap-screener/commit/a9b7a10d79e03e629db58d420124723a783963ea))
 
 ### Feature
 
