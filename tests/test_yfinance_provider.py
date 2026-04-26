@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -316,3 +316,35 @@ def test_get_current_price_raises_when_missing(mock_ticker_cls):
     mock_ticker_cls.return_value = _mock_ticker(info={})
     with pytest.raises(TickerNotFoundError):
         YFinanceProvider().get_current_price(TICKER)
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_price_history_cache_hit_reuses_recent_data(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(history=_make_history_df())
+    provider = YFinanceProvider(cache_max_age=timedelta(days=1))
+
+    first = provider.get_price_history(TICKER, period="1mo")
+    second = provider.get_price_history(TICKER, period="1mo")
+
+    assert len(first) == 2
+    assert len(second) == 2
+    assert mock_ticker_cls.call_count == 1
+
+
+@patch("src.repositories.providers.yfinance_provider._fetched_at_now")
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_price_history_cache_miss_for_stale_data(mock_ticker_cls, mock_now):
+    mock_ticker_cls.return_value = _mock_ticker(history=_make_history_df())
+    base_time = datetime(2026, 1, 10, 10, 0, 0, tzinfo=UTC)
+    mock_now.side_effect = [
+        base_time,
+        base_time,
+        base_time + timedelta(days=2),
+        base_time + timedelta(days=2),
+    ]
+    provider = YFinanceProvider(cache_max_age=timedelta(days=1))
+
+    provider.get_price_history(TICKER, period="1mo")
+    provider.get_price_history(TICKER, period="1mo")
+
+    assert mock_ticker_cls.call_count == 2

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import math
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
@@ -21,6 +23,36 @@ from src.services.ratio_service import CompanyRatios, RatioService
 from src.services.scoring_service import CompanyTotalScore, RankedCompanyTotalScore, ScoringService
 
 SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
+_LOGGER = logging.getLogger(__name__)
+DATA_QUALITY_SCORE_KEY: str = "data_quality_score"
+_DATA_QUALITY_WEIGHT_FINANCIAL_COMPLETENESS: float = 0.40
+_DATA_QUALITY_WEIGHT_PRICE_AVAILABILITY: float = 0.20
+_DATA_QUALITY_WEIGHT_MARKET_CAP: float = 0.20
+_DATA_QUALITY_WEIGHT_RATIO_COMPLETENESS: float = 0.20
+_DATA_QUALITY_FINANCIAL_FIELDS: tuple[str, ...] = (
+    "revenue",
+    "ebit",
+    "ebitda",
+    "net_income",
+    "total_assets",
+    "total_equity",
+    "total_debt",
+    "net_debt",
+    "free_cash_flow",
+    "shares_outstanding",
+)
+_DATA_QUALITY_RATIO_FIELDS: tuple[str, ...] = (
+    "pe_ratio",
+    "pb_ratio",
+    "ev_ebitda",
+    "ev_ebit",
+    "fcf_yield",
+    "roe",
+    "roic",
+    "operating_margin",
+    "net_debt_to_ebitda",
+)
+_DATA_QUALITY_GROWTH_FIELDS: tuple[str, ...] = ("revenue_growth", "ebitda_growth")
 
 
 @dataclass
@@ -56,6 +88,7 @@ class CompanyKpiContext:
     latest_statement: FinancialStatement
     previous_statement: FinancialStatement | None
     price: float
+    price_source: str
 
 
 @dataclass
@@ -82,6 +115,12 @@ class KpiSnapshotService:
         with self.session_scope_factory() as session:
             load = _load_company_kpi_context(session, company_id)
             if load.context is None:
+                _LOGGER.warning(
+                    "kpi snapshot load failed | stage=load company_id=%s snapshot_date=%s error=%s",
+                    company_id,
+                    snapshot_date,
+                    load.error,
+                )
                 return KpiSnapshotServiceResult(
                     company_id=company_id,
                     snapshot_date=snapshot_date,
@@ -99,6 +138,13 @@ class KpiSnapshotService:
                 previous_stmt=context.previous_statement,
             )
             metrics = _ratios_to_metrics_payload(ratios)
+            metrics[DATA_QUALITY_SCORE_KEY] = _compute_data_quality_score(
+                company=context.company,
+                latest_statement=context.latest_statement,
+                previous_statement=context.previous_statement,
+                price_source=context.price_source,
+                ratio_metrics=metrics,
+            )
 
             snapshot = build_snapshot_payload(
                 company_id=company_id,
@@ -108,6 +154,18 @@ class KpiSnapshotService:
             )
             scored_snapshot = self.scoring_service.apply_scores(snapshot)
             stored = kpi_snapshot_repository.upsert(session, scored_snapshot)
+            _LOGGER.info(
+                (
+                    "kpi snapshot upserted | stage=compute company_id=%s snapshot_id=%s "
+                    "snapshot_date=%s source=%s data_quality_score=%s total_score=%s"
+                ),
+                company_id,
+                stored.id,
+                snapshot_date,
+                self.source_name,
+                stored.metrics.get(DATA_QUALITY_SCORE_KEY),
+                stored.metrics.get("total_score"),
+            )
             return KpiSnapshotServiceResult(
                 company_id=company_id,
                 snapshot_date=snapshot_date,
@@ -137,6 +195,11 @@ class KpiSnapshotService:
                 country=target_country,
             )
             companies = [(company.id, company.ticker) for company in investable]
+        _LOGGER.info(
+            "kpi snapshot universe refresh started | stage=refresh total=%s snapshot_date=%s",
+            len(companies),
+            snapshot_date,
+        )
 
         success_count = 0
         errors: list[UniverseKpiSnapshotError] = []
@@ -148,6 +211,16 @@ class KpiSnapshotService:
                     snapshot_date=snapshot_date,
                 )
             except Exception as exc:  # pragma: no cover - defensive guard
+                _LOGGER.error(
+                    (
+                        "kpi snapshot refresh unexpected error | stage=unexpected company_id=%s "
+                        "ticker=%s snapshot_date=%s error=%s"
+                    ),
+                    company_id,
+                    ticker,
+                    snapshot_date,
+                    exc,
+                )
                 errors.append(
                     UniverseKpiSnapshotError(
                         company_id=company_id,
@@ -162,6 +235,14 @@ class KpiSnapshotService:
                 success_count += 1
                 continue
 
+            _LOGGER.warning(
+                ("kpi snapshot refresh failed | stage=%s company_id=%s ticker=%s " "snapshot_date=%s error=%s"),
+                result.stage,
+                company_id,
+                ticker,
+                snapshot_date,
+                result.error,
+            )
             errors.append(
                 UniverseKpiSnapshotError(
                     company_id=company_id,
@@ -172,6 +253,16 @@ class KpiSnapshotService:
             )
 
         failed_count = len(errors)
+        _LOGGER.info(
+            (
+                "kpi snapshot universe refresh completed | stage=refresh total=%s "
+                "success_count=%s failed_count=%s snapshot_date=%s"
+            ),
+            len(companies),
+            success_count,
+            failed_count,
+            snapshot_date,
+        )
         return UniverseKpiSnapshotRefreshResult(
             total=len(companies),
             success_count=success_count,
@@ -232,9 +323,11 @@ def _load_company_kpi_context(session: Session, company_id: int) -> CompanyKpiCo
 
     latest_statement = annual_statements[0]
     previous_statement = annual_statements[1] if len(annual_statements) > 1 else None
-    price = _derive_company_price(session, company, latest_statement)
+    price, price_source = _derive_company_price(session, company, latest_statement)
     if price is None:
         return CompanyKpiContextLoadResult(context=None, error="no usable price data")
+    if price_source is None:
+        return CompanyKpiContextLoadResult(context=None, error="price source unavailable")
 
     return CompanyKpiContextLoadResult(
         context=CompanyKpiContext(
@@ -242,6 +335,7 @@ def _load_company_kpi_context(session: Session, company_id: int) -> CompanyKpiCo
             latest_statement=latest_statement,
             previous_statement=previous_statement,
             price=price,
+            price_source=price_source,
         )
     )
 
@@ -260,14 +354,14 @@ def _derive_company_price(
     session: Session,
     company: Company,
     latest_statement: FinancialStatement,
-) -> float | None:
+) -> tuple[float | None, str | None]:
     latest_price = price_history_repository.get_latest(session, company.id)
     if latest_price is not None:
-        return latest_price.close
+        return latest_price.close, "price_history"
     if company.market_cap is not None and latest_statement.shares_outstanding is not None:
         if latest_statement.shares_outstanding > 0:
-            return company.market_cap / latest_statement.shares_outstanding
-    return None
+            return company.market_cap / latest_statement.shares_outstanding, "market_cap_fallback"
+    return None, None
 
 
 def _ratios_to_metrics_payload(ratios: CompanyRatios) -> dict[str, float | int | None]:
@@ -311,3 +405,67 @@ def _load_universe_company_total_scores(
             )
         )
     return company_scores
+
+
+def _compute_data_quality_score(
+    *,
+    company: Company,
+    latest_statement: FinancialStatement,
+    previous_statement: FinancialStatement | None,
+    price_source: str,
+    ratio_metrics: dict[str, float | int | None],
+) -> float:
+    financial_completeness = _ratio_from_count(
+        sum(
+            1
+            for field_name in _DATA_QUALITY_FINANCIAL_FIELDS
+            if _is_quality_number(getattr(latest_statement, field_name))
+        ),
+        len(_DATA_QUALITY_FINANCIAL_FIELDS),
+    )
+    price_availability = _price_source_quality(price_source)
+    market_cap_quality = 100.0 if _is_positive_quality_number(company.market_cap) else 0.0
+    ratio_fields = list(_DATA_QUALITY_RATIO_FIELDS)
+    if previous_statement is not None:
+        ratio_fields.extend(_DATA_QUALITY_GROWTH_FIELDS)
+    ratio_completeness = _ratio_from_count(
+        sum(1 for field_name in ratio_fields if _is_quality_number(ratio_metrics.get(field_name))),
+        len(ratio_fields),
+    )
+    score = (
+        financial_completeness * _DATA_QUALITY_WEIGHT_FINANCIAL_COMPLETENESS
+        + price_availability * _DATA_QUALITY_WEIGHT_PRICE_AVAILABILITY
+        + market_cap_quality * _DATA_QUALITY_WEIGHT_MARKET_CAP
+        + ratio_completeness * _DATA_QUALITY_WEIGHT_RATIO_COMPLETENESS
+    )
+    return round(score, 2)
+
+
+def _ratio_from_count(count: int, total: int) -> float:
+    if total <= 0:
+        return 0.0
+    return (count / total) * 100.0
+
+
+def _price_source_quality(value: str) -> float:
+    if value == "price_history":
+        return 100.0
+    if value == "market_cap_fallback":
+        return 60.0
+    return 0.0
+
+
+def _is_quality_number(value: object) -> bool:
+    if value is None or isinstance(value, bool):
+        return False
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(numeric)
+
+
+def _is_positive_quality_number(value: object) -> bool:
+    if not _is_quality_number(value):
+        return False
+    return float(value) > 0.0
