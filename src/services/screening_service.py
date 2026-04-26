@@ -55,12 +55,18 @@ _UNIVERSE_SCREENING_EXPORT_COLUMNS: tuple[str, ...] = (
     "name",
     "sector",
     "total_score",
+    "rank",
+    "sector_rank",
     "quality_score",
     "value_score",
     "growth_score",
     "risk_score",
-    "rank",
-    "sector_rank",
+    "data_quality_score",
+    "last_universe_refresh_at",
+    "snapshot_date",
+    "watchlist_status",
+    "is_excluded",
+    "next_review_at",
 )
 
 
@@ -172,6 +178,15 @@ class ScreeningSnapshotComparisonRow:
     total_score_change: float | None
 
 
+@dataclass(frozen=True)
+class ScreeningExportMetadata:
+    export_date: datetime
+    filters: dict[str, object]
+    sort: str
+    company_count: int
+    scoring_version: str | None
+
+
 @dataclass
 class ScreeningService:
     session_scope_factory: SessionScopeFactory = get_session
@@ -280,7 +295,9 @@ class ScreeningService:
             min_average_daily_volume=min_average_daily_volume,
             country=country,
         )
-        return _build_universe_screening_csv(rows)
+        watchlist_entries_by_company_id = self._list_watchlist_entries_by_company_id()
+        records = _build_universe_screening_export_records(rows, watchlist_entries_by_company_id)
+        return _build_universe_screening_csv(records)
 
     def export_universe_with_scores_excel(
         self,
@@ -296,7 +313,68 @@ class ScreeningService:
             min_average_daily_volume=min_average_daily_volume,
             country=country,
         )
-        return _build_universe_screening_excel(rows)
+        watchlist_entries_by_company_id = self._list_watchlist_entries_by_company_id()
+        records = _build_universe_screening_export_records(rows, watchlist_entries_by_company_id)
+        metadata = _build_export_metadata(filters=filters, company_count=len(rows))
+        return _build_universe_screening_excel(records, metadata)
+
+    def export_watchlist_with_scores_csv(
+        self,
+        filters: UniverseScreeningFilters | None = None,
+        *,
+        max_market_cap: float | None = None,
+        min_average_daily_volume: float | None = None,
+        country: str | None = None,
+    ) -> str:
+        target_filters = filters or UniverseScreeningFilters()
+        watchlist_filters = _with_watchlist_scope(target_filters)
+        rows = self.filter_universe_with_scores(
+            watchlist_filters,
+            max_market_cap=max_market_cap,
+            min_average_daily_volume=min_average_daily_volume,
+            country=country,
+        )
+        watchlist_entries_by_company_id = self._list_watchlist_entries_by_company_id()
+        records = _build_universe_screening_export_records(rows, watchlist_entries_by_company_id)
+        return _build_universe_screening_csv(records)
+
+    def export_watchlist_with_scores_excel(
+        self,
+        filters: UniverseScreeningFilters | None = None,
+        *,
+        max_market_cap: float | None = None,
+        min_average_daily_volume: float | None = None,
+        country: str | None = None,
+    ) -> bytes:
+        target_filters = filters or UniverseScreeningFilters()
+        watchlist_filters = _with_watchlist_scope(target_filters)
+        rows = self.filter_universe_with_scores(
+            watchlist_filters,
+            max_market_cap=max_market_cap,
+            min_average_daily_volume=min_average_daily_volume,
+            country=country,
+        )
+        watchlist_entries_by_company_id = self._list_watchlist_entries_by_company_id()
+        records = _build_universe_screening_export_records(rows, watchlist_entries_by_company_id)
+        metadata = _build_export_metadata(filters=watchlist_filters, company_count=len(rows))
+        return _build_universe_screening_excel(records, metadata)
+
+    def export_screening_snapshot_csv(self, snapshot_id: int) -> str:
+        snapshot = self.get_screening_snapshot(snapshot_id)
+        if snapshot is None:
+            return _build_universe_screening_csv([])
+        records = _normalize_snapshot_results(snapshot.results)
+        return _build_universe_screening_csv(records)
+
+    def export_screening_snapshot_excel(self, snapshot_id: int) -> bytes:
+        snapshot = self.get_screening_snapshot(snapshot_id)
+        if snapshot is None:
+            metadata = _build_export_metadata(filters=UniverseScreeningFilters(), company_count=0)
+            return _build_universe_screening_excel([], metadata)
+        filters = _filters_from_snapshot_dict(snapshot.filters)
+        metadata = _build_export_metadata(filters=filters, company_count=snapshot.company_count)
+        records = _normalize_snapshot_results(snapshot.results)
+        return _build_universe_screening_excel(records, metadata)
 
     def save_screening_snapshot(
         self,
@@ -313,8 +391,9 @@ class ScreeningService:
             min_average_daily_volume=min_average_daily_volume,
             country=country,
         )
+        watchlist_entries_by_company_id = self._list_watchlist_entries_by_company_id()
         company_ids = [row.company_id for row in rows]
-        results = _build_universe_screening_export_records(rows)
+        results = _build_universe_screening_export_records(rows, watchlist_entries_by_company_id)
         with self.session_scope_factory() as session:
             stored = screening_snapshot_repository.add(
                 session,
@@ -598,8 +677,7 @@ def _normalize_optional_text(value: str | None) -> str | None:
     return normalized
 
 
-def _build_universe_screening_csv(entries: list[UniverseScreeningEntry]) -> str:
-    records = _build_universe_screening_export_records(entries)
+def _build_universe_screening_csv(records: list[dict[str, object]]) -> str:
     buffer = StringIO()
     writer = csv.DictWriter(
         buffer,
@@ -611,38 +689,101 @@ def _build_universe_screening_csv(entries: list[UniverseScreeningEntry]) -> str:
     return buffer.getvalue()
 
 
-def _build_universe_screening_excel(entries: list[UniverseScreeningEntry]) -> bytes:
-    records = _build_universe_screening_export_records(entries)
+def _build_universe_screening_excel(
+    records: list[dict[str, object]],
+    metadata: ScreeningExportMetadata,
+) -> bytes:
     dataframe = pd.DataFrame(records, columns=list(_UNIVERSE_SCREENING_EXPORT_COLUMNS))
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
         dataframe.to_excel(writer, index=False, sheet_name="Screening")
+        metadata_rows = _metadata_rows(metadata)
+        metadata_frame = pd.DataFrame(metadata_rows, columns=["field", "value"])
+        metadata_frame.to_excel(writer, index=False, sheet_name="Metadata")
     return buffer.getvalue()
 
 
-def _build_universe_screening_export_records(entries: list[UniverseScreeningEntry]) -> list[dict[str, object]]:
-    return [_serialize_universe_screening_entry(entry) for entry in entries]
+def _build_universe_screening_export_records(
+    entries: list[UniverseScreeningEntry],
+    watchlist_entries_by_company_id: dict[int, WatchlistEntry],
+) -> list[dict[str, object]]:
+    return [
+        _serialize_universe_screening_entry(entry, watchlist_entries_by_company_id.get(entry.company_id))
+        for entry in entries
+    ]
 
 
-def _serialize_universe_screening_entry(entry: UniverseScreeningEntry) -> dict[str, object]:
+def _serialize_universe_screening_entry(
+    entry: UniverseScreeningEntry,
+    watchlist_entry: WatchlistEntry | None,
+) -> dict[str, object]:
     return {
         "ticker": _export_value(entry.ticker),
         "name": _export_value(entry.name),
         "sector": _export_value(entry.sector),
         "total_score": _export_value(entry.total_score),
+        "rank": _export_value(entry.rank),
+        "sector_rank": _export_value(entry.sector_rank),
         "quality_score": _export_value(entry.quality_score),
         "value_score": _export_value(entry.value_score),
         "growth_score": _export_value(entry.growth_score),
         "risk_score": _export_value(entry.risk_score),
-        "rank": _export_value(entry.rank),
-        "sector_rank": _export_value(entry.sector_rank),
+        "data_quality_score": _export_value(entry.data_quality_score),
+        "last_universe_refresh_at": _export_value(entry.last_universe_refresh_at),
+        "snapshot_date": _export_value(entry.snapshot_date),
+        "watchlist_status": _export_value(watchlist_entry.status if watchlist_entry is not None else None),
+        "is_excluded": _export_value(watchlist_entry.is_excluded if watchlist_entry is not None else None),
+        "next_review_at": _export_value(watchlist_entry.next_review_at if watchlist_entry is not None else None),
     }
 
 
 def _export_value(value: object) -> object:
     if value is None:
         return ""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
     return value
+
+
+def _with_watchlist_scope(filters: UniverseScreeningFilters) -> UniverseScreeningFilters:
+    return UniverseScreeningFilters(
+        sector=filters.sector,
+        min_total_score=filters.min_total_score,
+        min_data_quality_score=filters.min_data_quality_score,
+        stale_only=filters.stale_only,
+        scored_only=filters.scored_only,
+        watchlist_scope="watchlist_only",
+        watchlist_status=filters.watchlist_status,
+        exclusion_filter=filters.exclusion_filter,
+        include_excluded=filters.include_excluded,
+        top_n=filters.top_n,
+        sort_by=filters.sort_by,
+        descending=filters.descending,
+    )
+
+
+def _build_export_metadata(*, filters: UniverseScreeningFilters, company_count: int) -> ScreeningExportMetadata:
+    sort_direction = "desc" if filters.descending else "asc"
+    sort_text = f"{filters.sort_by} {sort_direction}"
+    return ScreeningExportMetadata(
+        export_date=datetime.now(UTC),
+        filters=asdict(filters),
+        sort=sort_text,
+        company_count=company_count,
+        scoring_version=None,
+    )
+
+
+def _metadata_rows(metadata: ScreeningExportMetadata) -> list[dict[str, str]]:
+    return [
+        {"field": "export_date", "value": metadata.export_date.isoformat()},
+        {"field": "active_filters", "value": _format_snapshot_filters_summary(metadata.filters)},
+        {"field": "active_sort", "value": metadata.sort},
+        {"field": "company_count", "value": str(metadata.company_count)},
+        {"field": "scoring_version", "value": metadata.scoring_version or "N/A"},
+    ]
 
 
 def _to_saved_screening_snapshot(snapshot: ScreeningSnapshot) -> SavedScreeningSnapshot:
@@ -675,6 +816,32 @@ def _normalize_snapshot_results(raw_results: object) -> list[dict[str, object]]:
             continue
         normalized.append({column: row.get(column, "") for column in _UNIVERSE_SCREENING_EXPORT_COLUMNS})
     return normalized
+
+
+def _filters_from_snapshot_dict(raw_filters: dict[str, object]) -> UniverseScreeningFilters:
+    sort_by = _row_text(raw_filters.get("sort_by")) or "rank"
+    if sort_by not in ("rank", "total_score", "quality_score", "value_score", "growth_score", "risk_score", "ticker"):
+        sort_by = "rank"
+    watchlist_scope = _row_text(raw_filters.get("watchlist_scope")) or "all"
+    if watchlist_scope not in ("all", "watchlist_only", "non_watchlist_only"):
+        watchlist_scope = "all"
+    exclusion_filter = _row_text(raw_filters.get("exclusion_filter"))
+    if exclusion_filter not in ("all", "excluded_only", "non_excluded_only"):
+        exclusion_filter = None
+    return UniverseScreeningFilters(
+        sector=_row_text(raw_filters.get("sector")),
+        min_total_score=_row_float(raw_filters.get("min_total_score")),
+        min_data_quality_score=_row_float(raw_filters.get("min_data_quality_score")),
+        stale_only=raw_filters.get("stale_only") is True,
+        scored_only=raw_filters.get("scored_only") is True,
+        watchlist_scope=watchlist_scope,
+        watchlist_status=_row_text(raw_filters.get("watchlist_status")),
+        exclusion_filter=exclusion_filter,
+        include_excluded=raw_filters.get("include_excluded") is True,
+        top_n=_row_int(raw_filters.get("top_n")),
+        sort_by=sort_by,
+        descending=raw_filters.get("descending") is True,
+    )
 
 
 def _to_screening_snapshot_summary(snapshot: SavedScreeningSnapshot) -> ScreeningSnapshotSummary:
