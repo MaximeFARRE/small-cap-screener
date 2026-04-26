@@ -93,6 +93,14 @@ Rules:
 * `ChainedProvider`: ordered fallback across multiple providers; re-raises on non-ProviderError exceptions.
 * `NoOpProvider`: safe no-op stub for offline testing and development scenarios.
 
+## Database & Data Maintenance
+
+The application uses a local SQLite database (`data/screener.db`).
+
+* **Migrations**: Since the application is distributed as a desktop tool, explicit migrations are handled directly in Python via `init_db()` in `database.py`. We use manual `ALTER TABLE` statements (or table recreation for SQLite-specific limitations) to ensure the local DB schema is upgraded safely on startup. We do not use Alembic.
+* **Maintenance**: `MaintenanceService` provides local operations to backup the `.db` file, perform a `VACUUM` to reclaim space, and reset all user data (delete tables).
+* **Location & Recovery**: The database is located relative to the executable (or in `.env` via `DATABASE_URL`). Backups are created as `.bak` files alongside the main database file.
+
 ## Guardrails
 
 * Prefer targeted edits over broad rewrites.
