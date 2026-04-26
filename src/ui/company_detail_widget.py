@@ -46,11 +46,17 @@ _WATCHLIST_STATUS_OPTIONS: list[tuple[str, str]] = [
 _GROUPS_ORDER = [
     "Société",
     "Financial overview",
+    "Historical fundamentals",
     "Valuation ratios",
     "Quality / Growth / Risk",
     "Analyste",
     "Scoring",
 ]
+_TREND_LABELS = {
+    "positive": "positive",
+    "negative": "negative",
+    "stable": "stable",
+}
 
 
 def _fmt(value: float | None, decimals: int = 2) -> str:
@@ -244,6 +250,7 @@ class CompanyDetailWidget(QWidget):
         )
 
         self._populate_financial_overview(financial_detail, row.data_quality_score)
+        self._populate_historical_fundamentals(financial_detail)
         self._populate_valuation_ratios(financial_detail)
         self._populate_quality_growth_risk(financial_detail)
         self._update_alerts(row)
@@ -348,6 +355,28 @@ class CompanyDetailWidget(QWidget):
             "FCF yield",
             _fmt_pct(detail.fcf_yield if detail else None),
         )
+
+    def _populate_historical_fundamentals(self, detail: CompanyFinancialDetail | None) -> None:
+        if detail is None:
+            self._set_field("Historical fundamentals", "Revenue CAGR", _NA)
+            self._set_field("Historical fundamentals", "Operating income CAGR", _NA)
+            self._set_field("Historical fundamentals", "Net income CAGR", _NA)
+            self._set_field("Historical fundamentals", "Free cash flow CAGR", _NA)
+            self._set_field("Historical fundamentals", "Revenue trend", _NA)
+            self._set_field("Historical fundamentals", "Margin trend", _NA)
+            self._set_field("Historical fundamentals", "Net debt trend", _NA)
+            self._set_field("Historical fundamentals", "Table", _NA)
+            return
+
+        trends = detail.historical_fundamentals.trends
+        self._set_field("Historical fundamentals", "Revenue CAGR", _fmt_pct(trends.revenue_cagr))
+        self._set_field("Historical fundamentals", "Operating income CAGR", _fmt_pct(trends.operating_income_cagr))
+        self._set_field("Historical fundamentals", "Net income CAGR", _fmt_pct(trends.net_income_cagr))
+        self._set_field("Historical fundamentals", "Free cash flow CAGR", _fmt_pct(trends.free_cash_flow_cagr))
+        self._set_field("Historical fundamentals", "Revenue trend", _fmt_trend(trends.revenue_direction))
+        self._set_field("Historical fundamentals", "Margin trend", _fmt_trend(trends.margin_direction))
+        self._set_field("Historical fundamentals", "Net debt trend", _fmt_trend(trends.net_debt_direction))
+        self._set_field("Historical fundamentals", "Table", _fmt_historical_table(detail))
 
     def _populate_quality_growth_risk(self, detail: CompanyFinancialDetail | None) -> None:
         self._set_field(
@@ -477,6 +506,51 @@ def _fmt_period(detail: CompanyFinancialDetail) -> str:
         return _NA
     period_label = "annuel" if "annual" in (detail.period_type or "") else (detail.period_type or "")
     return f"{detail.fiscal_year} ({period_label})"
+
+
+def _fmt_trend(value: str | None) -> str:
+    if value is None:
+        return _NA
+    return _TREND_LABELS.get(value, value)
+
+
+def _fmt_historical_table(detail: CompanyFinancialDetail) -> str:
+    periods = [
+        ("Revenues", detail.historical_fundamentals.revenue_history),
+        ("Operating income", detail.historical_fundamentals.operating_income_history),
+        ("Net income", detail.historical_fundamentals.net_income_history),
+        ("Free cash flow", detail.historical_fundamentals.free_cash_flow_history),
+        ("Net debt", detail.historical_fundamentals.net_debt_history),
+    ]
+    years = _collect_historical_years(periods)
+    if not years:
+        return _NA
+
+    header = "Metric | " + " | ".join(str(year) for year in years)
+    rows = [header]
+    for label, history in periods:
+        values = {point.fiscal_year: point for point in history}
+        cells = [label]
+        for year in years:
+            point = values.get(year)
+            cells.append(_fmt_history_cell(point.value, point.period_type, detail.currency) if point else _NA)
+        rows.append(" | ".join(cells))
+    return "<pre>" + "\n".join(rows) + "</pre>"
+
+
+def _collect_historical_years(periods: list[tuple[str, list]]) -> list[int]:
+    years: set[int] = set()
+    for _, history in periods:
+        for point in history:
+            years.add(point.fiscal_year)
+    return sorted(years, reverse=True)
+
+
+def _fmt_history_cell(value: float | None, period_type: str | None, currency: str) -> str:
+    if value is None:
+        return _NA
+    suffix = "A" if period_type and "annual" in period_type else "H"
+    return f"{_fmt_large(value, currency)} ({suffix})"
 
 
 def _fmt_quality(score: float | None) -> str:
