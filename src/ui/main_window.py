@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDockWidget, QFileDialog, QMainWindow, QMessageBox, QSplitter
+from PySide6.QtWidgets import QAction, QDockWidget, QFileDialog, QMainWindow, QMessageBox, QSplitter
 
 from src.repositories.providers.yfinance_provider import YFinanceProvider
 from src.services.company_detail_service import CompanyDetailService
@@ -63,6 +63,7 @@ class MainWindow(QMainWindow):
         self._detail.add_watchlist_requested.connect(self._on_add_watchlist_requested)
         self._detail.remove_watchlist_requested.connect(self._on_remove_watchlist_requested)
         self._detail.save_watchlist_requested.connect(self._on_save_watchlist_requested)
+        self._detail.refresh_company_requested.connect(self._on_refresh_company_requested)
 
         self.setCentralWidget(splitter)
         self._setup_filter_dock()
@@ -82,7 +83,13 @@ class MainWindow(QMainWindow):
     def _setup_menu(self) -> None:
         file_menu = self.menuBar().addMenu("Fichier")
         file_menu.addAction("Ajouter un ticker…", self._open_add_ticker_dialog)
-        file_menu.addAction("Actualiser l'univers", self._refresh_universe)
+        file_menu.addSeparator()
+        self._refresh_universe_action = QAction("Actualiser l'univers", self)
+        self._refresh_universe_action.triggered.connect(self._refresh_universe)
+        file_menu.addAction(self._refresh_universe_action)
+        self._refresh_watchlist_action = QAction("Actualiser la watchlist", self)
+        self._refresh_watchlist_action.triggered.connect(self._refresh_watchlist)
+        file_menu.addAction(self._refresh_watchlist_action)
         file_menu.addSeparator()
         file_menu.addAction("Exporter CSV…", self._export_csv)
 
@@ -155,17 +162,55 @@ class MainWindow(QMainWindow):
         self._load_scored_universe(selected_company_id=company_id)
         self.statusBar().showMessage("Ticker importé et screener mis à jour.", 5000)
 
+    def _on_refresh_company_requested(self, company_id: int) -> None:
+        self._set_refresh_actions_enabled(False)
+        self.statusBar().showMessage("Actualisation en cours…")
+        self.repaint()
+        result = self._universe_discovery_service.refresh_company(company_id)
+        self._set_refresh_actions_enabled(True)
+        if not result.success:
+            QMessageBox.warning(
+                self,
+                "Actualisation échouée",
+                f"Impossible d'actualiser {result.ticker} : {result.error or 'erreur inconnue'}",
+            )
+            self.statusBar().clearMessage()
+            return
+        self._load_scored_universe(selected_company_id=company_id)
+        msg = f"{result.ticker} actualisé."
+        if result.warnings:
+            msg += f" Avertissements : {'; '.join(result.warnings)}"
+        self.statusBar().showMessage(msg, 6000)
+
     def _refresh_universe(self) -> None:
+        self._set_refresh_actions_enabled(False)
         self.statusBar().showMessage("Actualisation de l'univers en cours…")
         self.repaint()
         result = self._universe_discovery_service.batch_refresh_universe()
+        self._set_refresh_actions_enabled(True)
         self._load_scored_universe(selected_company_id=self._selected_company_id)
-        msg = (
-            f"Univers actualisé — {result.succeeded}/{result.total} sociétés rafraîchies"
-            + (f", {result.failed} échec(s)" if result.failed else "")
-            + "."
-        )
-        self.statusBar().showMessage(msg, 8000)
+        msg = f"Univers actualisé — {result.succeeded}/{result.total} société(s) rafraîchie(s)"
+        if result.failed:
+            failed_tickers = [r.ticker for r in result.results if not r.success][:3]
+            msg += f", {result.failed} échec(s) : {', '.join(t for t in failed_tickers if t)}"
+        self.statusBar().showMessage(msg + ".", 8000)
+
+    def _refresh_watchlist(self) -> None:
+        self._set_refresh_actions_enabled(False)
+        self.statusBar().showMessage("Actualisation de la watchlist en cours…")
+        self.repaint()
+        result = self._universe_discovery_service.refresh_watchlist()
+        self._set_refresh_actions_enabled(True)
+        self._load_scored_universe(selected_company_id=self._selected_company_id)
+        msg = f"Watchlist actualisée — {result.succeeded}/{result.total} société(s) rafraîchie(s)"
+        if result.failed:
+            failed_tickers = [r.ticker for r in result.results if not r.success][:3]
+            msg += f", {result.failed} échec(s) : {', '.join(t for t in failed_tickers if t)}"
+        self.statusBar().showMessage(msg + ".", 8000)
+
+    def _set_refresh_actions_enabled(self, enabled: bool) -> None:
+        self._refresh_universe_action.setEnabled(enabled)
+        self._refresh_watchlist_action.setEnabled(enabled)
 
     def _export_csv(self) -> None:
         rows = self._screener.rows()
