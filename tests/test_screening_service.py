@@ -7,7 +7,8 @@ import pytest
 
 from src.models.company import Company
 from src.models.kpi_snapshot import KpiSnapshot
-from src.repositories import company_repository, kpi_snapshot_repository
+from src.models.watchlist_entry import WatchlistEntry
+from src.repositories import company_repository, kpi_snapshot_repository, watchlist_repository
 from src.services.ratio_service import CompanyRatios
 from src.services.screening_service import (
     ScreeningCriteria,
@@ -378,6 +379,34 @@ def test_filter_universe_with_scores_scored_only(db_session):
         companies["beta"].id,
         companies["epsilon"].id,
     ]
+
+
+def test_filter_universe_with_scores_excludes_analyst_excluded_companies_by_default(db_session):
+    companies = _seed_scored_universe_for_filters(db_session)
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=companies["beta"].id, is_excluded=True),
+    )
+    service = _make_screening_service(db_session)
+
+    rows = service.filter_universe_with_scores(UniverseScreeningFilters())
+
+    assert companies["beta"].id not in [row.company_id for row in rows]
+
+
+def test_filter_universe_with_scores_include_excluded_true_keeps_excluded_companies(db_session):
+    companies = _seed_scored_universe_for_filters(db_session)
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=companies["beta"].id, is_excluded=True),
+    )
+    service = _make_screening_service(db_session)
+
+    rows = service.filter_universe_with_scores(
+        UniverseScreeningFilters(include_excluded=True),
+    )
+
+    assert companies["beta"].id in [row.company_id for row in rows]
 
 
 def test_filter_universe_with_scores_top_n(db_session):
