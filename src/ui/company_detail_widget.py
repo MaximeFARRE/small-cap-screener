@@ -22,10 +22,11 @@ from src.models.watchlist_entry import (
     WATCHLIST_STATUS_REVIEW,
     WATCHLIST_STATUS_WATCHING,
 )
+from src.services.company_detail_service import CompanyFinancialDetail
 from src.services.watchlist_service import CompanyAnalystDetail
 from src.ui.company_table_model import ScreenerRow
 
-_NA = "—"
+_NA = "N/A"
 _PLACEHOLDER = "Sélectionnez une société"
 _NOT_IN_WATCHLIST = "hors watchlist"
 _WATCHLIST_STATUS_OPTIONS: list[tuple[str, str]] = [
@@ -35,11 +36,44 @@ _WATCHLIST_STATUS_OPTIONS: list[tuple[str, str]] = [
     ("conviction", WATCHLIST_STATUS_CONVICTION),
 ]
 
+_GROUPS_ORDER = [
+    "Société",
+    "Financial overview",
+    "Valuation ratios",
+    "Quality / Growth / Risk",
+    "Analyste",
+    "Scoring",
+]
+
 
 def _fmt(value: float | None, decimals: int = 2) -> str:
     if value is None:
         return _NA
     return f"{value:.{decimals}f}"
+
+
+def _fmt_pct(value: float | None, decimals: int = 1) -> str:
+    if value is None:
+        return _NA
+    return f"{value * 100:.{decimals}f}%"
+
+
+def _fmt_large(value: float | None, currency: str = "EUR") -> str:
+    """Format large monetary values as M or B with currency."""
+    if value is None:
+        return _NA
+    abs_val = abs(value)
+    if abs_val >= 1_000_000_000:
+        return f"{value / 1_000_000_000:.2f} G{currency}"
+    if abs_val >= 1_000_000:
+        return f"{value / 1_000_000:.1f} M{currency}"
+    return f"{value:,.0f} {currency}"
+
+
+def _fmt_ratio(value: float | None, decimals: int = 1, suffix: str = "x") -> str:
+    if value is None:
+        return _NA
+    return f"{value:.{decimals}f}{suffix}"
 
 
 def _label(text: str) -> QLabel:
@@ -81,7 +115,7 @@ class CompanyDetailWidget(QWidget):
         scroll.setWidget(content)
 
         self._groups: dict[str, QFormLayout] = {}
-        for title in ("Société", "Analyste", "Scoring"):
+        for title in _GROUPS_ORDER:
             box = QGroupBox(title)
             form = QFormLayout(box)
             self._groups[title] = form
@@ -133,6 +167,7 @@ class CompanyDetailWidget(QWidget):
         self,
         row: ScreenerRow,
         analyst_detail: CompanyAnalystDetail | None = None,
+        financial_detail: CompanyFinancialDetail | None = None,
     ) -> None:
         self._current_row = row
         for form in self._groups.values():
@@ -180,6 +215,11 @@ class CompanyDetailWidget(QWidget):
         self._set_field("Société", "Nom", row.name)
         self._set_field("Société", "Ticker", row.ticker or _NA)
         self._set_field("Société", "Secteur", row.sector or _NA)
+
+        self._populate_financial_overview(financial_detail)
+        self._populate_valuation_ratios(financial_detail)
+        self._populate_quality_growth_risk(financial_detail)
+
         self._set_field("Analyste", "Status watchlist", watchlist_status)
         self._set_field("Analyste", "Notes watchlist", watchlist_notes)
         self._set_field("Analyste", "Exclue", "oui" if watchlist_is_excluded else "non")
@@ -197,6 +237,125 @@ class CompanyDetailWidget(QWidget):
 
         self._placeholder.setVisible(False)
         self._scroll.setVisible(True)
+
+    def _populate_financial_overview(self, detail: CompanyFinancialDetail | None) -> None:
+        ccy = detail.currency if detail is not None else "EUR"
+        period = _fmt_period(detail) if detail is not None else _NA
+        self._set_field("Financial overview", "Période", period)
+        self._set_field(
+            "Financial overview",
+            "Prix actuel",
+            _fmt(detail.current_price if detail else None, 2) + (f" {ccy}" if detail and detail.current_price else ""),
+        )
+        self._set_field(
+            "Financial overview",
+            "Market cap",
+            _fmt_large(detail.market_cap if detail else None, ccy),
+        )
+        self._set_field(
+            "Financial overview",
+            "Enterprise value",
+            _fmt_large(detail.enterprise_value if detail else None, ccy),
+        )
+        self._set_field(
+            "Financial overview",
+            "Revenus",
+            _fmt_large(detail.revenue if detail else None, ccy),
+        )
+        self._set_field(
+            "Financial overview",
+            "EBITDA",
+            _fmt_large(detail.ebitda if detail else None, ccy),
+        )
+        self._set_field(
+            "Financial overview",
+            "Résultat net",
+            _fmt_large(detail.net_income if detail else None, ccy),
+        )
+        self._set_field(
+            "Financial overview",
+            "Free cash flow",
+            _fmt_large(detail.free_cash_flow if detail else None, ccy),
+        )
+        self._set_field(
+            "Financial overview",
+            "Dette nette",
+            _fmt_large(detail.net_debt if detail else None, ccy),
+        )
+        self._set_field(
+            "Financial overview",
+            "Qualité données",
+            _fmt_pct(detail.data_quality_score if detail else None),
+        )
+
+    def _populate_valuation_ratios(self, detail: CompanyFinancialDetail | None) -> None:
+        self._set_field(
+            "Valuation ratios",
+            "P/E",
+            _fmt_ratio(detail.pe_ratio if detail else None),
+        )
+        self._set_field(
+            "Valuation ratios",
+            "P/B",
+            _fmt_ratio(detail.pb_ratio if detail else None),
+        )
+        self._set_field(
+            "Valuation ratios",
+            "EV/EBITDA",
+            _fmt_ratio(detail.ev_ebitda if detail else None),
+        )
+        self._set_field(
+            "Valuation ratios",
+            "EV/Sales",
+            _fmt_ratio(detail.ev_sales if detail else None),
+        )
+        self._set_field(
+            "Valuation ratios",
+            "FCF yield",
+            _fmt_pct(detail.fcf_yield if detail else None),
+        )
+
+    def _populate_quality_growth_risk(self, detail: CompanyFinancialDetail | None) -> None:
+        self._set_field(
+            "Quality / Growth / Risk",
+            "Marge brute",
+            _fmt_pct(detail.gross_margin if detail else None),
+        )
+        self._set_field(
+            "Quality / Growth / Risk",
+            "Marge opérationnelle",
+            _fmt_pct(detail.operating_margin if detail else None),
+        )
+        self._set_field(
+            "Quality / Growth / Risk",
+            "Marge nette",
+            _fmt_pct(detail.net_margin if detail else None),
+        )
+        self._set_field(
+            "Quality / Growth / Risk",
+            "ROE",
+            _fmt_pct(detail.roe if detail else None),
+        )
+        self._set_field(
+            "Quality / Growth / Risk",
+            "ROIC",
+            _fmt_pct(detail.roic if detail else None),
+        )
+        self._set_field(
+            "Quality / Growth / Risk",
+            "Croissance revenus",
+            _fmt_pct(detail.revenue_growth if detail else None),
+        )
+        self._set_field(
+            "Quality / Growth / Risk",
+            "Croissance EBITDA",
+            _fmt_pct(detail.ebitda_growth if detail else None),
+        )
+        self._set_field(
+            "Quality / Growth / Risk",
+            "Dette nette / EBITDA",
+            _fmt_ratio(detail.net_debt_to_ebitda if detail else None),
+        )
 
     def clear(self) -> None:
         self._current_row = None
@@ -248,3 +407,10 @@ class CompanyDetailWidget(QWidget):
             notes,
             self._excluded_input.isChecked(),
         )
+
+
+def _fmt_period(detail: CompanyFinancialDetail) -> str:
+    if detail.fiscal_year is None:
+        return _NA
+    period_label = "annuel" if "annual" in (detail.period_type or "") else (detail.period_type or "")
+    return f"{detail.fiscal_year} ({period_label})"
