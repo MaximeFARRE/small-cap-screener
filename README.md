@@ -91,6 +91,23 @@ See `docs/ROADMAP.md`.
 
 ---
 
+## Desktop Packaging
+
+Build the Windows desktop executable with PyInstaller:
+
+```bash
+pip install -r requirements-dev.txt
+python -m PyInstaller --clean --noconfirm small_cap_screener.spec
+```
+
+Build output:
+
+```text
+dist/small-cap-screener/small-cap-screener.exe
+```
+
+---
+
 ## Notes
 
 * Local-first application (no server)

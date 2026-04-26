@@ -260,3 +260,20 @@ feat: add csv import feature
 - [ ] `git diff` was reviewed.
 - [ ] The branch is ready to merge into `main`.
 - [ ] Current branch was pushed before branch switching.
+
+---
+
+## Desktop Packaging (Windows)
+
+Minimal reproducible build:
+
+```bash
+pip install -r requirements-dev.txt
+python -m PyInstaller --clean --noconfirm small_cap_screener.spec
+```
+
+Executable output:
+
+```text
+dist/small-cap-screener/small-cap-screener.exe
+```
