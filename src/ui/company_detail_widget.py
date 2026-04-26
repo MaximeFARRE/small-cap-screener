@@ -56,7 +56,10 @@ _PLACEHOLDER = "Sélectionnez une société"
 _NOT_IN_WATCHLIST = "hors watchlist"
 _DATA_QUALITY_HIGH = 0.8
 _DATA_QUALITY_MEDIUM = 0.5
-_ALERT_STYLE = "QFrame { background: #FFF3CD; border: 1px solid #FFC107; border-radius: 4px; padding: 4px; }"
+_ALERT_STYLE = (
+    "QFrame { background: #FFF3CD; border: 1px solid #FFC107; "
+    "border-left: 4px solid #FFC107; border-radius: 4px; padding: 6px; }"
+)
 _WATCHLIST_STATUS_OPTIONS: list[tuple[str, str]] = [
     ("watching", WATCHLIST_STATUS_WATCHING),
     ("review", WATCHLIST_STATUS_REVIEW),
@@ -145,6 +148,7 @@ class CompanyDetailWidget(QWidget):
 
         self._placeholder = QLabel(_PLACEHOLDER)
         self._placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._placeholder.setStyleSheet("color: #777; font-size: 14pt; font-style: italic;")
         outer_layout.addWidget(self._placeholder)
 
         self._alert_frame = QFrame()
