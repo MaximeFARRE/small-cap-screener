@@ -32,6 +32,7 @@ class CompanyAnalystDetail:
     watchlist_status: str | None
     watchlist_notes: str | None
     watchlist_is_excluded: bool
+    analyst_memo: AnalystMemo
     quality_score: float | None
     value_score: float | None
     growth_score: float | None
@@ -40,6 +41,15 @@ class CompanyAnalystDetail:
     rank: int | None
     sector_rank: int | None
     score_explanation: ScoreExplanation
+
+
+@dataclass(frozen=True)
+class AnalystMemo:
+    investment_thesis: str | None = None
+    key_risks: str | None = None
+    catalysts: str | None = None
+    valuation_notes: str | None = None
+    next_action: str | None = None
 
 
 @dataclass
@@ -96,6 +106,7 @@ class WatchlistService:
             watchlist_status=watchlist_entry.status if watchlist_entry is not None else None,
             watchlist_notes=watchlist_entry.notes if watchlist_entry is not None else None,
             watchlist_is_excluded=watchlist_entry.is_excluded if watchlist_entry is not None else False,
+            analyst_memo=_memo_from_entry(watchlist_entry),
             quality_score=explanation.quality,
             value_score=explanation.value,
             growth_score=explanation.growth,
@@ -164,6 +175,37 @@ class WatchlistService:
                 ),
             )
 
+    def update_company_memo(self, company_id: int, memo: AnalystMemo) -> WatchlistEntry | None:
+        with self.session_scope_factory() as session:
+            company = company_repository.get_by_id(session, company_id)
+            if company is None:
+                return None
+
+            normalized_memo = _normalize_memo(memo)
+            updated = watchlist_repository.update_memo_by_company_id(
+                session,
+                company_id,
+                investment_thesis=normalized_memo.investment_thesis,
+                key_risks=normalized_memo.key_risks,
+                catalysts=normalized_memo.catalysts,
+                valuation_notes=normalized_memo.valuation_notes,
+                next_action=normalized_memo.next_action,
+            )
+            if updated is not None:
+                return updated
+
+            return watchlist_repository.add(
+                session,
+                WatchlistEntry(
+                    company_id=company_id,
+                    investment_thesis=normalized_memo.investment_thesis,
+                    key_risks=normalized_memo.key_risks,
+                    catalysts=normalized_memo.catalysts,
+                    valuation_notes=normalized_memo.valuation_notes,
+                    next_action=normalized_memo.next_action,
+                ),
+            )
+
     def list_watchlist_with_scores(
         self,
         max_market_cap: float | None = None,
@@ -201,6 +243,37 @@ class WatchlistService:
 
 def _normalize_status(value: str) -> str:
     return value.strip().lower()
+
+
+def _normalize_optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not normalized:
+        return None
+    return normalized
+
+
+def _normalize_memo(memo: AnalystMemo) -> AnalystMemo:
+    return AnalystMemo(
+        investment_thesis=_normalize_optional_text(memo.investment_thesis),
+        key_risks=_normalize_optional_text(memo.key_risks),
+        catalysts=_normalize_optional_text(memo.catalysts),
+        valuation_notes=_normalize_optional_text(memo.valuation_notes),
+        next_action=_normalize_optional_text(memo.next_action),
+    )
+
+
+def _memo_from_entry(entry: WatchlistEntry | None) -> AnalystMemo:
+    if entry is None:
+        return AnalystMemo()
+    return AnalystMemo(
+        investment_thesis=entry.investment_thesis,
+        key_risks=entry.key_risks,
+        catalysts=entry.catalysts,
+        valuation_notes=entry.valuation_notes,
+        next_action=entry.next_action,
+    )
 
 
 def _build_watchlist_with_scores(
