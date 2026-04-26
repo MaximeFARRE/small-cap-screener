@@ -85,7 +85,22 @@ Out of scope V1:
 * Score visualization
 * Data freshness display
 
-## Phase 10 — Analyst workflow
+## Phase 10 — Desktop UI (part 2)
+
+- [x] Main screener table connected to `ScreeningService`
+- [x] Display scored universe (ticker, name, sector, total_score, rank, sector_rank)
+- [x] Empty state handling (safe fallback, status feedback)
+- [x] Filters panel connected to service layer
+- [x] Filters: sector, minimum score, scored only, top N
+- [x] UI sorting controls (rank, scores, ticker, asc/desc)
+- [x] CSV export aligned with active filters and sorting
+- [x] Company detail analyst panel
+- [x] Watchlist notes and status display
+- [x] Sub-scores display (quality, value, growth, risk)
+- [x] Deterministic score explanation display
+- [x] Safe handling for missing snapshot / missing watchlist data
+
+## Phase 11 — Analyst workflow
 
 * Watchlist
 * Personal notes
@@ -93,7 +108,7 @@ Out of scope V1:
 * CSV / Excel export
 * Screening snapshots
 
-## Phase 11 — Reliability
+## Phase 12 — Reliability
 
 * Cache strategy
 * Retry + fallback handling
@@ -101,7 +116,7 @@ Out of scope V1:
 * Data quality score
 * Clean logs
 
-## Phase 12 — Final delivery
+## Phase 13 — Final delivery
 
 * Full tests + linting
 * Packaging (desktop executable)
