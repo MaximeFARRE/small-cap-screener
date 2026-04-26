@@ -309,6 +309,15 @@ class MainWindow(QMainWindow):
     def _set_refresh_actions_enabled(self, enabled: bool) -> None:
         self._refresh_universe_action.setEnabled(enabled)
         self._refresh_watchlist_action.setEnabled(enabled)
+        self._detail._refresh_btn.setEnabled(enabled)
+        if enabled:
+            from PySide6.QtCore import Qt
+
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+        else:
+            from PySide6.QtCore import Qt
+
+            self.setCursor(Qt.CursorShape.WaitCursor)
 
     def _export_csv(self) -> None:
         rows = self._screener.rows()
