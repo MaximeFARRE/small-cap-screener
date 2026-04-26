@@ -1,6 +1,38 @@
 # CHANGELOG
 
+## v0.10.0 (2026-04-26)
+
+### Feature
+
+* feat: show resolved ticker and suffix hint in ingestion dialog success message ([`3dee5d4`](https://github.com/MaximeFARRE/small-cap-screener/commit/3dee5d40cd76fef31e91ba614aef4d2701cb7a54))
+
+* feat: wire ticker resolver into ingestion service and expose resolved ticker in result ([`c59c73a`](https://github.com/MaximeFARRE/small-cap-screener/commit/c59c73a64ea54eb6a1a658cbce24959eb786b3a8))
+
+* feat: add ticker resolver service with suffix fallback and provider error classification ([`c545089`](https://github.com/MaximeFARRE/small-cap-screener/commit/c545089b3378873588df1bcf6bd6cd4af3dd89d3))
+
+* feat: add ticker resolution dto, error kind enum and normalization helpers ([`e138669`](https://github.com/MaximeFARRE/small-cap-screener/commit/e13866973469ed12a5390f43c709b75b28354fb3))
+
+* feat: add provider data inconsistent error type ([`337acc8`](https://github.com/MaximeFARRE/small-cap-screener/commit/337acc8e873c9285d0cad043c7165ba5581428bf))
+
+### Refactor
+
+* refactor: return profile directly from probe to avoid double provider call ([`1254bb0`](https://github.com/MaximeFARRE/small-cap-screener/commit/1254bb0cf5ce02bf8ecef4336f3755c3bbc577c2))
+
+### Test
+
+* test: add resolver integration tests to ticker ingestion service ([`d287cb2`](https://github.com/MaximeFARRE/small-cap-screener/commit/d287cb2b0a55a6409207be42b2f3453c789f874a))
+
+### Unknown
+
+* Merge pull request #20 from MaximeFARRE/feat/phase16-ticker-resolution
+
+Feat/phase16 ticker resolution ([`c3acb99`](https://github.com/MaximeFARRE/small-cap-screener/commit/c3acb991c18d45c0a07b0c975d0fddae12bc1565))
+
 ## v0.9.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.9.0 [skip ci] ([`5edfbc1`](https://github.com/MaximeFARRE/small-cap-screener/commit/5edfbc1eed8a547758728bcc49caf7421ffc01b0))
 
 ### Feature
 
