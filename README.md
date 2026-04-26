@@ -73,6 +73,27 @@ Run app:
 python -m src.ui.app
 ```
 
+## Local Demo Dataset
+
+The repository includes a stable, synthetic (but realistic) French small-cap demo dataset:
+
+* fixed universe seed (`data/demo/seed_universe_fr_small_caps.csv`)
+* KPI snapshots with deterministic scoring and ranking
+* watchlist analyst notes/status
+* one excluded company to demonstrate analyst filtering behavior
+
+Build/reset the local demo data:
+
+```bash
+python -m src.demo_dataset
+```
+
+Then launch the app:
+
+```bash
+python -m src.ui.app
+```
+
 ## Desktop Packaging
 
 ```bash
