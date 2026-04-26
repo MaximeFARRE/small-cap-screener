@@ -1,7 +1,7 @@
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from src.models.company import Company
+from src.models.company import SOURCE_SEED, Company
 from src.repositories.seed_universe_repository import SeedUniverseEntry
 
 
@@ -32,6 +32,19 @@ def get_all(session: Session) -> list[Company]:
 
 def search_by_name(session: Session, query: str) -> list[Company]:
     stmt = select(Company).where(Company.name.ilike(f"%{query}%")).order_by(Company.name)
+    return list(session.execute(stmt).scalars())
+
+
+def get_all_active(session: Session) -> list[Company]:
+    stmt = (
+        select(Company)
+        .where(
+            Company.is_active.is_(True),
+            Company.ticker.is_not(None),
+            func.length(func.trim(Company.ticker)) > 0,
+        )
+        .order_by(Company.name)
+    )
     return list(session.execute(stmt).scalars())
 
 
@@ -121,6 +134,7 @@ def bulk_upsert_from_seed(session: Session, entries: list[SeedUniverseEntry]) ->
                     sector=entry.sector,
                     market=entry.exchange,
                     currency=entry.currency,
+                    source_origin=SOURCE_SEED,
                 ),
             )
         else:

@@ -6,6 +6,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.repositories.database import Base
 
+SOURCE_MANUAL = "manual"
+SOURCE_SEED = "seed"
+SOURCE_PROVIDER = "provider"
+SOURCE_IMPORTED = "imported"
+
 if TYPE_CHECKING:
     from src.models.dividend import Dividend
     from src.models.financial_statement import FinancialStatement
@@ -29,6 +34,8 @@ class Company(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
     market_cap: Mapped[float | None]
     average_daily_volume: Mapped[float | None]
+    source_origin: Mapped[str | None] = mapped_column(String(20), default=None)
+    last_universe_refresh_at: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
