@@ -17,6 +17,10 @@ class DataFetchError(ProviderError):
     """Raised when data retrieval fails after all retry attempts."""
 
 
+class ProviderDataInconsistentError(ProviderError):
+    """Raised when the provider returns a response but the data is incoherent."""
+
+
 @dataclass
 class CompanyInfo:
     name: str

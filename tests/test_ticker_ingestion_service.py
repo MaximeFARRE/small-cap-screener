@@ -271,3 +271,48 @@ def test_ingest_ticker_kpi_failure_still_succeeds(db_session):
     assert result.success
     assert result.kpi_snapshot_id is None
     assert any("KPI" in w for w in result.warnings)
+
+
+# ---------------------------------------------------------------------------
+# resolver integration — suffix fallback end-to-end
+# ---------------------------------------------------------------------------
+
+
+def test_ingest_ticker_resolves_suffix_automatically(db_session):
+    """User types 'MC' without suffix; ingestion resolves to 'MC.PA'."""
+    profile = _make_profile("MC.PA", isin="FR0000131104")
+    fin_svc = MagicMock()
+    fin_svc.provider.get_company_profile.side_effect = [
+        TickerNotFoundError("MC bare not found"),
+        profile,  # MC.PA found
+    ]
+    fin_svc.refresh_company_data.return_value = CompanyDataRefreshResult(
+        company_id=1, ticker="MC.PA", success=True, prices_added=5, statements_added=2
+    )
+    svc = TickerIngestionService(
+        financial_data_service=fin_svc,
+        kpi_snapshot_service=_make_kpi_service(),
+        session_scope_factory=_make_session_scope(db_session),
+    )
+    result = svc.ingest_ticker("MC")
+    assert result.success
+    assert result.ticker == "MC"
+    assert result.resolved_ticker == "MC.PA"
+    companies = company_repository.get_all(db_session)
+    assert companies[0].ticker == "MC.PA"
+
+
+def test_ingest_ticker_exposes_resolved_ticker_on_success(db_session):
+    profile = _make_profile("MC.PA")
+    fin_svc = _make_financial_service(profile)
+    fin_svc.refresh_company_data.return_value = CompanyDataRefreshResult(
+        company_id=1, ticker="MC.PA", success=True, prices_added=2, statements_added=1
+    )
+    svc = TickerIngestionService(
+        financial_data_service=fin_svc,
+        kpi_snapshot_service=_make_kpi_service(),
+        session_scope_factory=_make_session_scope(db_session),
+    )
+    result = svc.ingest_ticker("MC.PA")
+    assert result.success
+    assert result.resolved_ticker == "MC.PA"

@@ -12,9 +12,9 @@ from sqlalchemy.orm import Session
 from src.models.company import Company
 from src.repositories import company_repository
 from src.repositories.database import get_session
-from src.repositories.providers.base import TickerNotFoundError
 from src.services.financial_data_service import FinancialDataService
 from src.services.kpi_snapshot_service import KpiSnapshotService
+from src.services.ticker_resolver_service import TickerResolverService
 
 SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
 _LOGGER = logging.getLogger(__name__)
@@ -27,6 +27,7 @@ _MAX_TICKER_LENGTH = 20
 class TickerIngestionResult:
     ticker: str
     success: bool
+    resolved_ticker: str | None = None
     company_id: int | None = None
     created: bool = False
     kpi_snapshot_id: int | None = None
@@ -58,6 +59,9 @@ class TickerIngestionService:
     kpi_snapshot_service: KpiSnapshotService
     session_scope_factory: SessionScopeFactory = field(default=get_session)
 
+    def __post_init__(self) -> None:
+        self._resolver = TickerResolverService(provider=self.financial_data_service.provider)
+
     def ingest_ticker(self, ticker: str) -> TickerIngestionResult:
         normalized = ticker.strip().upper()
 
@@ -70,29 +74,24 @@ class TickerIngestionService:
                 stage="validate",
             )
 
-        try:
-            profile = self.financial_data_service.provider.get_company_profile(normalized)
-        except TickerNotFoundError:
+        resolution = self._resolver.resolve(normalized)
+        if not resolution.success:
             return TickerIngestionResult(
                 ticker=normalized,
                 success=False,
-                error=f"Ticker '{normalized}' introuvable chez le fournisseur de données.",
-                stage="fetch",
-            )
-        except Exception as exc:
-            return TickerIngestionResult(
-                ticker=normalized,
-                success=False,
-                error=f"Erreur fournisseur : {exc}",
+                error=resolution.error,
                 stage="fetch",
             )
 
-        company_id, created = self._find_or_create_company(normalized, profile)
+        resolved = resolution.resolved_ticker
+        profile = resolution.profile
+        company_id, created = self._find_or_create_company(resolved, profile)
 
         refresh_result = self.financial_data_service.refresh_company_data(company_id)
         if not refresh_result.success:
             return TickerIngestionResult(
                 ticker=normalized,
+                resolved_ticker=resolved,
                 success=False,
                 company_id=company_id,
                 created=created,
@@ -109,13 +108,15 @@ class TickerIngestionService:
         if not kpi_result.success:
             warnings.append(f"Snapshot KPI échoué : {kpi_result.error}")
             _LOGGER.warning(
-                "ticker ingestion kpi failed | ticker=%s company_id=%s error=%s",
+                "ticker ingestion kpi failed | ticker=%s resolved=%s company_id=%s error=%s",
                 normalized,
+                resolved,
                 company_id,
                 kpi_result.error,
             )
             return TickerIngestionResult(
                 ticker=normalized,
+                resolved_ticker=resolved,
                 success=True,
                 company_id=company_id,
                 created=created,
@@ -123,14 +124,16 @@ class TickerIngestionService:
             )
 
         _LOGGER.info(
-            "ticker ingestion succeeded | ticker=%s company_id=%s created=%s snapshot_id=%s",
+            "ticker ingestion succeeded | ticker=%s resolved=%s company_id=%s created=%s snapshot_id=%s",
             normalized,
+            resolved,
             company_id,
             created,
             kpi_result.snapshot_id,
         )
         return TickerIngestionResult(
             ticker=normalized,
+            resolved_ticker=resolved,
             success=True,
             company_id=company_id,
             created=created,
