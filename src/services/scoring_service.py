@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from src.models.kpi_snapshot import KpiSnapshot
 from src.services.ratio_service import CompanyRatios
+from src.services.scoring_config import (
+    DEFAULT_SNAPSHOT_SUB_SCORE_WEIGHTS,
+    SnapshotSubScoreWeights,
+    validate_snapshot_sub_score_weights,
+)
 
 _ZERO: float = 1e-9
 
@@ -46,24 +51,71 @@ class RankedCompanyTotalScore:
 
 
 @dataclass(frozen=True)
+class ScoreWeightEntry:
+    category: str
+    weight: float
+
+
+@dataclass(frozen=True)
+class ScoreCategoryContribution:
+    category: str
+    sub_score: float
+    weight: float
+    weighted_points: float
+
+
+@dataclass(frozen=True)
+class ScoreMetricDriver:
+    category: str
+    metric: str
+    raw_value: float
+    metric_score: float
+    weighted_points: float
+    impact_points: float
+
+
+@dataclass(frozen=True)
 class ScoreExplanation:
     total_score: float | None
     quality: float | None
     value: float | None
     growth: float | None
     risk: float | None
+    weights: tuple[ScoreWeightEntry, ...]
+    category_contributions: tuple[ScoreCategoryContribution, ...]
+    positive_drivers: tuple[ScoreMetricDriver, ...]
+    negative_drivers: tuple[ScoreMetricDriver, ...]
     strengths: tuple[str, ...]
     weaknesses: tuple[str, ...]
     summary: str
 
 
-# Category weights must sum to 1.0.
-SNAPSHOT_SUB_SCORE_WEIGHTS: dict[str, float] = {
-    "quality": 0.35,
-    "value": 0.30,
-    "growth": 0.20,
-    "risk": 0.15,
-}
+@dataclass(frozen=True)
+class _MetricContribution:
+    category: str
+    metric: str
+    raw_value: float
+    metric_score: float
+    weighted_points: float
+    impact_points: float
+
+
+@dataclass(frozen=True)
+class _SubScoreComputation:
+    score: float
+    metric_contributions: tuple[_MetricContribution, ...]
+
+
+@dataclass(frozen=True)
+class _ScoreComputation:
+    scores: SnapshotScores
+    metric_contributions: tuple[_MetricContribution, ...]
+
+
+_CATEGORY_ORDER: tuple[str, ...] = ("quality", "value", "growth", "risk")
+
+# Backward-compatible constant; source of truth is now in scoring_config.
+SNAPSHOT_SUB_SCORE_WEIGHTS: dict[str, float] = DEFAULT_SNAPSHOT_SUB_SCORE_WEIGHTS.as_dict()
 
 # Per-metric weights for each sub-score category.
 QUALITY_METRIC_RULES: dict[str, MetricRule] = {
@@ -96,6 +148,10 @@ VALUE_SCORE_KEY: str = "value_score"
 GROWTH_SCORE_KEY: str = "growth_score"
 RISK_SCORE_KEY: str = "risk_score"
 TOTAL_SCORE_KEY: str = "total_score"
+SCORE_WEIGHT_QUALITY_KEY: str = "score_weight_quality"
+SCORE_WEIGHT_VALUE_KEY: str = "score_weight_value"
+SCORE_WEIGHT_GROWTH_KEY: str = "score_weight_growth"
+SCORE_WEIGHT_RISK_KEY: str = "score_weight_risk"
 _MAX_EXPLANATION_POINTS: int = 3
 _STRENGTH_THRESHOLD: float = 60.0
 _WEAKNESS_THRESHOLD: float = 40.0
@@ -103,27 +159,16 @@ _WEAKNESS_THRESHOLD: float = 40.0
 
 @dataclass
 class ScoringService:
+    sub_score_weights: SnapshotSubScoreWeights = field(default_factory=lambda: DEFAULT_SNAPSHOT_SUB_SCORE_WEIGHTS)
+
+    def __post_init__(self) -> None:
+        validate_snapshot_sub_score_weights(self.sub_score_weights)
+
     def compute_snapshot_scores(self, snapshot: KpiSnapshot) -> SnapshotScores:
         return self.compute_metrics_scores(snapshot.metrics)
 
     def compute_metrics_scores(self, metrics: Mapping[str, object]) -> SnapshotScores:
-        quality_score = _compute_sub_score(metrics, QUALITY_METRIC_RULES)
-        value_score = _compute_sub_score(metrics, VALUE_METRIC_RULES)
-        growth_score = _compute_sub_score(metrics, GROWTH_METRIC_RULES)
-        risk_score = _compute_sub_score(metrics, RISK_METRIC_RULES)
-        total_score = _compute_total_score(
-            quality_score=quality_score,
-            value_score=value_score,
-            growth_score=growth_score,
-            risk_score=risk_score,
-        )
-        return SnapshotScores(
-            quality=quality_score,
-            value=value_score,
-            growth=growth_score,
-            risk=risk_score,
-            total=total_score,
-        )
+        return _compute_score_components(metrics, self.sub_score_weights.as_dict()).scores
 
     def apply_scores(self, snapshot: KpiSnapshot) -> KpiSnapshot:
         scores = self.compute_snapshot_scores(snapshot)
@@ -135,6 +180,10 @@ class ScoringService:
                 GROWTH_SCORE_KEY: scores.growth,
                 RISK_SCORE_KEY: scores.risk,
                 TOTAL_SCORE_KEY: scores.total,
+                SCORE_WEIGHT_QUALITY_KEY: self.sub_score_weights.quality_weight,
+                SCORE_WEIGHT_VALUE_KEY: self.sub_score_weights.value_weight,
+                SCORE_WEIGHT_GROWTH_KEY: self.sub_score_weights.growth_weight,
+                SCORE_WEIGHT_RISK_KEY: self.sub_score_weights.risk_weight,
             }
         )
         snapshot.metrics = updated_metrics
@@ -166,7 +215,25 @@ class ScoringService:
         return _as_finite_float(snapshot.metrics.get(TOTAL_SCORE_KEY))
 
     def describe_snapshot_score(self, snapshot: KpiSnapshot | None) -> ScoreExplanation:
-        scores = _resolve_snapshot_scores(snapshot, self)
+        if snapshot is None:
+            return ScoreExplanation(
+                total_score=None,
+                quality=None,
+                value=None,
+                growth=None,
+                risk=None,
+                weights=(),
+                category_contributions=(),
+                positive_drivers=(),
+                negative_drivers=(),
+                strengths=(),
+                weaknesses=(),
+                summary="score unavailable: no snapshot data.",
+            )
+
+        weights = _resolve_snapshot_weights(snapshot.metrics, self.sub_score_weights)
+        weights_map = weights.as_dict()
+        scores = _resolve_snapshot_scores(snapshot, self, weights_map)
         if scores is None:
             return ScoreExplanation(
                 total_score=None,
@@ -174,39 +241,139 @@ class ScoringService:
                 value=None,
                 growth=None,
                 risk=None,
+                weights=(),
+                category_contributions=(),
+                positive_drivers=(),
+                negative_drivers=(),
                 strengths=(),
                 weaknesses=(),
                 summary="score unavailable: no snapshot data.",
             )
+
+        computation = _compute_score_components(snapshot.metrics, weights_map)
+        category_contributions = _build_category_contributions(scores, weights_map)
+        positive_drivers = _select_positive_drivers(computation.metric_contributions)
+        negative_drivers = _select_negative_drivers(computation.metric_contributions)
         strengths = _select_strength_points(scores)
         weaknesses = _select_weakness_points(scores, strengths)
+
         return ScoreExplanation(
             total_score=scores.total,
             quality=scores.quality,
             value=scores.value,
             growth=scores.growth,
             risk=scores.risk,
+            weights=tuple(
+                ScoreWeightEntry(category=category, weight=weights_map[category]) for category in _CATEGORY_ORDER
+            ),
+            category_contributions=category_contributions,
+            positive_drivers=positive_drivers,
+            negative_drivers=negative_drivers,
             strengths=tuple(_format_explanation_point(name, score) for name, score in strengths),
             weaknesses=tuple(_format_explanation_point(name, score) for name, score in weaknesses),
-            summary=_build_score_summary(scores, strengths, weaknesses),
+            summary=_build_score_summary(
+                scores,
+                category_contributions,
+                positive_drivers,
+                negative_drivers,
+                strengths,
+                weaknesses,
+            ),
         )
 
 
-def _compute_sub_score(metrics: Mapping[str, object], rules: Mapping[str, MetricRule]) -> float:
-    weighted_sum = 0.0
-    total_weight = 0.0
+def _compute_score_components(
+    metrics: Mapping[str, object],
+    weights: Mapping[str, float],
+) -> _ScoreComputation:
+    quality = _compute_sub_score(metrics, QUALITY_METRIC_RULES, category="quality", category_weight=weights["quality"])
+    value = _compute_sub_score(metrics, VALUE_METRIC_RULES, category="value", category_weight=weights["value"])
+    growth = _compute_sub_score(metrics, GROWTH_METRIC_RULES, category="growth", category_weight=weights["growth"])
+    risk = _compute_sub_score(metrics, RISK_METRIC_RULES, category="risk", category_weight=weights["risk"])
+
+    scores = SnapshotScores(
+        quality=quality.score,
+        value=value.score,
+        growth=growth.score,
+        risk=risk.score,
+        total=_compute_total_score(
+            quality_score=quality.score,
+            value_score=value.score,
+            growth_score=growth.score,
+            risk_score=risk.score,
+            weights=weights,
+        ),
+    )
+    metric_contributions = (
+        quality.metric_contributions
+        + value.metric_contributions
+        + growth.metric_contributions
+        + risk.metric_contributions
+    )
+    return _ScoreComputation(scores=scores, metric_contributions=metric_contributions)
+
+
+def _compute_sub_score(
+    metrics: Mapping[str, object],
+    rules: Mapping[str, MetricRule],
+    *,
+    category: str,
+    category_weight: float,
+) -> _SubScoreComputation:
+    available: list[tuple[str, MetricRule, float]] = []
     for metric_name, rule in rules.items():
         raw_value = metrics.get(metric_name)
         value = _as_finite_float(raw_value)
         if value is None:
             continue
-        weighted_sum += (
-            _score_metric(value, rule.good_threshold, rule.bad_threshold, rule.lower_is_better) * rule.weight
-        )
-        total_weight += rule.weight
+        available.append((metric_name, rule, value))
+
+    total_weight = sum(rule.weight for _, rule, _ in available)
     if total_weight < _ZERO:
-        return 0.0
-    return round((weighted_sum / total_weight) * 100.0, 2)
+        return _SubScoreComputation(score=0.0, metric_contributions=())
+
+    weighted_sum = 0.0
+    metric_contributions: list[_MetricContribution] = []
+    for metric_name, rule, value in available:
+        metric_score = _score_metric(value, rule.good_threshold, rule.bad_threshold, rule.lower_is_better) * 100.0
+        normalized_metric_weight = rule.weight / total_weight
+        weighted_points = metric_score * category_weight * normalized_metric_weight
+        neutral_points = 50.0 * category_weight * normalized_metric_weight
+        weighted_sum += (metric_score / 100.0) * rule.weight
+        metric_contributions.append(
+            _MetricContribution(
+                category=category,
+                metric=metric_name,
+                raw_value=value,
+                metric_score=round(metric_score, 2),
+                weighted_points=round(weighted_points, 4),
+                impact_points=round(weighted_points - neutral_points, 4),
+            )
+        )
+
+    sub_score = round((weighted_sum / total_weight) * 100.0, 2)
+    return _SubScoreComputation(score=sub_score, metric_contributions=tuple(metric_contributions))
+
+
+def _build_category_contributions(
+    scores: SnapshotScores,
+    weights: Mapping[str, float],
+) -> tuple[ScoreCategoryContribution, ...]:
+    score_by_category = {
+        "quality": scores.quality,
+        "value": scores.value,
+        "growth": scores.growth,
+        "risk": scores.risk,
+    }
+    return tuple(
+        ScoreCategoryContribution(
+            category=category,
+            sub_score=score_by_category[category],
+            weight=weights[category],
+            weighted_points=round(score_by_category[category] * weights[category], 2),
+        )
+        for category in _CATEGORY_ORDER
+    )
 
 
 def _compute_total_score(
@@ -215,14 +382,40 @@ def _compute_total_score(
     value_score: float,
     growth_score: float,
     risk_score: float,
+    weights: Mapping[str, float],
 ) -> float:
     return round(
-        quality_score * SNAPSHOT_SUB_SCORE_WEIGHTS["quality"]
-        + value_score * SNAPSHOT_SUB_SCORE_WEIGHTS["value"]
-        + growth_score * SNAPSHOT_SUB_SCORE_WEIGHTS["growth"]
-        + risk_score * SNAPSHOT_SUB_SCORE_WEIGHTS["risk"],
+        quality_score * weights["quality"]
+        + value_score * weights["value"]
+        + growth_score * weights["growth"]
+        + risk_score * weights["risk"],
         2,
     )
+
+
+def _resolve_snapshot_weights(
+    metrics: Mapping[str, object],
+    default_weights: SnapshotSubScoreWeights,
+) -> SnapshotSubScoreWeights:
+    quality_weight = _as_finite_float(metrics.get(SCORE_WEIGHT_QUALITY_KEY))
+    value_weight = _as_finite_float(metrics.get(SCORE_WEIGHT_VALUE_KEY))
+    growth_weight = _as_finite_float(metrics.get(SCORE_WEIGHT_GROWTH_KEY))
+    risk_weight = _as_finite_float(metrics.get(SCORE_WEIGHT_RISK_KEY))
+
+    if None in (quality_weight, value_weight, growth_weight, risk_weight):
+        return default_weights
+
+    candidate = SnapshotSubScoreWeights(
+        quality_weight=float(quality_weight),
+        value_weight=float(value_weight),
+        growth_weight=float(growth_weight),
+        risk_weight=float(risk_weight),
+    )
+    try:
+        validate_snapshot_sub_score_weights(candidate)
+    except ValueError:
+        return default_weights
+    return candidate
 
 
 def _as_finite_float(value: object) -> float | None:
@@ -281,7 +474,11 @@ def _normalize_sector(value: str | None) -> str | None:
     return sector
 
 
-def _resolve_snapshot_scores(snapshot: KpiSnapshot | None, service: ScoringService) -> SnapshotScores | None:
+def _resolve_snapshot_scores(
+    snapshot: KpiSnapshot | None,
+    service: ScoringService,
+    weights: Mapping[str, float],
+) -> SnapshotScores | None:
     if snapshot is None:
         return None
     metrics = snapshot.metrics
@@ -304,6 +501,7 @@ def _resolve_snapshot_scores(snapshot: KpiSnapshot | None, service: ScoringServi
             value_score=value_score or 0.0,
             growth_score=growth_score or 0.0,
             risk_score=risk_score or 0.0,
+            weights=weights,
         )
     return SnapshotScores(
         quality=float(quality_score or 0.0),
@@ -348,21 +546,60 @@ def _select_weakness_points(
     return ordered_asc[:1]
 
 
+def _select_positive_drivers(contributions: tuple[_MetricContribution, ...]) -> tuple[ScoreMetricDriver, ...]:
+    positives = [item for item in contributions if item.impact_points > 0.0]
+    positives.sort(key=lambda x: (-x.impact_points, -x.weighted_points, x.category, x.metric))
+    return tuple(_to_driver(item) for item in positives[:_MAX_EXPLANATION_POINTS])
+
+
+def _select_negative_drivers(contributions: tuple[_MetricContribution, ...]) -> tuple[ScoreMetricDriver, ...]:
+    negatives = [item for item in contributions if item.impact_points < 0.0]
+    negatives.sort(key=lambda x: (x.impact_points, -x.weighted_points, x.category, x.metric))
+    return tuple(_to_driver(item) for item in negatives[:_MAX_EXPLANATION_POINTS])
+
+
+def _to_driver(item: _MetricContribution) -> ScoreMetricDriver:
+    return ScoreMetricDriver(
+        category=item.category,
+        metric=item.metric,
+        raw_value=item.raw_value,
+        metric_score=item.metric_score,
+        weighted_points=round(item.weighted_points, 2),
+        impact_points=round(item.impact_points, 2),
+    )
+
+
 def _format_explanation_point(name: str, score: float) -> str:
     return f"{name} ({score:.1f}/100)"
 
 
+def _format_driver(driver: ScoreMetricDriver) -> str:
+    return (
+        f"{driver.category}.{driver.metric} "
+        f"(impact {driver.impact_points:+.2f} pts, metric {driver.metric_score:.1f}/100)"
+    )
+
+
 def _build_score_summary(
     scores: SnapshotScores,
+    category_contributions: tuple[ScoreCategoryContribution, ...],
+    positive_drivers: tuple[ScoreMetricDriver, ...],
+    negative_drivers: tuple[ScoreMetricDriver, ...],
     strengths: list[tuple[str, float]],
     weaknesses: list[tuple[str, float]],
 ) -> str:
+    construction = " + ".join(
+        f"{item.category} {item.sub_score:.2f}*{item.weight:.2f}={item.weighted_points:.2f}"
+        for item in category_contributions
+    )
     strength_text = ", ".join(_format_explanation_point(name, score) for name, score in strengths)
     weakness_text = ", ".join(_format_explanation_point(name, score) for name, score in weaknesses)
+    positive_text = ", ".join(_format_driver(driver) for driver in positive_drivers) if positive_drivers else "none"
+    negative_text = ", ".join(_format_driver(driver) for driver in negative_drivers) if negative_drivers else "none"
     return (
-        f"total {scores.total:.2f}/100 | quality {scores.quality:.2f}, value {scores.value:.2f}, "
-        f"growth {scores.growth:.2f}, risk {scores.risk:.2f} | strengths: {strength_text} | "
-        f"weaknesses: {weakness_text}"
+        f"total {scores.total:.2f}/100 | construction: {construction} | "
+        f"positive drivers: {positive_text} | negative drivers: {negative_text} | "
+        f"strengths: {strength_text} | weaknesses: {weakness_text}"
     )
 
 
@@ -398,12 +635,11 @@ def _score_metric(value: float, good: float, bad: float, lower_is_better: bool) 
         if value >= bad:
             return 0.0
         return 1.0 - (value - good) / (bad - good)
-    else:
-        if value >= good:
-            return 1.0
-        if value <= bad:
-            return 0.0
-        return (value - bad) / (good - bad)
+    if value >= good:
+        return 1.0
+    if value <= bad:
+        return 0.0
+    return (value - bad) / (good - bad)
 
 
 def compute_score(ratios: CompanyRatios) -> float:
