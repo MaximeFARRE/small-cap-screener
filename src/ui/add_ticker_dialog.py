@@ -9,18 +9,18 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from src.services.ticker_ingestion_service import TickerIngestionService, validate_ticker_format
+from src.services.ticker_ingestion_service import TickerIngestionService, validate_ingestion_identifier
 
-_DIALOG_TITLE = "Ajouter un ticker"
+_DIALOG_TITLE = "Ajouter un ticker ou un ISIN"
 _DIALOG_MIN_WIDTH = 380
-_PLACEHOLDER = "Exemple : MC.PA, ALAMY.PA"
+_PLACEHOLDER = "Exemple : MC.PA ou FR0000120271"
 _STATUS_STYLE_ERROR = "color: #c0392b;"
 _STATUS_STYLE_SUCCESS = "color: #27ae60;"
 _STATUS_STYLE_PENDING = "color: #7f8c8d;"
 
 
 class AddTickerDialog(QDialog):
-    """Dialog allowing the analyst to ingest a new ticker from Yahoo Finance."""
+    """Dialog allowing the analyst to ingest using ticker or ISIN."""
 
     ticker_ingested = Signal(int)
 
@@ -36,10 +36,10 @@ class AddTickerDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
 
-        self._ticker_input = QLineEdit()
-        self._ticker_input.setPlaceholderText(_PLACEHOLDER)
-        self._ticker_input.textChanged.connect(self._on_text_changed)
-        layout.addWidget(self._ticker_input)
+        self._identifier_input = QLineEdit()
+        self._identifier_input.setPlaceholderText(_PLACEHOLDER)
+        self._identifier_input.textChanged.connect(self._on_text_changed)
+        layout.addWidget(self._identifier_input)
 
         self._status_label = QLabel("")
         self._status_label.setWordWrap(True)
@@ -57,16 +57,16 @@ class AddTickerDialog(QDialog):
     def _on_text_changed(self, text: str) -> None:
         normalized = text.strip().upper()
         self._status_label.setText("")
-        self._ok_button.setEnabled(bool(normalized) and validate_ticker_format(normalized) is None)
+        self._ok_button.setEnabled(bool(normalized) and validate_ingestion_identifier(normalized) is None)
 
     def _on_import(self) -> None:
-        ticker = self._ticker_input.text().strip().upper()
+        identifier = self._identifier_input.text().strip().upper()
         self._ok_button.setEnabled(False)
         self._status_label.setStyleSheet(_STATUS_STYLE_PENDING)
-        self._status_label.setText(f"Importation de {ticker} en cours…")
+        self._status_label.setText(f"Importation de {identifier} en cours…")
         self.repaint()
 
-        result = self._ingestion_service.ingest_ticker(ticker)
+        result = self._ingestion_service.ingest_identifier(identifier)
 
         if not result.success:
             self._ok_button.setEnabled(True)
@@ -74,11 +74,11 @@ class AddTickerDialog(QDialog):
             self._status_label.setText(result.error or "Erreur inconnue.")
             return
 
-        resolved = result.resolved_ticker or ticker
+        resolved = result.resolved_ticker or identifier
         action = "créée" if result.created else "mise à jour"
         suffix_info = (
             f" (suffixe ajouté automatiquement : {resolved})"
-            if result.resolved_ticker and result.resolved_ticker != ticker
+            if result.resolved_ticker and result.resolved_ticker != identifier
             else ""
         )
         msg = f"Société {action} avec succès ({resolved}){suffix_info}."

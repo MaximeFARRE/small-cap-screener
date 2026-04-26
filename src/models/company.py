@@ -24,7 +24,7 @@ class Company(Base):
     __tablename__ = "companies"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    isin: Mapped[str] = mapped_column(String(12), unique=True, index=True)
+    isin: Mapped[str | None] = mapped_column(String(12), unique=True, index=True, nullable=True)
     ticker: Mapped[str | None] = mapped_column(String(20))
     name: Mapped[str] = mapped_column(String(200))
     country: Mapped[str | None] = mapped_column(String(100))

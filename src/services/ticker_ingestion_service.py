@@ -14,13 +14,15 @@ from src.repositories import company_repository
 from src.repositories.database import get_session
 from src.services.financial_data_service import FinancialDataService
 from src.services.kpi_snapshot_service import KpiSnapshotService
-from src.services.ticker_resolver_service import TickerResolverService
+from src.services.ticker_resolver_service import TickerErrorKind, TickerResolutionResult, TickerResolverService
 
 SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
 _LOGGER = logging.getLogger(__name__)
 
 _TICKER_PATTERN = re.compile(r"^[A-Z0-9]{1,10}(\.[A-Z]{1,5})?$")
+_ISIN_PATTERN = re.compile(r"^[A-Z]{2}[A-Z0-9]{10}$")
 _MAX_TICKER_LENGTH = 20
+_MAX_IDENTIFIER_LENGTH = 30
 
 
 @dataclass
@@ -43,14 +45,38 @@ def validate_ticker_format(ticker: str) -> str | None:
     if len(ticker) > _MAX_TICKER_LENGTH:
         return f"Le ticker ne peut pas dépasser {_MAX_TICKER_LENGTH} caractères."
     if not _TICKER_PATTERN.match(ticker):
-        return "Format de ticker invalide. " "Exemples valides : MC.PA, ALAMY.PA, BNP, GOOGL"
+        return "Format de ticker invalide. Exemples valides : MC.PA, ALAMY.PA, BNP, GOOGL"
     return None
 
 
-def _synthetic_isin(ticker: str) -> str:
-    """Generate a unique synthetic ISIN for tickers without a real one."""
-    cleaned = re.sub(r"[^A-Z0-9]", "", ticker.upper())[:10]
-    return f"YF{cleaned}"
+def validate_ingestion_identifier(identifier: str) -> str | None:
+    if not identifier:
+        return "Le ticker ou l'ISIN ne peut pas être vide."
+    if len(identifier) > _MAX_IDENTIFIER_LENGTH:
+        return f"Le ticker/ISIN ne peut pas dépasser {_MAX_IDENTIFIER_LENGTH} caractères."
+    if _TICKER_PATTERN.match(identifier):
+        return None
+    if _ISIN_PATTERN.match(identifier):
+        return None
+    return "Format invalide. Exemples valides : MC.PA, ALAMY.PA, BNP, GOOGL ou ISIN comme FR0000120271."
+
+
+def _normalize_provider_isin(isin: str | None) -> str | None:
+    if isin is None:
+        return None
+    normalized = isin.strip().upper()
+    if not normalized:
+        return None
+    if not _ISIN_PATTERN.match(normalized):
+        return None
+    return normalized
+
+
+def _is_valid_isin(isin: str | None) -> bool:
+    if isin is None:
+        return False
+    normalized = isin.strip().upper()
+    return bool(_ISIN_PATTERN.match(normalized))
 
 
 @dataclass
@@ -63,9 +89,11 @@ class TickerIngestionService:
         self._resolver = TickerResolverService(provider=self.financial_data_service.provider)
 
     def ingest_ticker(self, ticker: str) -> TickerIngestionResult:
-        normalized = ticker.strip().upper()
+        return self.ingest_identifier(ticker)
 
-        format_error = validate_ticker_format(normalized)
+    def ingest_identifier(self, identifier: str) -> TickerIngestionResult:
+        normalized = identifier.strip().upper()
+        format_error = validate_ingestion_identifier(normalized)
         if format_error:
             return TickerIngestionResult(
                 ticker=normalized,
@@ -74,12 +102,12 @@ class TickerIngestionService:
                 stage="validate",
             )
 
-        resolution = self._resolver.resolve(normalized)
-        if not resolution.success:
+        resolution = self._resolve_identifier(normalized)
+        if not resolution.success or resolution.resolved_ticker is None or resolution.profile is None:
             return TickerIngestionResult(
                 ticker=normalized,
                 success=False,
-                error=resolution.error,
+                error=resolution.error or "échec de résolution ticker",
                 stage="fetch",
             )
 
@@ -141,14 +169,75 @@ class TickerIngestionService:
             warnings=warnings,
         )
 
+    def _resolve_identifier(self, normalized_identifier: str) -> TickerResolutionResult:
+        if _ISIN_PATTERN.match(normalized_identifier):
+            return self._resolve_isin(normalized_identifier)
+        return self._resolver.resolve(normalized_identifier)
+
+    def _resolve_isin(self, normalized_isin: str) -> TickerResolutionResult:
+        try:
+            profile = self.financial_data_service.provider.get_company_profile(normalized_isin)
+        except Exception as exc:  # pragma: no cover - provider wrapper is defensive
+            return TickerResolutionResult(
+                original_input=normalized_isin,
+                resolved_ticker=None,
+                suffix_added=None,
+                profile=None,
+                error=f"ISIN '{normalized_isin}' introuvable chez le fournisseur : {exc}",
+                error_kind=TickerErrorKind.NOT_FOUND,
+            )
+        resolved_ticker = profile.ticker.strip().upper() if isinstance(profile.ticker, str) else ""
+        if validate_ticker_format(resolved_ticker) is not None:
+            return TickerResolutionResult(
+                original_input=normalized_isin,
+                resolved_ticker=None,
+                suffix_added=None,
+                profile=None,
+                error=f"ISIN '{normalized_isin}' résolu sans ticker exploitable.",
+                error_kind=TickerErrorKind.DATA_INCONSISTENT,
+            )
+        return TickerResolutionResult(
+            original_input=normalized_isin,
+            resolved_ticker=resolved_ticker,
+            suffix_added=None,
+            profile=profile,
+            error=None,
+            error_kind=None,
+        )
+
     def _find_or_create_company(
         self,
         ticker: str,
         profile,
     ) -> tuple[int, bool]:
         with self.session_scope_factory() as session:
+            raw_isin = profile.isin
+            provider_isin = _normalize_provider_isin(raw_isin)
+            if raw_isin is not None and provider_isin is None:
+                _LOGGER.warning(
+                    "ticker ingestion ignored invalid provider isin | ticker=%s provider_isin=%s",
+                    ticker,
+                    raw_isin,
+                )
+
             existing = company_repository.get_by_ticker(session, ticker)
             if existing is not None:
+                if not _is_valid_isin(existing.isin):
+                    existing.isin = provider_isin
+                    company_repository.update(session, existing)
+                    if provider_isin is None:
+                        _LOGGER.warning(
+                            "ticker ingestion cleared invalid existing isin | ticker=%s company_id=%s",
+                            ticker,
+                            existing.id,
+                        )
+                    else:
+                        _LOGGER.info(
+                            "ticker ingestion replaced invalid existing isin | ticker=%s company_id=%s isin=%s",
+                            ticker,
+                            existing.id,
+                            provider_isin,
+                        )
                 _LOGGER.info(
                     "ticker ingestion found existing company | ticker=%s company_id=%s",
                     ticker,
@@ -156,19 +245,24 @@ class TickerIngestionService:
                 )
                 return existing.id, False
 
-            isin = (profile.isin or "").strip() or _synthetic_isin(ticker)
-            existing_by_isin = company_repository.get_by_isin(session, isin)
-            if existing_by_isin is not None:
-                _LOGGER.info(
-                    "ticker ingestion found company by isin | ticker=%s isin=%s company_id=%s",
+            if provider_isin is None:
+                _LOGGER.warning(
+                    "ticker ingestion continues without isin | ticker=%s",
                     ticker,
-                    isin,
-                    existing_by_isin.id,
                 )
-                return existing_by_isin.id, False
+            else:
+                existing_by_isin = company_repository.get_by_isin(session, provider_isin)
+                if existing_by_isin is not None:
+                    _LOGGER.info(
+                        "ticker ingestion found company by isin | ticker=%s isin=%s company_id=%s",
+                        ticker,
+                        provider_isin,
+                        existing_by_isin.id,
+                    )
+                    return existing_by_isin.id, False
 
             company = Company(
-                isin=isin,
+                isin=provider_isin,
                 ticker=ticker,
                 name=profile.name,
                 country=profile.country,
@@ -182,7 +276,7 @@ class TickerIngestionService:
             _LOGGER.info(
                 "ticker ingestion created new company | ticker=%s isin=%s company_id=%s",
                 ticker,
-                isin,
+                provider_isin,
                 created_company.id,
             )
             return created_company.id, True

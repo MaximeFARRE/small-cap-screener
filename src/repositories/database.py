@@ -38,6 +38,7 @@ def init_db() -> None:
 
     Base.metadata.create_all(bind=engine)
     _ensure_company_columns()
+    _ensure_company_isin_nullable()
     _ensure_watchlist_memo_columns()
 
 
@@ -88,3 +89,81 @@ def _ensure_company_columns() -> None:
             if column_name in existing_columns:
                 continue
             connection.exec_driver_sql(f"ALTER TABLE companies ADD COLUMN {column_name} {column_sql_type}")
+
+
+def _ensure_company_isin_nullable() -> None:
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        if "companies" not in inspector.get_table_names():
+            return
+        columns = {column["name"]: column for column in inspector.get_columns("companies")}
+        isin_column = columns.get("isin")
+        if isin_column is None:
+            return
+        if isin_column.get("nullable", True):
+            return
+        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE companies_migrated (
+                id INTEGER NOT NULL PRIMARY KEY,
+                isin VARCHAR(12),
+                ticker VARCHAR(20),
+                name VARCHAR(200) NOT NULL,
+                country VARCHAR(100),
+                sector VARCHAR(100),
+                market VARCHAR(100),
+                currency VARCHAR(3) NOT NULL,
+                is_active BOOLEAN NOT NULL,
+                market_cap FLOAT,
+                average_daily_volume FLOAT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                source_origin VARCHAR(20),
+                last_universe_refresh_at DATETIME
+            )
+            """
+        )
+        connection.exec_driver_sql(
+            """
+            INSERT INTO companies_migrated (
+                id,
+                isin,
+                ticker,
+                name,
+                country,
+                sector,
+                market,
+                currency,
+                is_active,
+                market_cap,
+                average_daily_volume,
+                created_at,
+                updated_at,
+                source_origin,
+                last_universe_refresh_at
+            )
+            SELECT
+                id,
+                isin,
+                ticker,
+                name,
+                country,
+                sector,
+                market,
+                currency,
+                is_active,
+                market_cap,
+                average_daily_volume,
+                created_at,
+                updated_at,
+                source_origin,
+                last_universe_refresh_at
+            FROM companies
+            """
+        )
+        connection.exec_driver_sql("DROP TABLE companies")
+        connection.exec_driver_sql("ALTER TABLE companies_migrated RENAME TO companies")
+        connection.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS ix_companies_isin ON companies (isin)")
+        connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_companies_ticker ON companies (ticker)")
+        connection.exec_driver_sql("PRAGMA foreign_keys=ON")

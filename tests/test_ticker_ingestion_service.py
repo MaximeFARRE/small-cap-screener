@@ -13,7 +13,7 @@ from src.services.financial_data_service import CompanyDataRefreshResult
 from src.services.kpi_snapshot_service import KpiSnapshotServiceResult
 from src.services.ticker_ingestion_service import (
     TickerIngestionService,
-    _synthetic_isin,
+    validate_ingestion_identifier,
     validate_ticker_format,
 )
 
@@ -45,22 +45,20 @@ def test_validate_ticker_format_invalid(ticker):
     assert validate_ticker_format(ticker) is not None
 
 
-# ---------------------------------------------------------------------------
-# _synthetic_isin
-# ---------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "identifier",
+    ["MC.PA", "ALAMY.PA", "BNP", "FR0000120271", "US0378331005"],
+)
+def test_validate_ingestion_identifier_valid(identifier):
+    assert validate_ingestion_identifier(identifier) is None
 
 
-def test_synthetic_isin_basic():
-    assert _synthetic_isin("MC.PA") == "YFMCPA"
-
-
-def test_synthetic_isin_max_length():
-    assert len(_synthetic_isin("A" * 20)) <= 12
-
-
-def test_synthetic_isin_strips_dots_and_dashes():
-    assert "." not in _synthetic_isin("MC.PA")
-    assert "-" not in _synthetic_isin("A-B")
+@pytest.mark.parametrize(
+    "identifier",
+    ["", "bad ticker", "FR0000120271X", "FR00001202711", "mc-pa"],
+)
+def test_validate_ingestion_identifier_invalid(identifier):
+    assert validate_ingestion_identifier(identifier) is not None
 
 
 # ---------------------------------------------------------------------------
@@ -193,7 +191,7 @@ def test_ingest_ticker_creates_new_company(db_session):
     assert companies[0].isin == "FR0000131104"
 
 
-def test_ingest_ticker_uses_synthetic_isin_when_none(db_session):
+def test_ingest_ticker_stores_none_isin_when_provider_has_no_isin(db_session):
     profile = _make_profile("ALAMY.PA", isin=None)
     fin_svc = _make_financial_service(profile)
     fin_svc.refresh_company_data.return_value = CompanyDataRefreshResult(
@@ -207,7 +205,60 @@ def test_ingest_ticker_uses_synthetic_isin_when_none(db_session):
     result = svc.ingest_ticker("ALAMY.PA")
     assert result.success
     companies = company_repository.get_all(db_session)
-    assert companies[0].isin == _synthetic_isin("ALAMY.PA")
+    assert companies[0].isin is None
+
+
+def test_ingest_ticker_ignores_invalid_provider_isin_and_continues(db_session, caplog):
+    profile = _make_profile("VLA.PA", isin="YFVLAPA")
+    fin_svc = _make_financial_service(profile)
+    fin_svc.refresh_company_data.return_value = CompanyDataRefreshResult(
+        company_id=1, ticker="VLA.PA", success=True, prices_added=2, statements_added=1
+    )
+    svc = TickerIngestionService(
+        financial_data_service=fin_svc,
+        kpi_snapshot_service=_make_kpi_service(),
+        session_scope_factory=_make_session_scope(db_session),
+    )
+
+    with caplog.at_level("WARNING", logger="src.services.ticker_ingestion_service"):
+        result = svc.ingest_ticker("VLA.PA")
+
+    assert result.success
+    companies = company_repository.get_all(db_session)
+    assert companies[0].isin is None
+    assert any("ignored invalid provider isin" in message for message in caplog.messages)
+
+
+def test_ingest_ticker_cleans_existing_invalid_isin_before_refresh(db_session, caplog):
+    existing = Company(
+        isin="YFVLAPA",
+        ticker="VLA.PA",
+        name="Valneva",
+        currency="EUR",
+        is_active=True,
+    )
+    db_session.add(existing)
+    db_session.flush()
+
+    profile = _make_profile("VLA.PA", isin=None)
+    fin_svc = _make_financial_service(profile)
+    fin_svc.refresh_company_data.return_value = CompanyDataRefreshResult(
+        company_id=existing.id, ticker="VLA.PA", success=True, prices_added=2, statements_added=1
+    )
+    svc = TickerIngestionService(
+        financial_data_service=fin_svc,
+        kpi_snapshot_service=_make_kpi_service(),
+        session_scope_factory=_make_session_scope(db_session),
+    )
+
+    with caplog.at_level("WARNING", logger="src.services.ticker_ingestion_service"):
+        result = svc.ingest_ticker("VLA.PA")
+
+    assert result.success
+    updated = company_repository.get_by_id(db_session, existing.id)
+    assert updated is not None
+    assert updated.isin is None
+    assert any("cleared invalid existing isin" in message for message in caplog.messages)
 
 
 def test_ingest_ticker_reuses_existing_company(db_session):
@@ -316,3 +367,26 @@ def test_ingest_ticker_exposes_resolved_ticker_on_success(db_session):
     result = svc.ingest_ticker("MC.PA")
     assert result.success
     assert result.resolved_ticker == "MC.PA"
+
+
+def test_ingest_identifier_accepts_isin_only(db_session):
+    profile = _make_profile("VLA.PA", isin="FR0004056851")
+    fin_svc = _make_financial_service(profile)
+    fin_svc.provider.get_company_profile.return_value = profile
+    fin_svc.refresh_company_data.return_value = CompanyDataRefreshResult(
+        company_id=1, ticker="VLA.PA", success=True, prices_added=2, statements_added=1
+    )
+    svc = TickerIngestionService(
+        financial_data_service=fin_svc,
+        kpi_snapshot_service=_make_kpi_service(),
+        session_scope_factory=_make_session_scope(db_session),
+    )
+
+    result = svc.ingest_identifier("FR0004056851")
+
+    assert result.success
+    assert result.resolved_ticker == "VLA.PA"
+    companies = company_repository.get_all(db_session)
+    assert len(companies) == 1
+    assert companies[0].ticker == "VLA.PA"
+    assert companies[0].isin == "FR0004056851"
