@@ -197,24 +197,6 @@ class FinancialDataService:
                     error="company ticker is empty",
                     stage="validate",
                 )
-            if _is_blank(company.isin):
-                _LOGGER.warning(
-                    (
-                        "company skipped | stage=validate provider=%s offline_mode=%s "
-                        "company_id=%s ticker=%s reason=empty_isin"
-                    ),
-                    self._provider_name(),
-                    self.offline_mode,
-                    company.id,
-                    company.ticker,
-                )
-                return CompanyDataRefreshResult(
-                    company_id=company.id,
-                    ticker=company.ticker,
-                    success=False,
-                    error="company isin is empty",
-                    stage="validate",
-                )
 
             if self.offline_mode:
                 return self._refresh_company_data_offline(session, company)
@@ -351,10 +333,7 @@ class FinancialDataService:
                 )
             except FinancialDataServiceError as exc:
                 _LOGGER.error(
-                    (
-                        "company refresh failed | stage=%s provider=%s offline_mode=%s "
-                        "company_id=%s ticker=%s error=%s"
-                    ),
+                    ("company refresh failed | stage=%s provider=%s offline_mode=%s company_id=%s ticker=%s error=%s"),
                     exc.stage,
                     self._provider_name(),
                     self.offline_mode,

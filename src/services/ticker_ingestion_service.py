@@ -20,6 +20,7 @@ SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
 _LOGGER = logging.getLogger(__name__)
 
 _TICKER_PATTERN = re.compile(r"^[A-Z0-9]{1,10}(\.[A-Z]{1,5})?$")
+_ISIN_PATTERN = re.compile(r"^[A-Z]{2}[A-Z0-9]{10}$")
 _MAX_TICKER_LENGTH = 20
 
 
@@ -43,14 +44,19 @@ def validate_ticker_format(ticker: str) -> str | None:
     if len(ticker) > _MAX_TICKER_LENGTH:
         return f"Le ticker ne peut pas dépasser {_MAX_TICKER_LENGTH} caractères."
     if not _TICKER_PATTERN.match(ticker):
-        return "Format de ticker invalide. " "Exemples valides : MC.PA, ALAMY.PA, BNP, GOOGL"
+        return "Format de ticker invalide. Exemples valides : MC.PA, ALAMY.PA, BNP, GOOGL"
     return None
 
 
-def _synthetic_isin(ticker: str) -> str:
-    """Generate a unique synthetic ISIN for tickers without a real one."""
-    cleaned = re.sub(r"[^A-Z0-9]", "", ticker.upper())[:10]
-    return f"YF{cleaned}"
+def _normalize_provider_isin(isin: str | None) -> str | None:
+    if isin is None:
+        return None
+    normalized = isin.strip().upper()
+    if not normalized:
+        return None
+    if not _ISIN_PATTERN.match(normalized):
+        return None
+    return normalized
 
 
 @dataclass
@@ -156,16 +162,29 @@ class TickerIngestionService:
                 )
                 return existing.id, False
 
-            isin = (profile.isin or "").strip() or _synthetic_isin(ticker)
-            existing_by_isin = company_repository.get_by_isin(session, isin)
-            if existing_by_isin is not None:
-                _LOGGER.info(
-                    "ticker ingestion found company by isin | ticker=%s isin=%s company_id=%s",
+            raw_isin = profile.isin
+            isin = _normalize_provider_isin(raw_isin)
+            if raw_isin is not None and isin is None:
+                _LOGGER.warning(
+                    "ticker ingestion ignored invalid provider isin | ticker=%s provider_isin=%s",
                     ticker,
-                    isin,
-                    existing_by_isin.id,
+                    raw_isin,
                 )
-                return existing_by_isin.id, False
+            if isin is None:
+                _LOGGER.warning(
+                    "ticker ingestion continues without isin | ticker=%s",
+                    ticker,
+                )
+            else:
+                existing_by_isin = company_repository.get_by_isin(session, isin)
+                if existing_by_isin is not None:
+                    _LOGGER.info(
+                        "ticker ingestion found company by isin | ticker=%s isin=%s company_id=%s",
+                        ticker,
+                        isin,
+                        existing_by_isin.id,
+                    )
+                    return existing_by_isin.id, False
 
             company = Company(
                 isin=isin,
