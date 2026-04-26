@@ -1,6 +1,22 @@
 # CHANGELOG
 
+## v0.27.0 (2026-04-26)
+
+### Feature
+
+* feat: implement Phase 32 database maintenance with backup, vacuum, and reset actions ([`b995bac`](https://github.com/MaximeFARRE/small-cap-screener/commit/b995bacc94a4753aac098c420ace6fbe667da715))
+
+### Unknown
+
+* Merge pull request #39 from MaximeFARRE/feat/phase32-database-maintenance
+
+feat: implement Phase 32 database maintenance with backup, vacuum, an… ([`4ae8239`](https://github.com/MaximeFARRE/small-cap-screener/commit/4ae8239b851b30bf0a1a7f557cff1d3bdc069916))
+
 ## v0.26.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.26.0 [skip ci] ([`458eff5`](https://github.com/MaximeFARRE/small-cap-screener/commit/458eff5ae9c028defdc5f43a7589b6accabc2a32))
 
 ### Documentation
 
