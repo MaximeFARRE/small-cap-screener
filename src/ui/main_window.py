@@ -12,7 +12,9 @@ from src.services.company_detail_service import CompanyDetailService
 from src.services.financial_data_service import FinancialDataService
 from src.services.kpi_snapshot_service import KpiSnapshotService
 from src.services.peer_comparison_service import PeerComparisonService
+from src.services.scoring_service import ScoringService
 from src.services.screening_service import ScreeningService, ScreeningSnapshotSummary, UniverseScreeningFilters
+from src.services.settings_service import AppSettings, SettingsService
 from src.services.ticker_ingestion_service import TickerIngestionService
 from src.services.universe_discovery_service import UniverseDiscoveryService
 from src.services.watchlist_service import AnalystMemo, CompanyAnalystDetail, WatchlistService
@@ -24,6 +26,7 @@ from src.ui.error_formatter import format_batch_summary, format_refresh_error
 from src.ui.filter_widget import FilterWidget
 from src.ui.screener_widget import ScreenerWidget
 from src.ui.screening_snapshot_dialog import ScreeningSnapshotDialog
+from src.ui.settings_dialog import SettingsDialog
 
 WINDOW_TITLE = "Small Cap Screener"
 WINDOW_WIDTH = 1280
@@ -35,20 +38,23 @@ _FILTER_DOCK_WIDTH = 220
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self._screening_service = ScreeningService()
+        self._settings_service = SettingsService()
+        self._settings = self._settings_service.load()
+        self._scoring_service = ScoringService(sub_score_weights=self._settings.scoring_weights())
+        self._screening_service = ScreeningService(scoring_service=self._scoring_service)
         self._watchlist_service = WatchlistService()
         self._company_detail_service = CompanyDetailService()
         self._company_charts_service = CompanyChartsService()
         self._peer_comparison_service = PeerComparisonService()
-        self._backtesting_service = BacktestingService()
-        _financial_data_service = FinancialDataService(provider=YFinanceProvider())
-        _kpi_snapshot_service = KpiSnapshotService()
+        self._backtesting_service = BacktestingService(scoring_service=self._scoring_service)
+        self._financial_data_service = self._build_financial_data_service(self._settings)
+        _kpi_snapshot_service = KpiSnapshotService(scoring_service=self._scoring_service)
         self._ticker_ingestion_service = TickerIngestionService(
-            financial_data_service=_financial_data_service,
+            financial_data_service=self._financial_data_service,
             kpi_snapshot_service=_kpi_snapshot_service,
         )
         self._universe_discovery_service = UniverseDiscoveryService(
-            financial_data_service=_financial_data_service,
+            financial_data_service=self._financial_data_service,
             kpi_snapshot_service=_kpi_snapshot_service,
         )
         self._current_filters = UniverseScreeningFilters()
@@ -109,6 +115,8 @@ class MainWindow(QMainWindow):
         file_menu.addAction("Exporter CSV…", self._export_csv)
         file_menu.addAction("Exporter Excel…", self._export_excel)
         file_menu.addAction("Exporter watchlist CSV…", self._export_watchlist_csv)
+        file_menu.addSeparator()
+        file_menu.addAction("Paramètres…", self._open_settings_dialog)
 
     def _load_scored_universe(self, selected_company_id: int | None = None) -> None:
         rows = self._screening_service.filter_universe_with_scores(self._current_filters)
@@ -369,6 +377,27 @@ class MainWindow(QMainWindow):
             return
         dialog = BacktestingValidationDialog(analysis, parent=self)
         dialog.exec()
+
+    def _open_settings_dialog(self) -> None:
+        dialog = SettingsDialog(self._settings_service, parent=self)
+        dialog.settings_saved.connect(self._on_settings_saved)
+        dialog.exec()
+
+    def _on_settings_saved(self, settings: AppSettings) -> None:
+        self._settings = settings
+        self._financial_data_service.offline_mode = settings.offline_mode
+        self._financial_data_service.provider_call_max_attempts = settings.provider_retry_attempts
+        self._scoring_service.sub_score_weights = settings.scoring_weights()
+        self._load_scored_universe(selected_company_id=self._selected_company_id)
+        self.statusBar().showMessage("Paramètres appliqués.", 4000)
+
+    @staticmethod
+    def _build_financial_data_service(settings: AppSettings) -> FinancialDataService:
+        return FinancialDataService(
+            provider=YFinanceProvider(),
+            offline_mode=settings.offline_mode,
+            provider_call_max_attempts=settings.provider_retry_attempts,
+        )
 
 
 def _parse_next_review_at(value: str) -> datetime | None:
