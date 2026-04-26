@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import distinct, select
 from sqlalchemy.orm import Session
 
 from src.models.kpi_snapshot import KpiSnapshot
@@ -45,6 +45,17 @@ def get_latest_by_company(session: Session, company_id: int) -> KpiSnapshot | No
 
 def get_latest(session: Session, company_id: int) -> KpiSnapshot | None:
     return get_latest_by_company(session, company_id)
+
+
+def list_snapshot_dates(session: Session) -> list[date]:
+    stmt = select(distinct(KpiSnapshot.snapshot_date)).order_by(KpiSnapshot.snapshot_date.asc())
+    rows = session.execute(stmt).all()
+    return [snapshot_date for (snapshot_date,) in rows]
+
+
+def list_by_snapshot_date(session: Session, snapshot_date: date) -> list[KpiSnapshot]:
+    stmt = select(KpiSnapshot).where(KpiSnapshot.snapshot_date == snapshot_date).order_by(KpiSnapshot.company_id.asc())
+    return list(session.execute(stmt).scalars())
 
 
 def upsert(session: Session, snapshot: KpiSnapshot) -> KpiSnapshot:
