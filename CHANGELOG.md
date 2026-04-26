@@ -1,6 +1,32 @@
 # CHANGELOG
 
+## v0.16.0 (2026-04-26)
+
+### Documentation
+
+* docs: mention analyst memo workflow in features ([`70db6fe`](https://github.com/MaximeFARRE/small-cap-screener/commit/70db6fe01029e8197a88c3a7ceab7d0bc7129a4e))
+
+### Feature
+
+* feat: add analyst memo editing in company detail workflow ([`d0edfd1`](https://github.com/MaximeFARRE/small-cap-screener/commit/d0edfd1a344f91805405fa6e659844dd40426ee3))
+
+* feat: add analyst memo fields to watchlist domain ([`86e7e80`](https://github.com/MaximeFARRE/small-cap-screener/commit/86e7e80b9ff5968e8dd47e32a74c42c7fa1f1397))
+
+### Test
+
+* test: add analyst memo service persistence scenarios ([`627618b`](https://github.com/MaximeFARRE/small-cap-screener/commit/627618bc6da99b06e9c9dda4523e79cde995ac5d))
+
+### Unknown
+
+* Merge pull request #26 from MaximeFARRE/feat/phase22-analyst-memo
+
+Feat/phase22 analyst memo ([`4acf51f`](https://github.com/MaximeFARRE/small-cap-screener/commit/4acf51f07a74121e0acf4df2ca1f6133807b2945))
+
 ## v0.15.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.15.0 [skip ci] ([`f31b423`](https://github.com/MaximeFARRE/small-cap-screener/commit/f31b4230252bbdbf7530f0cbde8057a86f1b75a4))
 
 ### Documentation
 
