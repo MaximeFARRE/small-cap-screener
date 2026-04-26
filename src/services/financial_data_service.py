@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
@@ -79,32 +80,61 @@ class FinancialDataService:
     default_country: str = "France"
     default_max_market_cap: float = 2_000_000_000.0
     default_min_average_daily_volume: float | None = None
+    provider_call_max_attempts: int = 3
+    provider_retry_delay_seconds: float = 0.0
 
     def fetch_company_data(self, ticker: str) -> FetchedCompanyData:
         normalized_ticker = _normalize_ticker(ticker)
-        try:
-            profile = (
-                self.provider.get_company_profile(normalized_ticker)
-                if hasattr(self.provider, "get_company_profile")
-                else None
+        profile = (
+            self._fetch_optional_provider_data(
+                ticker=normalized_ticker,
+                operation="company_profile",
+                fallback=None,
+                fetch_fn=lambda: self.provider.get_company_profile(normalized_ticker),
             )
-            market_data = (
-                self.provider.get_current_market_data(normalized_ticker)
-                if hasattr(self.provider, "get_current_market_data")
-                else None
+            if hasattr(self.provider, "get_company_profile")
+            else None
+        )
+        market_data = (
+            self._fetch_optional_provider_data(
+                ticker=normalized_ticker,
+                operation="market_data",
+                fallback=None,
+                fetch_fn=lambda: self.provider.get_current_market_data(normalized_ticker),
             )
-            price_history = self.provider.get_price_history(normalized_ticker, period=self.default_period)
-            financial_statements = self.provider.get_financial_statements(normalized_ticker, years=self.default_years)
-            dividends = (
-                self.provider.get_dividends(normalized_ticker) if hasattr(self.provider, "get_dividends") else []
+            if hasattr(self.provider, "get_current_market_data")
+            else None
+        )
+        price_history = self._fetch_required_provider_data(
+            ticker=normalized_ticker,
+            operation="price_history",
+            fetch_fn=lambda: self.provider.get_price_history(normalized_ticker, period=self.default_period),
+        )
+        financial_statements = self._fetch_required_provider_data(
+            ticker=normalized_ticker,
+            operation="financial_statements",
+            fetch_fn=lambda: self.provider.get_financial_statements(normalized_ticker, years=self.default_years),
+        )
+        dividends = (
+            self._fetch_optional_provider_data(
+                ticker=normalized_ticker,
+                operation="dividends",
+                fallback=[],
+                fetch_fn=lambda: self.provider.get_dividends(normalized_ticker),
             )
-            splits = self.provider.get_splits(normalized_ticker) if hasattr(self.provider, "get_splits") else []
-        except ProviderError as exc:
-            _LOGGER.error("provider fetch failed: ticker=%s error=%s", normalized_ticker, exc)
-            raise FinancialDataServiceError("fetch", normalized_ticker, str(exc)) from exc
-        except Exception as exc:  # pragma: no cover - defensive wrapper
-            _LOGGER.error("provider fetch failed: ticker=%s error=%s", normalized_ticker, exc)
-            raise FinancialDataServiceError("fetch", normalized_ticker, str(exc)) from exc
+            if hasattr(self.provider, "get_dividends")
+            else []
+        )
+        splits = (
+            self._fetch_optional_provider_data(
+                ticker=normalized_ticker,
+                operation="splits",
+                fallback=[],
+                fetch_fn=lambda: self.provider.get_splits(normalized_ticker),
+            )
+            if hasattr(self.provider, "get_splits")
+            else []
+        )
 
         return FetchedCompanyData(
             ticker=normalized_ticker,
@@ -298,6 +328,90 @@ class FinancialDataService:
             failed_count=failed_count,
             results=results,
         )
+
+    def _fetch_required_provider_data(
+        self,
+        *,
+        ticker: str,
+        operation: str,
+        fetch_fn: Callable[[], object],
+    ) -> object:
+        success, result = self._call_provider_with_retry(
+            ticker=ticker,
+            operation=operation,
+            fetch_fn=fetch_fn,
+        )
+        if success:
+            return result
+        message = (
+            f"{operation} failed after {self._effective_max_attempts()} attempts: {result}"
+            if result is not None
+            else f"{operation} failed after {self._effective_max_attempts()} attempts"
+        )
+        raise FinancialDataServiceError("fetch", ticker, message)
+
+    def _fetch_optional_provider_data(
+        self,
+        *,
+        ticker: str,
+        operation: str,
+        fallback: object,
+        fetch_fn: Callable[[], object],
+    ) -> object:
+        success, result = self._call_provider_with_retry(
+            ticker=ticker,
+            operation=operation,
+            fetch_fn=fetch_fn,
+        )
+        if success:
+            return result
+        _LOGGER.warning(
+            "provider fallback used: ticker=%s operation=%s attempts=%s error=%s",
+            ticker,
+            operation,
+            self._effective_max_attempts(),
+            result,
+        )
+        return fallback
+
+    def _call_provider_with_retry(
+        self,
+        *,
+        ticker: str,
+        operation: str,
+        fetch_fn: Callable[[], object],
+    ) -> tuple[bool, object | Exception]:
+        last_error: Exception | None = None
+        max_attempts = self._effective_max_attempts()
+        for attempt in range(1, max_attempts + 1):
+            try:
+                return True, fetch_fn()
+            except ProviderError as exc:
+                last_error = exc
+            except Exception as exc:  # pragma: no cover - defensive wrapper
+                last_error = exc
+            if attempt < max_attempts:
+                _LOGGER.warning(
+                    "provider retry scheduled: ticker=%s operation=%s attempt=%s/%s error=%s",
+                    ticker,
+                    operation,
+                    attempt,
+                    max_attempts,
+                    last_error,
+                )
+                if self.provider_retry_delay_seconds > 0:
+                    time.sleep(self.provider_retry_delay_seconds)
+        _LOGGER.error(
+            "provider fetch failed after retries: ticker=%s operation=%s attempts=%s error=%s",
+            ticker,
+            operation,
+            max_attempts,
+            last_error,
+        )
+        return False, last_error if last_error is not None else RuntimeError("provider call failed")
+
+    def _effective_max_attempts(self) -> int:
+        return max(1, self.provider_call_max_attempts)
 
 
 def _normalize_ticker(ticker: str) -> str:
