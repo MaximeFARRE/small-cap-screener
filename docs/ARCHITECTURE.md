@@ -67,12 +67,31 @@ Rules:
 
 ## Service Ownership
 
-* `FinancialDataService`: ingestion, retry/fallback/offline orchestration.
-* `NormalizationService`: canonical data normalization.
-* `RatioService`: KPI calculations.
-* `ScoringService`: sub-scores, total score, ranking, score explanation.
-* `ScreeningService`: scored universe listing, filters, sorting, exports, screening snapshots.
-* `WatchlistService`: notes/status/exclusion workflow and analyst company detail.
+* `FinancialDataService`: provider fetch orchestration, retry/fallback, offline mode, normalization, validation.
+* `NormalizationService`: canonical data normalization (ticker, currency, price history, financial statements).
+* `DataValidationService`: cross-field consistency checks before persistence.
+* `RatioService`: KPI and financial ratio calculations from normalized data.
+* `KpiSnapshotService`: KPI snapshot creation, update, and batch generation per company.
+* `ScoringService`: deterministic sub-scores (quality, value, growth, risk), total score, global and sector ranking, score explanation with positive/negative drivers.
+* `ScreeningService`: universe listing, filter/sort pipeline, exports (CSV/Excel), screening snapshot management.
+* `WatchlistService`: notes, status, exclusion workflow, analyst company detail assembly.
+* `TickerIngestionService`: ticker and ISIN ingestion pipeline from the UI (resolve → fetch → KPI snapshot).
+* `TickerResolverService`: ticker resolution with exchange suffix probing (`.PA`, `.AL`, etc.).
+* `UniverseDiscoveryService`: single-company refresh, batch universe refresh, watchlist refresh with KPI stamp.
+* `UniverseService`: investable universe queries and seed data management.
+* `CompanyDetailService`: full company detail assembly (profile, ratios, history, score, memo).
+* `CompanyChartsService`: chart-ready data for price history, financials, and score breakdown.
+* `PeerComparisonService`: sector median computation for peer benchmarking.
+* `BacktestingService`: historical ranking validation, bucket forward-return analysis, hit rate.
+* `ExportService`: export formatting helpers for CSV and Excel outputs.
+* `DemoDatasetService`: synthetic demo dataset generation for development and demo mode.
+
+## Provider Layer (`src/repositories/providers`)
+
+* `BaseProvider`: abstract interface contract for all financial data sources.
+* `YFinanceProvider`: Yahoo Finance implementation covering profile, price history, financials, dividends, splits.
+* `ChainedProvider`: ordered fallback across multiple providers; re-raises on non-ProviderError exceptions.
+* `NoOpProvider`: safe no-op stub for offline testing and development scenarios.
 
 ## Guardrails
 
