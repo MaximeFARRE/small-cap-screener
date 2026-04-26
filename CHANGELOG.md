@@ -1,6 +1,28 @@
 # CHANGELOG
 
+## v0.20.0 (2026-04-26)
+
+### Feature
+
+* feat: add excel and watchlist export actions ([`00257ec`](https://github.com/MaximeFARRE/small-cap-screener/commit/00257ec06c867e9efc3a8b31712c2b15a59bdde2))
+
+* feat: enrich screening exports with metadata and scopes ([`ff541c0`](https://github.com/MaximeFARRE/small-cap-screener/commit/ff541c019ffbacea6c17c4d3f5b0f41a7112e3d5))
+
+### Test
+
+* test: cover enriched screening exports ([`c76e4c4`](https://github.com/MaximeFARRE/small-cap-screener/commit/c76e4c405d80d2d3b7a557fe10e8bbc2c230ee1c))
+
+### Unknown
+
+* Merge pull request #30 from MaximeFARRE/feat/phase25-export-polish
+
+Feat/phase25 export polish ([`0645a8c`](https://github.com/MaximeFARRE/small-cap-screener/commit/0645a8cc247387309ebdba8979c5f4c0db61c319))
+
 ## v0.19.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.19.0 [skip ci] ([`3665645`](https://github.com/MaximeFARRE/small-cap-screener/commit/3665645d6b46d01d8acde439b8bccd2b2ca8d3a2))
 
 ### Feature
 
