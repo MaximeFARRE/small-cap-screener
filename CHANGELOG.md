@@ -1,8 +1,32 @@
 # CHANGELOG
 
+## v0.8.0 (2026-04-26)
+
+### Feature
+
+* feat: connect add ticker dialog to main window and refresh screener on import ([`c8776fa`](https://github.com/MaximeFARRE/small-cap-screener/commit/c8776fa392206915180c1dffb07c42f848707abd))
+
+* feat: add ticker ingestion dialog with format validation and error display ([`46c92dc`](https://github.com/MaximeFARRE/small-cap-screener/commit/46c92dc40b90418a8146bfc08aa2fbe0c6313f26))
+
+* feat: add ticker ingestion service with format validation and pipeline orchestration ([`ebaa293`](https://github.com/MaximeFARRE/small-cap-screener/commit/ebaa2937fdcfd57b1537e0e3d9237921116bc7c4))
+
+* feat: add isin field to company profile dto and yfinance provider ([`d618984`](https://github.com/MaximeFARRE/small-cap-screener/commit/d6189846e40334f2d1a4119f5eaaec502325383c))
+
+### Test
+
+* test: add coverage for ticker ingestion service ([`baca0e4`](https://github.com/MaximeFARRE/small-cap-screener/commit/baca0e4a21ab0df2fbbed7b6951086f1b19d8549))
+
+### Unknown
+
+* Merge pull request #18 from MaximeFARRE/feat/phase14-ticker-ingestion
+
+Feat/phase14 ticker ingestion ([`169e040`](https://github.com/MaximeFARRE/small-cap-screener/commit/169e04000293af774ad12f650ebf75ac3fe4faa9))
+
 ## v0.7.0 (2026-04-26)
 
 ### Chore
+
+* chore(release): 0.7.0 [skip ci] ([`a8620e0`](https://github.com/MaximeFARRE/small-cap-screener/commit/a8620e090f0d65d508a7d98d645474b8f3d3e0ae))
 
 * chore: add pyinstaller desktop build configuration ([`9f6b776`](https://github.com/MaximeFARRE/small-cap-screener/commit/9f6b7769219ad0d745a9bdb7cab94f72c491c3d2))
 
