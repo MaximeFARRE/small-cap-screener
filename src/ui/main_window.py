@@ -28,6 +28,7 @@ from src.ui.filter_widget import FilterWidget
 from src.ui.screener_widget import ScreenerWidget
 from src.ui.screening_snapshot_dialog import ScreeningSnapshotDialog
 from src.ui.settings_dialog import SettingsDialog
+from src.ui.worker import Worker
 
 WINDOW_TITLE = "Small Cap Screener"
 WINDOW_WIDTH = 1280
@@ -61,6 +62,7 @@ class MainWindow(QMainWindow):
         )
         self._current_filters = UniverseScreeningFilters()
         self._selected_company_id: int | None = None
+        self._active_workers: set[Worker] = set()
         self.setWindowTitle(WINDOW_TITLE)
         self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
         self._setup_ui()
@@ -234,8 +236,17 @@ class MainWindow(QMainWindow):
     def _on_refresh_company_requested(self, company_id: int) -> None:
         self._set_refresh_actions_enabled(False)
         self.statusBar().showMessage("Actualisation en cours…")
-        self.repaint()
-        result = self._universe_discovery_service.refresh_company(company_id)
+
+        worker = Worker(self._universe_discovery_service.refresh_company, company_id)
+        worker.signals.finished.connect(
+            lambda result, cid=company_id: self._on_refresh_company_finished(result, cid, worker)
+        )
+        worker.signals.error.connect(lambda exc: self._on_worker_error("Actualisation échouée", exc, worker))
+        self._active_workers.add(worker)
+        worker.start()
+
+    def _on_refresh_company_finished(self, result, company_id: int, worker: Worker) -> None:
+        self._active_workers.discard(worker)
         self._set_refresh_actions_enabled(True)
         if not result.success:
             QMessageBox.warning(
@@ -254,8 +265,15 @@ class MainWindow(QMainWindow):
     def _refresh_universe(self) -> None:
         self._set_refresh_actions_enabled(False)
         self.statusBar().showMessage("Actualisation de l'univers en cours…")
-        self.repaint()
-        result = self._universe_discovery_service.batch_refresh_universe()
+
+        worker = Worker(self._universe_discovery_service.batch_refresh_universe)
+        worker.signals.finished.connect(lambda result: self._on_refresh_universe_finished(result, worker))
+        worker.signals.error.connect(lambda exc: self._on_worker_error("Échec actualisation univers", exc, worker))
+        self._active_workers.add(worker)
+        worker.start()
+
+    def _on_refresh_universe_finished(self, result, worker: Worker) -> None:
+        self._active_workers.discard(worker)
         self._set_refresh_actions_enabled(True)
         self._load_scored_universe(selected_company_id=self._selected_company_id)
         failed_tickers = [r.ticker for r in result.results if not r.success]
@@ -265,8 +283,15 @@ class MainWindow(QMainWindow):
     def _refresh_watchlist(self) -> None:
         self._set_refresh_actions_enabled(False)
         self.statusBar().showMessage("Actualisation de la watchlist en cours…")
-        self.repaint()
-        result = self._universe_discovery_service.refresh_watchlist()
+
+        worker = Worker(self._universe_discovery_service.refresh_watchlist)
+        worker.signals.finished.connect(lambda result: self._on_refresh_watchlist_finished(result, worker))
+        worker.signals.error.connect(lambda exc: self._on_worker_error("Échec actualisation watchlist", exc, worker))
+        self._active_workers.add(worker)
+        worker.start()
+
+    def _on_refresh_watchlist_finished(self, result, worker: Worker) -> None:
+        self._active_workers.discard(worker)
         self._set_refresh_actions_enabled(True)
         self._load_scored_universe(selected_company_id=self._selected_company_id)
         failed_tickers = [r.ticker for r in result.results if not r.success]
@@ -274,6 +299,12 @@ class MainWindow(QMainWindow):
             "Watchlist actualisée", result.succeeded, result.total, result.failed, failed_tickers
         )
         self.statusBar().showMessage(msg, 8000)
+
+    def _on_worker_error(self, title: str, exc: Exception, worker: Worker) -> None:
+        self._active_workers.discard(worker)
+        self._set_refresh_actions_enabled(True)
+        self.statusBar().clearMessage()
+        QMessageBox.critical(self, title, f"Une erreur est survenue :\n{exc}")
 
     def _set_refresh_actions_enabled(self, enabled: bool) -> None:
         self._refresh_universe_action.setEnabled(enabled)
