@@ -64,6 +64,7 @@ def _add_statement(
     company_id: int,
     fiscal_year: int = 2023,
     *,
+    period_type: str | PeriodType = PeriodType.ANNUAL,
     revenue=50_000_000_000.0,
     ebitda=10_000_000_000.0,
     ebit=8_000_000_000.0,
@@ -75,7 +76,7 @@ def _add_statement(
     stmt = FinancialStatement(
         company_id=company_id,
         fiscal_year=fiscal_year,
-        period_type=PeriodType.ANNUAL,
+        period_type=period_type,
         revenue=revenue,
         ebitda=ebitda,
         ebit=ebit,
@@ -259,6 +260,138 @@ def test_picks_latest_annual_statement(db_session):
     assert detail is not None
     assert detail.fiscal_year == 2023
     assert detail.revenue == 50_000_000_000.0
+
+
+# ---------------------------------------------------------------------------
+# Historical fundamentals
+# ---------------------------------------------------------------------------
+
+
+def test_historical_fundamentals_with_complete_annual_history(db_session):
+    company = _add_company(db_session)
+    _add_price(db_session, company.id)
+    _add_snapshot(db_session, company.id)
+    _add_statement(
+        db_session,
+        company.id,
+        fiscal_year=2021,
+        revenue=100.0,
+        ebitda=15.0,
+        net_income=8.0,
+        fcf=6.0,
+        net_debt=30.0,
+    )
+    _add_statement(
+        db_session,
+        company.id,
+        fiscal_year=2022,
+        revenue=120.0,
+        ebitda=20.0,
+        net_income=10.0,
+        fcf=8.0,
+        net_debt=25.0,
+    )
+    _add_statement(
+        db_session,
+        company.id,
+        fiscal_year=2023,
+        revenue=144.0,
+        ebitda=28.8,
+        net_income=12.0,
+        fcf=10.0,
+        net_debt=20.0,
+    )
+
+    detail = _make_service(db_session).get_financial_detail(company.id)
+
+    assert detail is not None
+    historical = detail.historical_fundamentals
+    assert [point.fiscal_year for point in historical.revenue_history] == [2023, 2022, 2021]
+    assert abs((historical.trends.revenue_cagr or 0.0) - 0.2) < 1e-6
+    assert historical.trends.revenue_direction == "positive"
+    assert historical.trends.margin_direction == "positive"
+    assert historical.trends.net_debt_direction == "positive"
+
+
+def test_historical_fundamentals_fallback_to_non_annual_when_gap_exists(db_session):
+    company = _add_company(db_session)
+    _add_statement(
+        db_session,
+        company.id,
+        fiscal_year=2023,
+        period_type=PeriodType.ANNUAL,
+        revenue=300.0,
+    )
+    _add_statement(
+        db_session,
+        company.id,
+        fiscal_year=2022,
+        period_type=PeriodType.HALF_YEAR,
+        revenue=200.0,
+    )
+    _add_statement(
+        db_session,
+        company.id,
+        fiscal_year=2021,
+        period_type=PeriodType.ANNUAL,
+        revenue=100.0,
+    )
+
+    detail = _make_service(db_session).get_financial_detail(company.id)
+
+    assert detail is not None
+    history = detail.historical_fundamentals.revenue_history
+    assert [point.fiscal_year for point in history] == [2023, 2022, 2021]
+    assert history[0].period_type == PeriodType.ANNUAL.value
+    assert history[1].period_type == PeriodType.HALF_YEAR.value
+    assert history[2].period_type == PeriodType.ANNUAL.value
+
+
+def test_historical_fundamentals_cagr_none_when_insufficient_periods(db_session):
+    company = _add_company(db_session)
+    _add_statement(db_session, company.id, fiscal_year=2023, revenue=200.0, ebitda=None, ebit=30.0)
+    _add_statement(db_session, company.id, fiscal_year=2022, revenue=100.0, ebitda=None, ebit=15.0)
+
+    detail = _make_service(db_session).get_financial_detail(company.id)
+
+    assert detail is not None
+    trends = detail.historical_fundamentals.trends
+    assert trends.revenue_cagr is None
+    assert trends.operating_income_cagr is None
+
+
+def test_historical_selection_prioritizes_annual_over_half_year_same_year(db_session):
+    company = _add_company(db_session)
+    _add_statement(
+        db_session,
+        company.id,
+        fiscal_year=2023,
+        period_type=PeriodType.HALF_YEAR,
+        revenue=999.0,
+    )
+    _add_statement(
+        db_session,
+        company.id,
+        fiscal_year=2023,
+        period_type=PeriodType.ANNUAL,
+        revenue=500.0,
+    )
+    _add_statement(
+        db_session,
+        company.id,
+        fiscal_year=2022,
+        period_type=PeriodType.ANNUAL,
+        revenue=400.0,
+    )
+
+    detail = _make_service(db_session).get_financial_detail(company.id)
+
+    assert detail is not None
+    assert detail.fiscal_year == 2023
+    assert detail.revenue == 500.0
+    history = detail.historical_fundamentals.revenue_history
+    assert len(history) == 2
+    assert all(point.period_type == PeriodType.ANNUAL.value for point in history)
 
 
 # ---------------------------------------------------------------------------
