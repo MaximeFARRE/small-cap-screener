@@ -34,6 +34,7 @@ class TickerIngestionResult:
     created: bool = False
     kpi_snapshot_id: int | None = None
     error: str | None = None
+    error_kind: str | None = None
     stage: str | None = None
     warnings: list[str] = field(default_factory=list)
 
@@ -108,6 +109,7 @@ class TickerIngestionService:
                 ticker=normalized,
                 success=False,
                 error=resolution.error or "échec de résolution ticker",
+                error_kind=resolution.error_kind,
                 stage="fetch",
             )
 
@@ -124,6 +126,7 @@ class TickerIngestionService:
                 company_id=company_id,
                 created=created,
                 error=refresh_result.error,
+                error_kind=refresh_result.error_kind,
                 stage=refresh_result.stage,
                 warnings=list(refresh_result.warnings),
             )

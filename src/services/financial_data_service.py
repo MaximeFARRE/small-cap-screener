@@ -23,8 +23,10 @@ from src.repositories.providers.base import (
     FinancialData,
     MarketData,
     PriceHistory,
+    ProviderDataInconsistentError,
     ProviderError,
     SplitData,
+    TickerNotFoundError,
 )
 from src.services.data_validation_service import DataValidationService
 from src.services.normalization_service import NormalizationService, NormalizedCompanyData
@@ -36,10 +38,11 @@ _LOGGER = logging.getLogger(__name__)
 class FinancialDataServiceError(Exception):
     """Raised when the financial data service cannot complete one ingestion stage."""
 
-    def __init__(self, stage: str, ticker: str, message: str):
+    def __init__(self, stage: str, ticker: str, message: str, error_kind: str | None = None):
         self.stage = stage
         self.ticker = ticker
         self.message = message
+        self.error_kind = error_kind
         super().__init__(f"[{stage}] {ticker}: {message}")
 
 
@@ -62,6 +65,7 @@ class CompanyDataRefreshResult:
     prices_added: int = 0
     statements_added: int = 0
     error: str | None = None
+    error_kind: str | None = None
     stage: str | None = None
     warnings: list[str] = field(default_factory=list)
     provider_used: str | None = None
@@ -352,6 +356,7 @@ class FinancialDataService:
                     ticker=company.ticker,
                     success=False,
                     error=exc.message,
+                    error_kind=exc.error_kind,
                     stage=exc.stage,
                     provider_used=self._provider_name(),
                 )
@@ -451,7 +456,7 @@ class FinancialDataService:
         operation: str,
         fetch_fn: Callable[[], object],
     ) -> object:
-        success, result = self._call_provider_with_retry(
+        success, result, error_kind = self._call_provider_with_retry(
             ticker=ticker,
             operation=operation,
             fetch_fn=fetch_fn,
@@ -463,7 +468,7 @@ class FinancialDataService:
             if result is not None
             else f"{operation} failed after {self._effective_max_attempts()} attempts"
         )
-        raise FinancialDataServiceError("fetch", ticker, message)
+        raise FinancialDataServiceError("fetch", ticker, message, error_kind=error_kind)
 
     def _fetch_optional_provider_data(
         self,
@@ -473,7 +478,7 @@ class FinancialDataService:
         fallback: object,
         fetch_fn: Callable[[], object],
     ) -> object:
-        success, result = self._call_provider_with_retry(
+        success, result, _error_kind = self._call_provider_with_retry(
             ticker=ticker,
             operation=operation,
             fetch_fn=fetch_fn,
@@ -500,12 +505,12 @@ class FinancialDataService:
         ticker: str,
         operation: str,
         fetch_fn: Callable[[], object],
-    ) -> tuple[bool, object | Exception]:
+    ) -> tuple[bool, object | Exception, str | None]:
         last_error: Exception | None = None
         max_attempts = self._effective_max_attempts()
         for attempt in range(1, max_attempts + 1):
             try:
-                return True, fetch_fn()
+                return True, fetch_fn(), None
             except ProviderError as exc:
                 last_error = exc
             except Exception as exc:  # pragma: no cover - defensive wrapper
@@ -538,7 +543,8 @@ class FinancialDataService:
             max_attempts,
             last_error,
         )
-        return False, last_error if last_error is not None else RuntimeError("provider call failed")
+        final_error = last_error if last_error is not None else RuntimeError("provider call failed")
+        return False, final_error, _classify_provider_error(final_error)
 
     def _effective_max_attempts(self) -> int:
         return max(1, self.provider_call_max_attempts)
@@ -677,6 +683,15 @@ def _validation_data_to_fetched_data(validated_data) -> FetchedCompanyData:
         dividends=validated_data.dividends,
         splits=validated_data.splits,
     )
+
+
+def _classify_provider_error(exc: Exception) -> str:
+    """Map a provider exception to a short error-kind string for UI consumption."""
+    if isinstance(exc, TickerNotFoundError):
+        return "not_found"
+    if isinstance(exc, ProviderDataInconsistentError):
+        return "data_inconsistent"
+    return "provider_error"
 
 
 def _merge_warnings(*warning_lists: list[str]) -> list[str]:

@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.services.ticker_ingestion_service import TickerIngestionService, validate_ingestion_identifier
+from src.ui.error_formatter import format_ingestion_error
 
 _DIALOG_TITLE = "Ajouter un ticker ou un ISIN"
 _DIALOG_MIN_WIDTH = 380
@@ -71,7 +72,11 @@ class AddTickerDialog(QDialog):
         if not result.success:
             self._ok_button.setEnabled(True)
             self._status_label.setStyleSheet(_STATUS_STYLE_ERROR)
-            self._status_label.setText(result.error or "Erreur inconnue.")
+            if result.stage == "validate" and result.error:
+                error_text = result.error
+            else:
+                error_text = format_ingestion_error(identifier, result.error_kind, result.stage)
+            self._status_label.setText(error_text)
             return
 
         resolved = result.resolved_ticker or identifier
