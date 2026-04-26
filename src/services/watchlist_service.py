@@ -125,6 +125,24 @@ class WatchlistService:
                 ),
             )
 
+    def update_company_exclusion(self, company_id: int, is_excluded: bool) -> WatchlistEntry | None:
+        with self.session_scope_factory() as session:
+            company = company_repository.get_by_id(session, company_id)
+            if company is None:
+                return None
+
+            updated = watchlist_repository.update_excluded_by_company_id(session, company_id, is_excluded)
+            if updated is not None:
+                return updated
+
+            return watchlist_repository.add(
+                session,
+                WatchlistEntry(
+                    company_id=company_id,
+                    is_excluded=is_excluded,
+                ),
+            )
+
     def list_watchlist_with_scores(
         self,
         max_market_cap: float | None = None,
