@@ -5,9 +5,10 @@ import math
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
-from io import StringIO
+from io import BytesIO, StringIO
 from typing import Literal
 
+import pandas as pd
 from sqlalchemy.orm import Session
 
 from src.models.kpi_snapshot import KpiSnapshot
@@ -199,6 +200,22 @@ class ScreeningService:
             country=country,
         )
         return _build_universe_screening_csv(rows)
+
+    def export_universe_with_scores_excel(
+        self,
+        filters: UniverseScreeningFilters,
+        *,
+        max_market_cap: float | None = None,
+        min_average_daily_volume: float | None = None,
+        country: str | None = None,
+    ) -> bytes:
+        rows = self.filter_universe_with_scores(
+            filters,
+            max_market_cap=max_market_cap,
+            min_average_daily_volume=min_average_daily_volume,
+            country=country,
+        )
+        return _build_universe_screening_excel(rows)
 
     def _list_excluded_company_ids(self) -> set[int]:
         with self.session_scope_factory() as session:
@@ -392,6 +409,7 @@ def _normalize_optional_text(value: str | None) -> str | None:
 
 
 def _build_universe_screening_csv(entries: list[UniverseScreeningEntry]) -> str:
+    records = _build_universe_screening_export_records(entries)
     buffer = StringIO()
     writer = csv.DictWriter(
         buffer,
@@ -399,27 +417,39 @@ def _build_universe_screening_csv(entries: list[UniverseScreeningEntry]) -> str:
         lineterminator="\n",
     )
     writer.writeheader()
-    for entry in entries:
-        writer.writerow(_serialize_universe_screening_entry(entry))
+    writer.writerows(records)
     return buffer.getvalue()
+
+
+def _build_universe_screening_excel(entries: list[UniverseScreeningEntry]) -> bytes:
+    records = _build_universe_screening_export_records(entries)
+    dataframe = pd.DataFrame(records, columns=list(_UNIVERSE_SCREENING_EXPORT_COLUMNS))
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+        dataframe.to_excel(writer, index=False, sheet_name="Screening")
+    return buffer.getvalue()
+
+
+def _build_universe_screening_export_records(entries: list[UniverseScreeningEntry]) -> list[dict[str, object]]:
+    return [_serialize_universe_screening_entry(entry) for entry in entries]
 
 
 def _serialize_universe_screening_entry(entry: UniverseScreeningEntry) -> dict[str, object]:
     return {
-        "ticker": _csv_value(entry.ticker),
-        "name": _csv_value(entry.name),
-        "sector": _csv_value(entry.sector),
-        "total_score": _csv_value(entry.total_score),
-        "quality_score": _csv_value(entry.quality_score),
-        "value_score": _csv_value(entry.value_score),
-        "growth_score": _csv_value(entry.growth_score),
-        "risk_score": _csv_value(entry.risk_score),
-        "rank": _csv_value(entry.rank),
-        "sector_rank": _csv_value(entry.sector_rank),
+        "ticker": _export_value(entry.ticker),
+        "name": _export_value(entry.name),
+        "sector": _export_value(entry.sector),
+        "total_score": _export_value(entry.total_score),
+        "quality_score": _export_value(entry.quality_score),
+        "value_score": _export_value(entry.value_score),
+        "growth_score": _export_value(entry.growth_score),
+        "risk_score": _export_value(entry.risk_score),
+        "rank": _export_value(entry.rank),
+        "sector_rank": _export_value(entry.sector_rank),
     }
 
 
-def _csv_value(value: object) -> object:
+def _export_value(value: object) -> object:
     if value is None:
         return ""
     return value
