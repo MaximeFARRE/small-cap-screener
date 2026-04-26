@@ -117,6 +117,11 @@ class BaseProvider(ABC):
     and implement all four methods — no other file needs to change.
     """
 
+    @property
+    def source_name(self) -> str:
+        """Human-readable identifier used in logs and result tracking."""
+        return type(self).__name__
+
     @abstractmethod
     def get_company_info(self, ticker: str) -> CompanyInfo: ...
 
