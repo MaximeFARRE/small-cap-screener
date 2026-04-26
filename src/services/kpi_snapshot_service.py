@@ -44,17 +44,11 @@ _DATA_QUALITY_RATIO_FIELDS: tuple[str, ...] = (
     "pb_ratio",
     "ev_ebitda",
     "ev_ebit",
-    "price_to_fcf",
     "fcf_yield",
     "roe",
     "roic",
     "operating_margin",
     "net_debt_to_ebitda",
-    "debt_to_equity",
-    "ebit_margin",
-    "ebitda_margin",
-    "net_margin",
-    "roa",
 )
 _DATA_QUALITY_GROWTH_FIELDS: tuple[str, ...] = ("revenue_growth", "ebitda_growth")
 
