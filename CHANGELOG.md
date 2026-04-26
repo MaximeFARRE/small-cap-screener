@@ -1,6 +1,76 @@
 # CHANGELOG
 
+## v0.25.0 (2026-04-26)
+
+### Feature
+
+* feat: wire error_formatter into main_window and add_ticker_dialog
+
+Replace raw result.error string display with clean formatted messages:
+- Single-company refresh uses format_refresh_error (kind-aware French)
+- Batch/watchlist refresh uses format_batch_summary (consistent format)
+- Ingestion dialog preserves validate-stage detail messages but replaces
+  provider-level raw exceptions with format_ingestion_error output
+
+Co-Authored-By: Claude Sonnet 4.6 &lt;noreply@anthropic.com&gt; ([`f4a9d97`](https://github.com/MaximeFARRE/small-cap-screener/commit/f4a9d97b8fa6070e5d505f39901b9aceb9a51ebb))
+
+* feat: add error_formatter UI helper with clean French messages
+
+Map error_kind strings (not_found, provider_error, data_inconsistent)
+to user-facing French messages. Stage-level fallbacks cover validation
+and normalization failures. format_batch_summary consolidates the
+batch refresh status-bar pattern. No raw exception text is ever shown
+to the user — technical details stay in logs.
+
+Co-Authored-By: Claude Sonnet 4.6 &lt;noreply@anthropic.com&gt; ([`6c8e503`](https://github.com/MaximeFARRE/small-cap-screener/commit/6c8e5035593ddf4edfcece75ce7efdbd03f36118))
+
+* feat: add error_kind to TickerIngestionResult and propagate
+
+Propagate error_kind from TickerResolutionResult (resolution failures)
+and CompanyDataRefreshResult (data fetch failures) into
+TickerIngestionResult so the UI layer can produce clean messages
+without inspecting raw error strings.
+
+Co-Authored-By: Claude Sonnet 4.6 &lt;noreply@anthropic.com&gt; ([`ca3f4ce`](https://github.com/MaximeFARRE/small-cap-screener/commit/ca3f4ced84d5b38b8b249674aa2fe20ebef22f93))
+
+* feat: add error_kind to refresh results and classify provider errors
+
+Add error_kind: str | None to CompanyDataRefreshResult and
+CompanyUniverseRefreshResult. Classify provider exceptions
+(TickerNotFoundError → not_found, ProviderDataInconsistentError →
+data_inconsistent, other ProviderError → provider_error) in a new
+_classify_provider_error helper. Propagate the kind through
+FinancialDataServiceError and the universe discovery service so the UI
+layer can display clean, user-facing messages without inspecting raw
+exception text.
+
+Co-Authored-By: Claude Sonnet 4.6 &lt;noreply@anthropic.com&gt; ([`33a4771`](https://github.com/MaximeFARRE/small-cap-screener/commit/33a4771aaa5b9c1f0d1e9f087e0ba9191b0325a8))
+
+### Test
+
+* test: add 22 tests for error_formatter
+
+Cover format_refresh_error (kind mapping, stage fallback, generic
+fallback, unknown kind, empty ticker), format_ingestion_error (kind
+mapping, validate-stage passthrough), format_batch_summary (success,
+failures, truncation to 3 tickers, empty ticker filtering, period
+suffix, label injection). Regression guard ensures no raw exception
+vocabulary (Exception, yfinance, HTTPError) appears in formatted
+output for any known error_kind.
+
+Co-Authored-By: Claude Sonnet 4.6 &lt;noreply@anthropic.com&gt; ([`e01d428`](https://github.com/MaximeFARRE/small-cap-screener/commit/e01d428955ea4d51c16cb1f1eb991a36d13982f8))
+
+### Unknown
+
+* Merge pull request #35 from MaximeFARRE/feat/phase30-error-feedback-polish
+
+Feat/phase30 error feedback polish ([`679f37a`](https://github.com/MaximeFARRE/small-cap-screener/commit/679f37aa8d8d2ee431558a624b6b53c5598c7500))
+
 ## v0.24.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.24.0 [skip ci] ([`7f6b0ce`](https://github.com/MaximeFARRE/small-cap-screener/commit/7f6b0ce18010bc5bcd35c58b3e8df4d003ff4282))
 
 ### Feature
 
