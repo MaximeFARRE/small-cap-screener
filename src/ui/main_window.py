@@ -20,6 +20,7 @@ from src.ui.add_ticker_dialog import AddTickerDialog
 from src.ui.backtesting_validation_dialog import BacktestingValidationDialog
 from src.ui.company_detail_widget import CompanyDetailWidget
 from src.ui.company_table_model import ScreenerRow
+from src.ui.error_formatter import format_batch_summary, format_refresh_error
 from src.ui.filter_widget import FilterWidget
 from src.ui.screener_widget import ScreenerWidget
 from src.ui.screening_snapshot_dialog import ScreeningSnapshotDialog
@@ -223,7 +224,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "Actualisation échouée",
-                f"Impossible d'actualiser {result.ticker} : {result.error or 'erreur inconnue'}",
+                format_refresh_error(result.ticker, result.error_kind, result.stage),
             )
             self.statusBar().clearMessage()
             return
@@ -240,11 +241,9 @@ class MainWindow(QMainWindow):
         result = self._universe_discovery_service.batch_refresh_universe()
         self._set_refresh_actions_enabled(True)
         self._load_scored_universe(selected_company_id=self._selected_company_id)
-        msg = f"Univers actualisé — {result.succeeded}/{result.total} société(s) rafraîchie(s)"
-        if result.failed:
-            failed_tickers = [r.ticker for r in result.results if not r.success][:3]
-            msg += f", {result.failed} échec(s) : {', '.join(t for t in failed_tickers if t)}"
-        self.statusBar().showMessage(msg + ".", 8000)
+        failed_tickers = [r.ticker for r in result.results if not r.success]
+        msg = format_batch_summary("Univers actualisé", result.succeeded, result.total, result.failed, failed_tickers)
+        self.statusBar().showMessage(msg, 8000)
 
     def _refresh_watchlist(self) -> None:
         self._set_refresh_actions_enabled(False)
@@ -253,11 +252,11 @@ class MainWindow(QMainWindow):
         result = self._universe_discovery_service.refresh_watchlist()
         self._set_refresh_actions_enabled(True)
         self._load_scored_universe(selected_company_id=self._selected_company_id)
-        msg = f"Watchlist actualisée — {result.succeeded}/{result.total} société(s) rafraîchie(s)"
-        if result.failed:
-            failed_tickers = [r.ticker for r in result.results if not r.success][:3]
-            msg += f", {result.failed} échec(s) : {', '.join(t for t in failed_tickers if t)}"
-        self.statusBar().showMessage(msg + ".", 8000)
+        failed_tickers = [r.ticker for r in result.results if not r.success]
+        msg = format_batch_summary(
+            "Watchlist actualisée", result.succeeded, result.total, result.failed, failed_tickers
+        )
+        self.statusBar().showMessage(msg, 8000)
 
     def _set_refresh_actions_enabled(self, enabled: bool) -> None:
         self._refresh_universe_action.setEnabled(enabled)
