@@ -5,13 +5,14 @@ import math
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import UTC, date, datetime, timedelta
 from io import BytesIO, StringIO
 from typing import Literal
 
 import pandas as pd
 from sqlalchemy.orm import Session
 
+from src.models.company import Company
 from src.models.kpi_snapshot import KpiSnapshot
 from src.models.screening_snapshot import ScreeningSnapshot
 from src.repositories import (
@@ -35,6 +36,8 @@ from src.services.scoring_service import (
 )
 
 SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
+STALE_REFRESH_DAYS = 30
+
 UniverseScreeningSortField = Literal[
     "rank",
     "total_score",
@@ -89,12 +92,17 @@ class UniverseScreeningEntry:
     risk_score: float | None
     rank: int | None
     sector_rank: int | None
+    data_quality_score: float | None = None
+    last_universe_refresh_at: datetime | None = None
+    snapshot_date: date | None = None
 
 
 @dataclass(frozen=True)
 class UniverseScreeningFilters:
     sector: str | None = None
     min_total_score: float | None = None
+    min_data_quality_score: float | None = None
+    stale_only: bool = False
     scored_only: bool = False
     include_excluded: bool = False
     top_n: int | None = None
@@ -312,7 +320,7 @@ def apply_filters(
 def _build_universe_screening_entries(
     *,
     ranking: list[RankedCompanyTotalScore],
-    companies_by_id: dict[int, object],
+    companies_by_id: dict[int, Company],
     snapshots_by_company_id: dict[int, KpiSnapshot | None],
 ) -> list[UniverseScreeningEntry]:
     entries: list[UniverseScreeningEntry] = []
@@ -334,6 +342,9 @@ def _build_universe_screening_entries(
                 risk_score=_snapshot_metric_as_float(snapshot, RISK_SCORE_KEY),
                 rank=ranked.rank,
                 sector_rank=ranked.sector_rank,
+                data_quality_score=_snapshot_metric_as_float(snapshot, "data_quality_score"),
+                last_universe_refresh_at=company.last_universe_refresh_at,
+                snapshot_date=snapshot.snapshot_date if snapshot is not None else None,
             )
         )
     return entries
@@ -361,6 +372,7 @@ def _apply_universe_screening_filters(
     excluded_company_ids: set[int],
 ) -> list[UniverseScreeningEntry]:
     target_sector = _normalize_optional_text(filters.sector)
+    stale_threshold = datetime.now(UTC) - timedelta(days=STALE_REFRESH_DAYS) if filters.stale_only else None
     output: list[UniverseScreeningEntry] = []
     for entry in entries:
         if entry.company_id in excluded_company_ids:
@@ -373,6 +385,13 @@ def _apply_universe_screening_filters(
             continue
         if filters.min_total_score is not None:
             if entry.total_score is None or entry.total_score < filters.min_total_score:
+                continue
+        if filters.min_data_quality_score is not None:
+            if entry.data_quality_score is None or entry.data_quality_score < filters.min_data_quality_score:
+                continue
+        if stale_threshold is not None:
+            refresh_at = entry.last_universe_refresh_at
+            if refresh_at is not None and refresh_at >= stale_threshold:
                 continue
         output.append(entry)
     return output
