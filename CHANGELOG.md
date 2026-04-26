@@ -1,6 +1,30 @@
 # CHANGELOG
 
+## v0.21.0 (2026-04-26)
+
+### Feature
+
+* feat: add company detail chart visualizations ([`d69094c`](https://github.com/MaximeFARRE/small-cap-screener/commit/d69094cd58b8627b1491b69a16bc2a58e7e15d78))
+
+* feat: add company charts data service ([`bbd1328`](https://github.com/MaximeFARRE/small-cap-screener/commit/bbd132890a0e3fb0b90567b0d6caf1409330a1f8))
+
+### Test
+
+* test: stub chart service in main window tests ([`443a91a`](https://github.com/MaximeFARRE/small-cap-screener/commit/443a91aee79ab3a7dac15ac281ee1f36d501adb6))
+
+* test: cover company charts data preparation ([`785250d`](https://github.com/MaximeFARRE/small-cap-screener/commit/785250d7db4dbd032a68698f536485500d992be3))
+
+### Unknown
+
+* Merge pull request #31 from MaximeFARRE/feat/phase26-charts-visual-analysis
+
+Feat/phase26 charts visual analysis ([`586a0c4`](https://github.com/MaximeFARRE/small-cap-screener/commit/586a0c4e770b1a1bd8848096371cfc0729998c6b))
+
 ## v0.20.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.20.0 [skip ci] ([`97b351a`](https://github.com/MaximeFARRE/small-cap-screener/commit/97b351a035ca2ea79427c7180035e976ed697d75))
 
 ### Feature
 
