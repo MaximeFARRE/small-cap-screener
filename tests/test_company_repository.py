@@ -230,7 +230,7 @@ def test_get_investable_universe_excludes_inactive(db_session):
     assert results[0].ticker == "ACTIVE.PA"
 
 
-def test_get_investable_universe_excludes_inconsistent_data(db_session):
+def test_get_investable_universe_excludes_invalid_ticker_but_allows_missing_isin(db_session):
     company_repository.create(
         db_session,
         _make_company(
@@ -256,7 +256,7 @@ def test_get_investable_universe_excludes_inconsistent_data(db_session):
     company_repository.create(
         db_session,
         _make_company(
-            isin="",
+            isin=None,
             ticker="NOISIN.PA",
             name="No ISIN",
             country="France",
@@ -267,8 +267,7 @@ def test_get_investable_universe_excludes_inconsistent_data(db_session):
 
     results = company_repository.get_investable_universe(db_session, max_market_cap=500_000_000.0)
 
-    assert len(results) == 1
-    assert results[0].ticker == "VALID.PA"
+    assert [company.ticker for company in results] == ["NOISIN.PA", "VALID.PA"]
 
 
 def test_get_investable_universe_is_stable(db_session):

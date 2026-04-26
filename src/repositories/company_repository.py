@@ -96,7 +96,6 @@ def get_investable_universe(
             Company.market_cap <= max_market_cap,
             Company.ticker.is_not(None),
             func.length(func.trim(Company.ticker)) > 0,
-            func.length(func.trim(Company.isin)) > 0,
             liquidity_condition,
         )
         .order_by(Company.name)
