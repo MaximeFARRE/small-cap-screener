@@ -39,6 +39,7 @@ class WatchlistEntry(Base):
     catalysts: Mapped[str | None] = mapped_column(String(2000))
     valuation_notes: Mapped[str | None] = mapped_column(String(2000))
     next_action: Mapped[str | None] = mapped_column(String(500))
+    next_review_at: Mapped[datetime | None]
     status: Mapped[str] = mapped_column(
         String(20),
         default=WATCHLIST_STATUS_WATCHING,

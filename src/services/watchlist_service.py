@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -13,6 +14,7 @@ from src.services.kpi_snapshot_service import KpiSnapshotService
 from src.services.scoring_service import RankedCompanyTotalScore, ScoreExplanation, ScoringService
 
 SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
+_MEMO_SUMMARY_MAX_LEN = 180
 
 
 @dataclass(frozen=True)
@@ -32,6 +34,7 @@ class CompanyAnalystDetail:
     watchlist_status: str | None
     watchlist_notes: str | None
     watchlist_is_excluded: bool
+    next_review_at: datetime | None
     analyst_memo: AnalystMemo
     quality_score: float | None
     value_score: float | None
@@ -50,6 +53,29 @@ class AnalystMemo:
     catalysts: str | None = None
     valuation_notes: str | None = None
     next_action: str | None = None
+
+
+@dataclass(frozen=True)
+class WatchlistWorkflowEntry:
+    company_id: int
+    ticker: str | None
+    name: str
+    status: str
+    notes: str | None
+    memo_summary: str | None
+    is_excluded: bool
+    total_score: float | None
+    rank: int | None
+    sector_rank: int | None
+    data_quality_score: float | None
+    last_universe_refresh_at: datetime | None
+    next_review_at: datetime | None
+
+
+@dataclass(frozen=True)
+class WatchlistActionQueue:
+    overdue_reviews: list[WatchlistWorkflowEntry]
+    high_priority_statuses: list[WatchlistWorkflowEntry]
 
 
 @dataclass
@@ -106,6 +132,7 @@ class WatchlistService:
             watchlist_status=watchlist_entry.status if watchlist_entry is not None else None,
             watchlist_notes=watchlist_entry.notes if watchlist_entry is not None else None,
             watchlist_is_excluded=watchlist_entry.is_excluded if watchlist_entry is not None else False,
+            next_review_at=watchlist_entry.next_review_at if watchlist_entry is not None else None,
             analyst_memo=_memo_from_entry(watchlist_entry),
             quality_score=explanation.quality,
             value_score=explanation.value,
@@ -206,6 +233,24 @@ class WatchlistService:
                 ),
             )
 
+    def update_company_next_review(self, company_id: int, next_review_at: datetime | None) -> WatchlistEntry | None:
+        with self.session_scope_factory() as session:
+            company = company_repository.get_by_id(session, company_id)
+            if company is None:
+                return None
+
+            updated = watchlist_repository.update_next_review_by_company_id(session, company_id, next_review_at)
+            if updated is not None:
+                return updated
+
+            return watchlist_repository.add(
+                session,
+                WatchlistEntry(
+                    company_id=company_id,
+                    next_review_at=next_review_at,
+                ),
+            )
+
     def list_watchlist_with_scores(
         self,
         max_market_cap: float | None = None,
@@ -238,6 +283,60 @@ class WatchlistService:
             companies_by_id=companies_by_id,
             total_scores_by_company_id=total_scores_by_company_id,
             ranking_by_company_id=ranking_by_company_id,
+        )
+
+    def list_watchlist_workflow(
+        self,
+        max_market_cap: float | None = None,
+        min_average_daily_volume: float | None = None,
+        country: str | None = None,
+    ) -> list[WatchlistWorkflowEntry]:
+        with self.session_scope_factory() as session:
+            entries = watchlist_repository.list_all(session)
+            companies_by_id = {
+                entry.company_id: company_repository.get_by_id(session, entry.company_id) for entry in entries
+            }
+            snapshots_by_company_id = {
+                entry.company_id: kpi_snapshot_repository.get_latest_by_company(session, entry.company_id)
+                for entry in entries
+            }
+
+        ranking_by_company_id = _ranking_by_company_id(
+            self,
+            max_market_cap=max_market_cap,
+            min_average_daily_volume=min_average_daily_volume,
+            country=country,
+        )
+        return _build_watchlist_workflow_entries(
+            entries=entries,
+            companies_by_id=companies_by_id,
+            snapshots_by_company_id=snapshots_by_company_id,
+            ranking_by_company_id=ranking_by_company_id,
+        )
+
+    def list_action_queue(
+        self,
+        *,
+        reference_time: datetime | None = None,
+        max_market_cap: float | None = None,
+        min_average_daily_volume: float | None = None,
+        country: str | None = None,
+    ) -> WatchlistActionQueue:
+        workflow_entries = self.list_watchlist_workflow(
+            max_market_cap=max_market_cap,
+            min_average_daily_volume=min_average_daily_volume,
+            country=country,
+        )
+        now = reference_time if reference_time is not None else datetime.now(UTC)
+        overdue_reviews = [entry for entry in workflow_entries if _is_overdue_review(entry.next_review_at, now)]
+        overdue_reviews.sort(
+            key=lambda item: (_as_utc(item.next_review_at) if item.next_review_at else now, item.company_id)
+        )
+        high_priority_statuses = [entry for entry in workflow_entries if entry.status in ("review", "conviction")]
+        high_priority_statuses.sort(key=lambda item: (_status_priority(item.status), item.company_id))
+        return WatchlistActionQueue(
+            overdue_reviews=overdue_reviews,
+            high_priority_statuses=high_priority_statuses,
         )
 
 
@@ -274,6 +373,110 @@ def _memo_from_entry(entry: WatchlistEntry | None) -> AnalystMemo:
         valuation_notes=entry.valuation_notes,
         next_action=entry.next_action,
     )
+
+
+def _memo_summary(memo: AnalystMemo) -> str | None:
+    snippets = [
+        _normalize_optional_text(memo.investment_thesis),
+        _normalize_optional_text(memo.key_risks),
+        _normalize_optional_text(memo.catalysts),
+        _normalize_optional_text(memo.valuation_notes),
+        _normalize_optional_text(memo.next_action),
+    ]
+    available = [snippet for snippet in snippets if snippet is not None]
+    if not available:
+        return None
+    summary = " | ".join(available)
+    if len(summary) <= _MEMO_SUMMARY_MAX_LEN:
+        return summary
+    return summary[: _MEMO_SUMMARY_MAX_LEN - 3] + "..."
+
+
+def _ranking_by_company_id(
+    service: WatchlistService,
+    *,
+    max_market_cap: float | None,
+    min_average_daily_volume: float | None,
+    country: str | None,
+) -> dict[int, RankedCompanyTotalScore]:
+    if service.kpi_snapshot_service is None:
+        raise RuntimeError("kpi snapshot service is not initialized")
+    ranking = service.kpi_snapshot_service.rank_universe_by_total_score(
+        max_market_cap=max_market_cap,
+        min_average_daily_volume=min_average_daily_volume,
+        country=country,
+    )
+    return {item.company_id: item for item in ranking}
+
+
+def _build_watchlist_workflow_entries(
+    *,
+    entries: list[WatchlistEntry],
+    companies_by_id: dict[int, object],
+    snapshots_by_company_id: dict[int, object],
+    ranking_by_company_id: dict[int, RankedCompanyTotalScore],
+) -> list[WatchlistWorkflowEntry]:
+    workflow: list[WatchlistWorkflowEntry] = []
+    for entry in entries:
+        company = companies_by_id.get(entry.company_id)
+        snapshot = snapshots_by_company_id.get(entry.company_id)
+        ranking = ranking_by_company_id.get(entry.company_id)
+        memo = _memo_from_entry(entry)
+        workflow.append(
+            WatchlistWorkflowEntry(
+                company_id=entry.company_id,
+                ticker=company.ticker if company is not None else None,
+                name=company.name if company is not None else "",
+                status=entry.status,
+                notes=entry.notes,
+                memo_summary=_memo_summary(memo),
+                is_excluded=entry.is_excluded,
+                total_score=_snapshot_metric_as_float(snapshot, "total_score"),
+                rank=ranking.rank if ranking is not None else None,
+                sector_rank=ranking.sector_rank if ranking is not None else None,
+                data_quality_score=_snapshot_metric_as_float(snapshot, "data_quality_score"),
+                last_universe_refresh_at=company.last_universe_refresh_at if company is not None else None,
+                next_review_at=entry.next_review_at,
+            )
+        )
+    return workflow
+
+
+def _snapshot_metric_as_float(snapshot: object, key: str) -> float | None:
+    if snapshot is None:
+        return None
+    metrics = getattr(snapshot, "metrics", None)
+    if not isinstance(metrics, dict):
+        return None
+    value = metrics.get(key)
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _is_overdue_review(next_review_at: datetime | None, reference_time: datetime) -> bool:
+    if next_review_at is None:
+        return False
+    left = _as_utc(next_review_at)
+    right = _as_utc(reference_time)
+    return left <= right
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _status_priority(status: str) -> int:
+    if status == "review":
+        return 0
+    if status == "conviction":
+        return 1
+    return 2
 
 
 def _build_watchlist_with_scores(

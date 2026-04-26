@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -70,6 +72,17 @@ def update_memo_by_company_id(
     entry.catalysts = catalysts
     entry.valuation_notes = valuation_notes
     entry.next_action = next_action
+    session.flush()
+    return entry
+
+
+def update_next_review_by_company_id(
+    session: Session, company_id: int, next_review_at: datetime | None
+) -> WatchlistEntry | None:
+    entry = get_by_company_id(session, company_id)
+    if entry is None:
+        return None
+    entry.next_review_at = next_review_at
     session.flush()
     return entry
 
