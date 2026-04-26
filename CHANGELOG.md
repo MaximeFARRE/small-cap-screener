@@ -1,6 +1,54 @@
 # CHANGELOG
 
+## v0.26.0 (2026-04-26)
+
+### Documentation
+
+* docs: mark Phase 31 Settings &amp; Configuration as delivered ([`54df860`](https://github.com/MaximeFARRE/small-cap-screener/commit/54df86014e312cdb57a1111831d8f3dada08b0fc))
+
+* docs: remove black from STACK, ruff handles both linting and formatting ([`6293341`](https://github.com/MaximeFARRE/small-cap-screener/commit/62933419f4dd97ab90883527f9521e2666bbdd26))
+
+* docs: replace black --check with ruff format --check in DEVELOPMENT guide ([`2f70afc`](https://github.com/MaximeFARRE/small-cap-screener/commit/2f70afcad36174b02c0903b16515c44af22f4b4a))
+
+* docs: update README implemented features and fix stack (remove black, add yfinance) ([`782712b`](https://github.com/MaximeFARRE/small-cap-screener/commit/782712b5485b78aadb58aad1583f5292a13a0eb0))
+
+* docs: add missing services and provider layer to ARCHITECTURE ([`b70a617`](https://github.com/MaximeFARRE/small-cap-screener/commit/b70a617dc30f17f43095251cfb8e890a77f8f7fe))
+
+* docs: update ROADMAP to reflect phases 14-30 as delivered ([`bbd1857`](https://github.com/MaximeFARRE/small-cap-screener/commit/bbd185780eabe527af4be166555ce8f0ace391a3))
+
+### Feature
+
+* feat: wire SettingsService into MainWindow, applying configuration to services at startup and runtime ([`de5cd4d`](https://github.com/MaximeFARRE/small-cap-screener/commit/de5cd4d4381e71c491f6fa29948d6015cbd7b8fd))
+
+* feat: add SettingsDialog UI with connectivity and scoring weight sections ([`7ebb1b3`](https://github.com/MaximeFARRE/small-cap-screener/commit/7ebb1b37144522dfcecb23100058ac08f2fbd6de))
+
+* feat: add AppSettings dataclass and SettingsService with JSON persistence ([`8079a1c`](https://github.com/MaximeFARRE/small-cap-screener/commit/8079a1c7103271e34ff847abcac0ed5b8d459400))
+
+### Fix
+
+* fix(ci): install libegl1 and set QT_QPA_PLATFORM for headless PySide6 tests ([`6cf8145`](https://github.com/MaximeFARRE/small-cap-screener/commit/6cf8145b3a9d70726299cdcd1f416e20472484a1))
+
+### Test
+
+* test: fix FakeScreeningService and FakeBacktestingService to accept kwargs in tests ([`5cd7e3d`](https://github.com/MaximeFARRE/small-cap-screener/commit/5cd7e3df13bd9e42333fc18ed26fc7bb30144022))
+
+* test: add unit tests for SettingsService and AppSettings validation ([`ce32d67`](https://github.com/MaximeFARRE/small-cap-screener/commit/ce32d67feddb09ddd0d46731e86047182d567935))
+
+### Unknown
+
+* Merge pull request #38 from MaximeFARRE/feat/phase31-settings-configuration
+
+Feat/phase31 settings configuration ([`b6cb91f`](https://github.com/MaximeFARRE/small-cap-screener/commit/b6cb91f79d0ca5a2fc2735855a7c12c30d8429be))
+
+* Merge pull request #37 from MaximeFARRE/docs/update-docs
+
+Docs/update docs ([`b7b86be`](https://github.com/MaximeFARRE/small-cap-screener/commit/b7b86be97914c6fbec8ed04f0f99cadc9e331399))
+
 ## v0.25.1 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.25.1 [skip ci] ([`6219dc2`](https://github.com/MaximeFARRE/small-cap-screener/commit/6219dc250658bfb6091281eec47f833fdfcd8869))
 
 ### Unknown
 
