@@ -6,6 +6,8 @@ from datetime import date
 from unittest.mock import MagicMock
 
 from src.models.company import Company
+from src.models.financial_statement import FinancialStatement, PeriodType
+from src.models.price_history import PriceHistory as PriceHistoryModel
 from src.repositories import company_repository, financial_statement_repository, price_history_repository
 from src.repositories.providers.base import (
     CompanyInfo,
@@ -24,6 +26,7 @@ def _make_service(
     *,
     provider_call_max_attempts: int = 3,
     provider_retry_delay_seconds: float = 0.0,
+    offline_mode: bool = False,
 ):
     @contextmanager
     def session_scope():
@@ -34,6 +37,7 @@ def _make_service(
         session_scope_factory=session_scope,
         provider_call_max_attempts=provider_call_max_attempts,
         provider_retry_delay_seconds=provider_retry_delay_seconds,
+        offline_mode=offline_mode,
     )
 
 
@@ -310,6 +314,101 @@ def test_fetch_company_data_uses_fallback_after_optional_retry_failure(db_sessio
     assert fetched.ticker == "ALPHA.PA"
     assert fetched.market_data is None
     assert service.provider.get_current_market_data.call_count == 2
+
+
+def test_refresh_company_data_offline_uses_local_data_only(db_session):
+    company = company_repository.create(
+        db_session,
+        Company(
+            isin="FR0000007010",
+            ticker="OFFOK.PA",
+            name="Offline Ok",
+            country="France",
+            sector="Industrial",
+            market="PAR",
+            currency="EUR",
+            is_active=True,
+            market_cap=300_000_000.0,
+            average_daily_volume=120_000.0,
+        ),
+    )
+    price_history_repository.create(
+        db_session,
+        PriceHistoryModel(
+            company_id=company.id,
+            date=date(2024, 1, 2),
+            open=20.0,
+            high=21.0,
+            low=19.8,
+            close=20.7,
+            adjusted_close=20.7,
+            volume=180_000,
+        ),
+    )
+    financial_statement_repository.create(
+        db_session,
+        FinancialStatement(
+            company_id=company.id,
+            fiscal_year=2023,
+            period_type=PeriodType.ANNUAL,
+            revenue=120_000_000.0,
+            ebit=16_000_000.0,
+            ebitda=20_000_000.0,
+            net_income=11_000_000.0,
+            total_assets=200_000_000.0,
+            total_equity=90_000_000.0,
+            total_debt=30_000_000.0,
+            net_debt=15_000_000.0,
+            free_cash_flow=9_000_000.0,
+            shares_outstanding=15_000_000.0,
+        ),
+    )
+    provider = _make_provider()
+    service = _make_service(db_session, provider, offline_mode=True)
+
+    result = service.refresh_company_data(company.id)
+
+    assert result.success is True
+    assert result.prices_added == 0
+    assert result.statements_added == 0
+    assert "offline mode: using local data only" in result.warnings
+    assert provider.get_company_profile.call_count == 0
+    assert provider.get_current_market_data.call_count == 0
+    assert provider.get_price_history.call_count == 0
+    assert provider.get_financial_statements.call_count == 0
+
+
+def test_refresh_company_data_offline_reports_missing_local_data(db_session):
+    company = company_repository.create(
+        db_session,
+        Company(
+            isin="FR0000007011",
+            ticker="OFFKO.PA",
+            name="Offline Missing",
+            country="France",
+            sector="Industrial",
+            market="PAR",
+            currency="EUR",
+            is_active=True,
+            market_cap=300_000_000.0,
+            average_daily_volume=120_000.0,
+        ),
+    )
+    provider = _make_provider()
+    service = _make_service(db_session, provider, offline_mode=True)
+
+    result = service.refresh_company_data(company.id)
+
+    assert result.success is False
+    assert result.stage == "offline"
+    assert result.error is not None
+    assert "offline mode: missing local data" in result.error
+    assert "price history" in result.error
+    assert "financial statements" in result.error
+    assert provider.get_company_profile.call_count == 0
+    assert provider.get_current_market_data.call_count == 0
+    assert provider.get_price_history.call_count == 0
+    assert provider.get_financial_statements.call_count == 0
 
 
 def test_refresh_company_data_blocks_invalid_payload(db_session):
