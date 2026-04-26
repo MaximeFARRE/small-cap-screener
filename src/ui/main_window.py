@@ -98,6 +98,8 @@ class MainWindow(QMainWindow):
         file_menu.addAction("Snapshots récents…", self._open_recent_screening_snapshots)
         file_menu.addSeparator()
         file_menu.addAction("Exporter CSV…", self._export_csv)
+        file_menu.addAction("Exporter Excel…", self._export_excel)
+        file_menu.addAction("Exporter watchlist CSV…", self._export_watchlist_csv)
 
     def _load_scored_universe(self, selected_company_id: int | None = None) -> None:
         rows = self._screening_service.filter_universe_with_scores(self._current_filters)
@@ -253,10 +255,43 @@ class MainWindow(QMainWindow):
             return
         path, _ = QFileDialog.getSaveFileName(self, "Exporter CSV", "screening.csv", "CSV (*.csv)")
         if path:
-            csv_content = self._screening_service.export_universe_with_scores_csv(
-                self._current_filters,
-            )
-            Path(path).write_text(csv_content, encoding="utf-8-sig")
+            try:
+                csv_content = self._screening_service.export_universe_with_scores_csv(
+                    self._current_filters,
+                )
+                Path(path).write_text(csv_content, encoding="utf-8-sig")
+            except OSError as exc:
+                QMessageBox.warning(self, "Export", f"Échec export CSV: {exc}")
+                return
+            self.statusBar().showMessage(f"Export CSV réussi: {path}", 6000)
+
+    def _export_excel(self) -> None:
+        rows = self._screener.rows()
+        if not rows:
+            QMessageBox.information(self, "Export", "Aucune donnée à exporter.")
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Exporter Excel", "screening.xlsx", "Excel (*.xlsx)")
+        if path:
+            try:
+                excel_content = self._screening_service.export_universe_with_scores_excel(
+                    self._current_filters,
+                )
+                Path(path).write_bytes(excel_content)
+            except OSError as exc:
+                QMessageBox.warning(self, "Export", f"Échec export Excel: {exc}")
+                return
+            self.statusBar().showMessage(f"Export Excel réussi: {path}", 6000)
+
+    def _export_watchlist_csv(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(self, "Exporter watchlist CSV", "watchlist.csv", "CSV (*.csv)")
+        if path:
+            try:
+                csv_content = self._screening_service.export_watchlist_with_scores_csv(self._current_filters)
+                Path(path).write_text(csv_content, encoding="utf-8-sig")
+            except OSError as exc:
+                QMessageBox.warning(self, "Export", f"Échec export watchlist CSV: {exc}")
+                return
+            self.statusBar().showMessage(f"Export watchlist CSV réussi: {path}", 6000)
 
     def _save_screening_snapshot(self) -> None:
         default_name = _default_screening_snapshot_name()
