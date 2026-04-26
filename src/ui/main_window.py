@@ -3,8 +3,13 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDockWidget, QFileDialog, QMainWindow, QMessageBox, QSplitter
 
+from src.repositories.providers.yfinance_provider import YFinanceProvider
+from src.services.financial_data_service import FinancialDataService
+from src.services.kpi_snapshot_service import KpiSnapshotService
 from src.services.screening_service import ScreeningService, UniverseScreeningFilters
+from src.services.ticker_ingestion_service import TickerIngestionService
 from src.services.watchlist_service import WatchlistService
+from src.ui.add_ticker_dialog import AddTickerDialog
 from src.ui.company_detail_widget import CompanyDetailWidget
 from src.ui.company_table_model import ScreenerRow
 from src.ui.filter_widget import FilterWidget
@@ -22,6 +27,10 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._screening_service = ScreeningService()
         self._watchlist_service = WatchlistService()
+        self._ticker_ingestion_service = TickerIngestionService(
+            financial_data_service=FinancialDataService(provider=YFinanceProvider()),
+            kpi_snapshot_service=KpiSnapshotService(),
+        )
         self._current_filters = UniverseScreeningFilters()
         self._selected_company_id: int | None = None
         self.setWindowTitle(WINDOW_TITLE)
@@ -63,6 +72,8 @@ class MainWindow(QMainWindow):
 
     def _setup_menu(self) -> None:
         file_menu = self.menuBar().addMenu("Fichier")
+        file_menu.addAction("Ajouter un ticker…", self._open_add_ticker_dialog)
+        file_menu.addSeparator()
         file_menu.addAction("Exporter CSV…", self._export_csv)
 
     def _load_scored_universe(self, selected_company_id: int | None = None) -> None:
@@ -123,6 +134,15 @@ class MainWindow(QMainWindow):
             return
         self._load_scored_universe(selected_company_id=company_id)
         self.statusBar().showMessage("Données analyste mises à jour.", 5000)
+
+    def _open_add_ticker_dialog(self) -> None:
+        dialog = AddTickerDialog(self._ticker_ingestion_service, parent=self)
+        dialog.ticker_ingested.connect(self._on_ticker_ingested)
+        dialog.exec()
+
+    def _on_ticker_ingested(self, company_id: int) -> None:
+        self._load_scored_universe(selected_company_id=company_id)
+        self.statusBar().showMessage("Ticker importé et screener mis à jour.", 5000)
 
     def _export_csv(self) -> None:
         rows = self._screener.rows()
