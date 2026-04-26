@@ -191,6 +191,32 @@ def test_refresh_company_data_existing_company(db_session):
     assert len(financial_statement_repository.get_by_company(db_session, company.id)) == 1
 
 
+def test_refresh_company_data_allows_missing_isin(db_session):
+    company = company_repository.create(
+        db_session,
+        Company(
+            isin=None,
+            ticker="NOISIN.PA",
+            name="No Isin",
+            country="France",
+            sector="Industrial",
+            market="PAR",
+            currency="EUR",
+            is_active=True,
+            market_cap=350_000_000.0,
+            average_daily_volume=120_000.0,
+        ),
+    )
+    service = _make_service(db_session, _make_provider())
+
+    result = service.refresh_company_data(company.id)
+
+    assert result.success is True
+    assert result.prices_added == 1
+    assert result.statements_added == 1
+    assert "isin is missing" in result.warnings
+
+
 def test_refresh_universe_data_simple(db_session):
     company_repository.create(
         db_session,

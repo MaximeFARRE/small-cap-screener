@@ -13,7 +13,6 @@ from src.services.financial_data_service import CompanyDataRefreshResult
 from src.services.kpi_snapshot_service import KpiSnapshotServiceResult
 from src.services.ticker_ingestion_service import (
     TickerIngestionService,
-    _synthetic_isin,
     validate_ticker_format,
 )
 
@@ -43,24 +42,6 @@ def test_validate_ticker_format_valid(ticker):
 )
 def test_validate_ticker_format_invalid(ticker):
     assert validate_ticker_format(ticker) is not None
-
-
-# ---------------------------------------------------------------------------
-# _synthetic_isin
-# ---------------------------------------------------------------------------
-
-
-def test_synthetic_isin_basic():
-    assert _synthetic_isin("MC.PA") == "YFMCPA"
-
-
-def test_synthetic_isin_max_length():
-    assert len(_synthetic_isin("A" * 20)) <= 12
-
-
-def test_synthetic_isin_strips_dots_and_dashes():
-    assert "." not in _synthetic_isin("MC.PA")
-    assert "-" not in _synthetic_isin("A-B")
 
 
 # ---------------------------------------------------------------------------
@@ -193,7 +174,7 @@ def test_ingest_ticker_creates_new_company(db_session):
     assert companies[0].isin == "FR0000131104"
 
 
-def test_ingest_ticker_uses_synthetic_isin_when_none(db_session):
+def test_ingest_ticker_stores_none_isin_when_provider_has_no_isin(db_session):
     profile = _make_profile("ALAMY.PA", isin=None)
     fin_svc = _make_financial_service(profile)
     fin_svc.refresh_company_data.return_value = CompanyDataRefreshResult(
@@ -207,7 +188,28 @@ def test_ingest_ticker_uses_synthetic_isin_when_none(db_session):
     result = svc.ingest_ticker("ALAMY.PA")
     assert result.success
     companies = company_repository.get_all(db_session)
-    assert companies[0].isin == _synthetic_isin("ALAMY.PA")
+    assert companies[0].isin is None
+
+
+def test_ingest_ticker_ignores_invalid_provider_isin_and_continues(db_session, caplog):
+    profile = _make_profile("VLA.PA", isin="YFVLAPA")
+    fin_svc = _make_financial_service(profile)
+    fin_svc.refresh_company_data.return_value = CompanyDataRefreshResult(
+        company_id=1, ticker="VLA.PA", success=True, prices_added=2, statements_added=1
+    )
+    svc = TickerIngestionService(
+        financial_data_service=fin_svc,
+        kpi_snapshot_service=_make_kpi_service(),
+        session_scope_factory=_make_session_scope(db_session),
+    )
+
+    with caplog.at_level("WARNING", logger="src.services.ticker_ingestion_service"):
+        result = svc.ingest_ticker("VLA.PA")
+
+    assert result.success
+    companies = company_repository.get_all(db_session)
+    assert companies[0].isin is None
+    assert any("ignored invalid provider isin" in message for message in caplog.messages)
 
 
 def test_ingest_ticker_reuses_existing_company(db_session):
