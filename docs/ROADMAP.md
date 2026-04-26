@@ -33,6 +33,7 @@ Target universe:
 * Backtesting and ranking validation service: delivered.
 * Provider redundancy layer (`ChainedProvider`, `NoOpProvider`, `YFinanceProvider`): delivered.
 * Error feedback polish (clean user-facing messages in French): delivered.
+* Settings & Configuration (offline mode, scoring weights, JSON persistence): delivered.
 * Reliability layer (retry/fallback, offline mode, data quality score): delivered.
 * Desktop packaging baseline (PyInstaller): delivered.
 * Recruiter-ready documentation and demo assets: in progress.
@@ -113,14 +114,13 @@ Target universe:
 * Batch refresh summary with success/failure counts and first failed tickers.
 * `error_kind` field carried through ingestion and refresh result dataclasses.
 
-## Phase 31 — Settings and configuration
+### Phase 31 — Settings and configuration
 
-* Add basic settings page
-* Configure cache TTL
-* Configure offline mode
-* Configure default filters and sort
-* Configure scoring weights if Phase 21 is implemented
-* Persist settings locally
+* `AppSettings` dataclass with `SettingsService` for JSON persistence.
+* `SettingsDialog` UI connected to `MainWindow`.
+* Configurable offline mode and provider retry attempts.
+* Real-time UI validation for scoring weights (must sum to 1.0).
+* Hot-reload of settings into running services.
 
 ## Phase 32 — Database migrations and data maintenance
 
