@@ -1,6 +1,26 @@
 # CHANGELOG
 
+## v0.17.0 (2026-04-26)
+
+### Feature
+
+* feat: add next review date controls in company detail ([`ea80b70`](https://github.com/MaximeFARRE/small-cap-screener/commit/ea80b70bfc5fd6ad662db4594e0fc6e63727e99d))
+
+* feat: add watchlist filters to screening workflow ([`f18137c`](https://github.com/MaximeFARRE/small-cap-screener/commit/f18137c1ba794b05572ccf36c3672099b7cdb4d2))
+
+* feat: add watchlist workflow and next review scheduling ([`8308db1`](https://github.com/MaximeFARRE/small-cap-screener/commit/8308db1f2bf7d961e9964a4773b1f9240c6279fa))
+
+### Unknown
+
+* Merge pull request #27 from MaximeFARRE/feat/phase23-advanced-watchlist
+
+Feat/phase23 advanced watchlist ([`cadef07`](https://github.com/MaximeFARRE/small-cap-screener/commit/cadef075610e73a10e88ca974df9ad919c7ea5c0))
+
 ## v0.16.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.16.0 [skip ci] ([`cc82a96`](https://github.com/MaximeFARRE/small-cap-screener/commit/cc82a96bfbf3118e51e65c471490402d7386180c))
 
 ### Documentation
 
