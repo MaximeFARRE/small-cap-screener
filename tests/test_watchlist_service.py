@@ -7,7 +7,12 @@ import pytest
 
 from src.models.company import Company
 from src.models.kpi_snapshot import KpiSnapshot
-from src.models.watchlist_entry import WATCHLIST_STATUS_CONVICTION, WATCHLIST_STATUS_REVIEW, WatchlistEntry
+from src.models.watchlist_entry import (
+    WATCHLIST_STATUS_CONVICTION,
+    WATCHLIST_STATUS_REVIEW,
+    WATCHLIST_STATUS_WATCHING,
+    WatchlistEntry,
+)
 from src.repositories import company_repository, kpi_snapshot_repository, watchlist_repository
 from src.services.watchlist_service import WatchlistService
 
@@ -128,6 +133,63 @@ def test_update_company_status_rejects_invalid_status(db_session):
 
     with pytest.raises(ValueError):
         service.update_company_status(company.id, "invalid")
+
+
+def test_update_company_exclusion_updates_existing_entry(db_session):
+    company = _make_company(db_session, isin="FR0000810006", ticker="WS6.PA")
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=company.id, notes="keep notes", status=WATCHLIST_STATUS_REVIEW),
+    )
+    service = _make_service(db_session)
+
+    updated = service.update_company_exclusion(company.id, True)
+
+    assert updated is not None
+    assert updated.is_excluded is True
+    assert updated.notes == "keep notes"
+    assert updated.status == WATCHLIST_STATUS_REVIEW
+    stored = watchlist_repository.get_by_company_id(db_session, company.id)
+    assert stored is not None
+    assert stored.is_excluded is True
+    assert stored.notes == "keep notes"
+    assert stored.status == WATCHLIST_STATUS_REVIEW
+
+
+def test_update_company_exclusion_creates_entry_when_missing(db_session):
+    company = _make_company(db_session, isin="FR0000810007", ticker="WS7.PA")
+    service = _make_service(db_session)
+
+    created = service.update_company_exclusion(company.id, True)
+
+    assert created is not None
+    assert created.company_id == company.id
+    assert created.is_excluded is True
+    assert created.notes is None
+    assert created.status == WATCHLIST_STATUS_WATCHING
+
+
+def test_update_company_exclusion_returns_none_for_unknown_company(db_session):
+    service = _make_service(db_session)
+
+    result = service.update_company_exclusion(999999, True)
+
+    assert result is None
+    assert service.list_entries() == []
+
+
+def test_update_company_exclusion_can_reintegrate_company(db_session):
+    company = _make_company(db_session, isin="FR0000810008", ticker="WS8.PA")
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=company.id, notes="notes", is_excluded=True),
+    )
+    service = _make_service(db_session)
+
+    updated = service.update_company_exclusion(company.id, False)
+
+    assert updated is not None
+    assert updated.is_excluded is False
 
 
 def test_list_watchlist_with_scores_reuses_global_ranking(db_session):
