@@ -59,6 +59,13 @@ def _normalize_provider_isin(isin: str | None) -> str | None:
     return normalized
 
 
+def _is_valid_isin(isin: str | None) -> bool:
+    if isin is None:
+        return False
+    normalized = isin.strip().upper()
+    return bool(_ISIN_PATTERN.match(normalized))
+
+
 @dataclass
 class TickerIngestionService:
     financial_data_service: FinancialDataService
@@ -153,8 +160,33 @@ class TickerIngestionService:
         profile,
     ) -> tuple[int, bool]:
         with self.session_scope_factory() as session:
+            raw_isin = profile.isin
+            provider_isin = _normalize_provider_isin(raw_isin)
+            if raw_isin is not None and provider_isin is None:
+                _LOGGER.warning(
+                    "ticker ingestion ignored invalid provider isin | ticker=%s provider_isin=%s",
+                    ticker,
+                    raw_isin,
+                )
+
             existing = company_repository.get_by_ticker(session, ticker)
             if existing is not None:
+                if not _is_valid_isin(existing.isin):
+                    existing.isin = provider_isin
+                    company_repository.update(session, existing)
+                    if provider_isin is None:
+                        _LOGGER.warning(
+                            "ticker ingestion cleared invalid existing isin | ticker=%s company_id=%s",
+                            ticker,
+                            existing.id,
+                        )
+                    else:
+                        _LOGGER.info(
+                            "ticker ingestion replaced invalid existing isin | ticker=%s company_id=%s isin=%s",
+                            ticker,
+                            existing.id,
+                            provider_isin,
+                        )
                 _LOGGER.info(
                     "ticker ingestion found existing company | ticker=%s company_id=%s",
                     ticker,
@@ -162,32 +194,24 @@ class TickerIngestionService:
                 )
                 return existing.id, False
 
-            raw_isin = profile.isin
-            isin = _normalize_provider_isin(raw_isin)
-            if raw_isin is not None and isin is None:
-                _LOGGER.warning(
-                    "ticker ingestion ignored invalid provider isin | ticker=%s provider_isin=%s",
-                    ticker,
-                    raw_isin,
-                )
-            if isin is None:
+            if provider_isin is None:
                 _LOGGER.warning(
                     "ticker ingestion continues without isin | ticker=%s",
                     ticker,
                 )
             else:
-                existing_by_isin = company_repository.get_by_isin(session, isin)
+                existing_by_isin = company_repository.get_by_isin(session, provider_isin)
                 if existing_by_isin is not None:
                     _LOGGER.info(
                         "ticker ingestion found company by isin | ticker=%s isin=%s company_id=%s",
                         ticker,
-                        isin,
+                        provider_isin,
                         existing_by_isin.id,
                     )
                     return existing_by_isin.id, False
 
             company = Company(
-                isin=isin,
+                isin=provider_isin,
                 ticker=ticker,
                 name=profile.name,
                 country=profile.country,
@@ -201,7 +225,7 @@ class TickerIngestionService:
             _LOGGER.info(
                 "ticker ingestion created new company | ticker=%s isin=%s company_id=%s",
                 ticker,
-                isin,
+                provider_isin,
                 created_company.id,
             )
             return created_company.id, True

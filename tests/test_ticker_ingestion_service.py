@@ -212,6 +212,38 @@ def test_ingest_ticker_ignores_invalid_provider_isin_and_continues(db_session, c
     assert any("ignored invalid provider isin" in message for message in caplog.messages)
 
 
+def test_ingest_ticker_cleans_existing_invalid_isin_before_refresh(db_session, caplog):
+    existing = Company(
+        isin="YFVLAPA",
+        ticker="VLA.PA",
+        name="Valneva",
+        currency="EUR",
+        is_active=True,
+    )
+    db_session.add(existing)
+    db_session.flush()
+
+    profile = _make_profile("VLA.PA", isin=None)
+    fin_svc = _make_financial_service(profile)
+    fin_svc.refresh_company_data.return_value = CompanyDataRefreshResult(
+        company_id=existing.id, ticker="VLA.PA", success=True, prices_added=2, statements_added=1
+    )
+    svc = TickerIngestionService(
+        financial_data_service=fin_svc,
+        kpi_snapshot_service=_make_kpi_service(),
+        session_scope_factory=_make_session_scope(db_session),
+    )
+
+    with caplog.at_level("WARNING", logger="src.services.ticker_ingestion_service"):
+        result = svc.ingest_ticker("VLA.PA")
+
+    assert result.success
+    updated = company_repository.get_by_id(db_session, existing.id)
+    assert updated is not None
+    assert updated.isin is None
+    assert any("cleared invalid existing isin" in message for message in caplog.messages)
+
+
 def test_ingest_ticker_reuses_existing_company(db_session):
     existing = Company(
         isin="FR0000131104",
