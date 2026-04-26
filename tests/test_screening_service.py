@@ -1,7 +1,9 @@
 import csv
 import io
+import zipfile
 from contextlib import contextmanager
 from datetime import date
+from xml.etree import ElementTree
 
 import pytest
 
@@ -29,6 +31,7 @@ _CSV_HEADERS = [
     "rank",
     "sector_rank",
 ]
+_XLSX_NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 
 
 def _make_ratios(company_id: int, **kwargs) -> CompanyRatios:
@@ -602,6 +605,59 @@ def _read_csv_rows(content: str) -> list[dict[str, str]]:
     return list(reader)
 
 
+def _xlsx_column_index(cell_ref: str) -> int:
+    letters = "".join(char for char in cell_ref if char.isalpha())
+    index = 0
+    for letter in letters:
+        index = (index * 26) + (ord(letter.upper()) - ord("A") + 1)
+    return max(index - 1, 0)
+
+
+def _read_xlsx_rows(content: bytes) -> list[dict[str, str]]:
+    with zipfile.ZipFile(io.BytesIO(content)) as archive:
+        shared_strings: list[str] = []
+        if "xl/sharedStrings.xml" in archive.namelist():
+            shared_strings_root = ElementTree.fromstring(archive.read("xl/sharedStrings.xml"))
+            for item in shared_strings_root.findall("m:si", _XLSX_NS):
+                text_parts = [(node.text or "") for node in item.findall(".//m:t", _XLSX_NS)]
+                shared_strings.append("".join(text_parts))
+
+        sheet_root = ElementTree.fromstring(archive.read("xl/worksheets/sheet1.xml"))
+
+    indexed_rows: list[dict[int, str]] = []
+    for row in sheet_root.findall(".//m:sheetData/m:row", _XLSX_NS):
+        indexed_values: dict[int, str] = {}
+        for cell in row.findall("m:c", _XLSX_NS):
+            column_index = _xlsx_column_index(cell.attrib.get("r", "A1"))
+            cell_type = cell.attrib.get("t")
+            if cell_type == "s":
+                raw_index = cell.findtext("m:v", default="", namespaces=_XLSX_NS)
+                if raw_index:
+                    shared_index = int(raw_index)
+                    value = shared_strings[shared_index] if shared_index < len(shared_strings) else ""
+                else:
+                    value = ""
+            elif cell_type == "inlineStr":
+                text_nodes = cell.findall("m:is//m:t", _XLSX_NS)
+                value = "".join(node.text or "" for node in text_nodes)
+            else:
+                value = cell.findtext("m:v", default="", namespaces=_XLSX_NS)
+            indexed_values[column_index] = value
+        indexed_rows.append(indexed_values)
+
+    if not indexed_rows:
+        return []
+
+    header_row = indexed_rows[0]
+    ordered_columns = sorted(header_row.keys())
+    headers = [header_row.get(column, "") for column in ordered_columns]
+
+    output: list[dict[str, str]] = []
+    for row in indexed_rows[1:]:
+        output.append({header: row.get(column, "") for column, header in zip(ordered_columns, headers, strict=False)})
+    return output
+
+
 def test_export_universe_with_scores_csv_uses_filtered_sorted_order(db_session):
     _seed_scored_universe_for_filters(db_session)
     service = _make_screening_service(db_session)
@@ -630,3 +686,56 @@ def test_export_universe_with_scores_csv_serializes_none_as_empty(db_session):
     assert by_ticker["DEL.PA"]["rank"] == ""
     assert by_ticker["GAM.PA"]["total_score"] == ""
     assert by_ticker["GAM.PA"]["quality_score"] == "64.0"
+
+
+def test_export_universe_with_scores_excel_uses_filtered_sorted_order(db_session):
+    _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+
+    content = service.export_universe_with_scores_excel(
+        UniverseScreeningFilters(sort_by="ticker", descending=True, top_n=3),
+    )
+    rows = _read_xlsx_rows(content)
+
+    assert list(rows[0].keys()) == _CSV_HEADERS
+    assert [row["ticker"] for row in rows] == ["GAM.PA", "EPS.PA", "DEL.PA"]
+
+
+def test_export_universe_with_scores_excel_serializes_none_as_empty(db_session):
+    _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+
+    content = service.export_universe_with_scores_excel(
+        UniverseScreeningFilters(sort_by="total_score", descending=True),
+    )
+    rows = _read_xlsx_rows(content)
+    by_ticker = {row["ticker"]: row for row in rows}
+
+    assert by_ticker["DEL.PA"]["total_score"] == ""
+    assert by_ticker["DEL.PA"]["quality_score"] == ""
+    assert by_ticker["DEL.PA"]["rank"] == ""
+    assert by_ticker["GAM.PA"]["total_score"] == ""
+    assert float(by_ticker["GAM.PA"]["quality_score"]) == pytest.approx(64.0)
+
+
+def test_export_universe_with_scores_excel_excludes_excluded_companies_by_default(db_session):
+    companies = _seed_scored_universe_for_filters(db_session)
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=companies["beta"].id, is_excluded=True),
+    )
+    service = _make_screening_service(db_session)
+
+    content = service.export_universe_with_scores_excel(UniverseScreeningFilters())
+    rows = _read_xlsx_rows(content)
+    default_tickers = [row["ticker"] for row in rows]
+
+    assert "BET.PA" not in default_tickers
+
+    content_with_excluded = service.export_universe_with_scores_excel(
+        UniverseScreeningFilters(include_excluded=True),
+    )
+    rows_with_excluded = _read_xlsx_rows(content_with_excluded)
+    included_tickers = [row["ticker"] for row in rows_with_excluded]
+
+    assert "BET.PA" in included_tickers
