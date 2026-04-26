@@ -1,6 +1,32 @@
 # CHANGELOG
 
+## v0.14.0 (2026-04-26)
+
+### Documentation
+
+* docs: mention historical fundamentals in feature list ([`9196b35`](https://github.com/MaximeFARRE/small-cap-screener/commit/9196b3503fdbf0c90a7ad000045f34235c21d4c5))
+
+### Feature
+
+* feat: add historical fundamentals section in detail widget ([`a89b945`](https://github.com/MaximeFARRE/small-cap-screener/commit/a89b945ad4aacc8063f756b1c77264cf3bf70921))
+
+* feat: add historical fundamentals to company detail service ([`edd2dea`](https://github.com/MaximeFARRE/small-cap-screener/commit/edd2dea8fb2ad359c0bb5a90c9a50c5b2826d8fb))
+
+### Test
+
+* test: add historical fundamentals coverage for company detail ([`6e93295`](https://github.com/MaximeFARRE/small-cap-screener/commit/6e93295d504e6e56449dc16d45a6768ca6dc32e2))
+
+### Unknown
+
+* Merge pull request #24 from MaximeFARRE/feat/phase20-historical-fundamentals
+
+Feat/phase20 historical fundamentals ([`a26f323`](https://github.com/MaximeFARRE/small-cap-screener/commit/a26f323be60cf3b962482402652e6d9c5b18f5ee))
+
 ## v0.13.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.13.0 [skip ci] ([`17c758f`](https://github.com/MaximeFARRE/small-cap-screener/commit/17c758feeccd6484a81cd7506bc5eeb86520b91e))
 
 ### Feature
 
