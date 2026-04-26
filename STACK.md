@@ -63,8 +63,7 @@ Rules:
 
 ## Code Quality
 
-* black (formatting)
-* ruff (linting)
+* ruff (linting and formatting)
 * pre-commit (automation)
 
 ---
