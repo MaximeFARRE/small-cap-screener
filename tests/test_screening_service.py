@@ -29,12 +29,18 @@ _CSV_HEADERS = [
     "name",
     "sector",
     "total_score",
+    "rank",
+    "sector_rank",
     "quality_score",
     "value_score",
     "growth_score",
     "risk_score",
-    "rank",
-    "sector_rank",
+    "data_quality_score",
+    "last_universe_refresh_at",
+    "snapshot_date",
+    "watchlist_status",
+    "is_excluded",
+    "next_review_at",
 ]
 _XLSX_NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 
@@ -695,7 +701,8 @@ def _xlsx_column_index(cell_ref: str) -> int:
     return max(index - 1, 0)
 
 
-def _read_xlsx_rows(content: bytes) -> list[dict[str, str]]:
+def _read_xlsx_rows(content: bytes, *, sheet_index: int = 1) -> list[dict[str, str]]:
+    sheet_path = f"xl/worksheets/sheet{sheet_index}.xml"
     with zipfile.ZipFile(io.BytesIO(content)) as archive:
         shared_strings: list[str] = []
         if "xl/sharedStrings.xml" in archive.namelist():
@@ -704,7 +711,7 @@ def _read_xlsx_rows(content: bytes) -> list[dict[str, str]]:
                 text_parts = [(node.text or "") for node in item.findall(".//m:t", _XLSX_NS)]
                 shared_strings.append("".join(text_parts))
 
-        sheet_root = ElementTree.fromstring(archive.read("xl/worksheets/sheet1.xml"))
+        sheet_root = ElementTree.fromstring(archive.read(sheet_path))
 
     indexed_rows: list[dict[int, str]] = []
     for row in sheet_root.findall(".//m:sheetData/m:row", _XLSX_NS):
@@ -768,6 +775,39 @@ def test_export_universe_with_scores_csv_serializes_none_as_empty(db_session):
     assert by_ticker["DEL.PA"]["rank"] == ""
     assert by_ticker["GAM.PA"]["total_score"] == ""
     assert by_ticker["GAM.PA"]["quality_score"] == "64.0"
+    assert by_ticker["DEL.PA"]["watchlist_status"] == ""
+    assert by_ticker["DEL.PA"]["next_review_at"] == ""
+
+
+def test_export_universe_with_scores_csv_includes_watchlist_and_refresh_fields(db_session):
+    companies = _seed_scored_universe_for_filters(db_session)
+    alpha_snapshot = kpi_snapshot_repository.get_latest_by_company(db_session, companies["alpha"].id)
+    assert alpha_snapshot is not None
+    alpha_snapshot.metrics = {"total_score": 92.0, "data_quality_score": 0.82}
+    companies["alpha"].last_universe_refresh_at = datetime(2025, 2, 1, 13, 45, tzinfo=UTC)
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(
+            company_id=companies["alpha"].id,
+            status=WATCHLIST_STATUS_REVIEW,
+            is_excluded=True,
+            next_review_at=datetime(2025, 3, 15, 9, 30, tzinfo=UTC),
+        ),
+    )
+    service = _make_screening_service(db_session)
+
+    content = service.export_universe_with_scores_csv(
+        UniverseScreeningFilters(sort_by="rank", include_excluded=True),
+    )
+    rows = _read_csv_rows(content)
+    alpha_row = next(row for row in rows if row["ticker"] == "ALP.PA")
+
+    assert alpha_row["data_quality_score"] == "0.82"
+    assert alpha_row["last_universe_refresh_at"] == "2025-02-01T13:45:00+00:00"
+    assert alpha_row["snapshot_date"] == "2024-11-30"
+    assert alpha_row["watchlist_status"] == "review"
+    assert alpha_row["is_excluded"] == "True"
+    assert alpha_row["next_review_at"] == "2025-03-15T09:30:00"
 
 
 def test_export_universe_with_scores_excel_uses_filtered_sorted_order(db_session):
@@ -798,6 +838,61 @@ def test_export_universe_with_scores_excel_serializes_none_as_empty(db_session):
     assert by_ticker["DEL.PA"]["rank"] == ""
     assert by_ticker["GAM.PA"]["total_score"] == ""
     assert float(by_ticker["GAM.PA"]["quality_score"]) == pytest.approx(64.0)
+
+
+def test_export_universe_with_scores_excel_includes_metadata_sheet(db_session):
+    _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+
+    content = service.export_universe_with_scores_excel(
+        UniverseScreeningFilters(sort_by="ticker", descending=True, top_n=3),
+    )
+    metadata_rows = _read_xlsx_rows(content, sheet_index=2)
+    metadata = {row["field"]: row["value"] for row in metadata_rows}
+
+    assert "export_date" in metadata
+    assert metadata["active_sort"] == "ticker desc"
+    assert metadata["company_count"] == "3"
+    assert metadata["scoring_version"] == "N/A"
+    assert "sort=ticker desc" in metadata["active_filters"]
+
+
+def test_export_watchlist_with_scores_csv_returns_watchlist_only(db_session):
+    companies = _seed_scored_universe_for_filters(db_session)
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=companies["alpha"].id, status=WATCHLIST_STATUS_WATCHING),
+    )
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=companies["gamma"].id, status=WATCHLIST_STATUS_REVIEW),
+    )
+    service = _make_screening_service(db_session)
+
+    content = service.export_watchlist_with_scores_csv(
+        UniverseScreeningFilters(sort_by="ticker", descending=False),
+    )
+    rows = _read_csv_rows(content)
+
+    assert [row["ticker"] for row in rows] == ["ALP.PA", "GAM.PA"]
+    assert [row["watchlist_status"] for row in rows] == ["watching", "review"]
+
+
+def test_export_screening_snapshot_excel_uses_saved_rows(db_session):
+    _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+    saved = service.save_screening_snapshot(
+        UniverseScreeningFilters(sort_by="ticker", descending=True, top_n=2),
+        name="snapshot for export",
+    )
+
+    content = service.export_screening_snapshot_excel(saved.snapshot_id)
+    rows = _read_xlsx_rows(content, sheet_index=1)
+    metadata_rows = _read_xlsx_rows(content, sheet_index=2)
+    metadata = {row["field"]: row["value"] for row in metadata_rows}
+
+    assert [row["ticker"] for row in rows] == ["GAM.PA", "EPS.PA"]
+    assert metadata["company_count"] == "2"
 
 
 def test_export_universe_with_scores_excel_excludes_excluded_companies_by_default(db_session):
