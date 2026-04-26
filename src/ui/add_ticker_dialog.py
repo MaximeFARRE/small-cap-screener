@@ -74,8 +74,14 @@ class AddTickerDialog(QDialog):
             self._status_label.setText(result.error or "Erreur inconnue.")
             return
 
+        resolved = result.resolved_ticker or ticker
         action = "créée" if result.created else "mise à jour"
-        msg = f"Société {action} avec succès ({ticker})."
+        suffix_info = (
+            f" (suffixe ajouté automatiquement : {resolved})"
+            if result.resolved_ticker and result.resolved_ticker != ticker
+            else ""
+        )
+        msg = f"Société {action} avec succès ({resolved}){suffix_info}."
         if result.warnings:
             msg += f"\nAvertissements : {'; '.join(result.warnings)}"
         self._status_label.setStyleSheet(_STATUS_STYLE_SUCCESS)
