@@ -20,6 +20,7 @@ from src.services.screening_service import UniverseScreeningFilters, UniverseScr
 
 _SECTOR_PLACEHOLDER = "ex: energy"
 _MIN_SCORE_PLACEHOLDER = "ex: 70.0"
+_MIN_QUALITY_PLACEHOLDER = "ex: 0.6"
 _TOP_N_PLACEHOLDER = "ex: 25"
 _SORT_OPTIONS: list[tuple[str, UniverseScreeningSortField]] = [
     ("Rang global", "rank"),
@@ -79,6 +80,13 @@ class FilterWidget(QWidget):
         self._min_score_input.setValidator(score_validator)
         self._min_score_input.setPlaceholderText(_MIN_SCORE_PLACEHOLDER)
 
+        self._min_quality_input = QLineEdit()
+        quality_validator = QDoubleValidator(0.0, 1.0, 2, self)
+        quality_validator.setNotation(QDoubleValidator.Notation.StandardNotation)
+        self._min_quality_input.setValidator(quality_validator)
+        self._min_quality_input.setPlaceholderText(_MIN_QUALITY_PLACEHOLDER)
+
+        self._stale_only_input = QCheckBox("Données obsolètes uniquement (>30j)")
         self._scored_only_input = QCheckBox("Sociétés scorées uniquement")
         self._include_excluded_input = QCheckBox("Inclure sociétés exclues")
 
@@ -96,6 +104,8 @@ class FilterWidget(QWidget):
 
         form.addRow("Secteur", self._sector_input)
         form.addRow("Score min", self._min_score_input)
+        form.addRow("Qualité min", self._min_quality_input)
+        form.addRow("", self._stale_only_input)
         form.addRow("", self._scored_only_input)
         form.addRow("", self._include_excluded_input)
         form.addRow("Top N", self._top_n_input)
@@ -118,6 +128,7 @@ class FilterWidget(QWidget):
     def _on_apply(self) -> None:
         sector = self._sector_input.text().strip() or None
         min_total_score = _parse_float(self._min_score_input.text())
+        min_data_quality_score = _parse_float(self._min_quality_input.text())
         top_n = _parse_int(self._top_n_input.text())
         sort_by = cast(UniverseScreeningSortField, self._sort_by_input.currentData() or "rank")
         descending = bool(self._sort_order_input.currentData())
@@ -125,6 +136,8 @@ class FilterWidget(QWidget):
             UniverseScreeningFilters(
                 sector=sector,
                 min_total_score=min_total_score,
+                min_data_quality_score=min_data_quality_score,
+                stale_only=self._stale_only_input.isChecked(),
                 scored_only=self._scored_only_input.isChecked(),
                 include_excluded=self._include_excluded_input.isChecked(),
                 top_n=top_n,
@@ -136,6 +149,8 @@ class FilterWidget(QWidget):
     def _on_reset(self) -> None:
         self._sector_input.clear()
         self._min_score_input.clear()
+        self._min_quality_input.clear()
+        self._stale_only_input.setChecked(False)
         self._scored_only_input.setChecked(False)
         self._include_excluded_input.setChecked(False)
         self._top_n_input.clear()

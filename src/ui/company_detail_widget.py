@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFormLayout,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -23,12 +26,16 @@ from src.models.watchlist_entry import (
     WATCHLIST_STATUS_WATCHING,
 )
 from src.services.company_detail_service import CompanyFinancialDetail
+from src.services.screening_service import STALE_REFRESH_DAYS
 from src.services.watchlist_service import CompanyAnalystDetail
 from src.ui.company_table_model import ScreenerRow
 
 _NA = "N/A"
 _PLACEHOLDER = "Sélectionnez une société"
 _NOT_IN_WATCHLIST = "hors watchlist"
+_DATA_QUALITY_HIGH = 0.8
+_DATA_QUALITY_MEDIUM = 0.5
+_ALERT_STYLE = "QFrame { background: #FFF3CD; border: 1px solid #FFC107; border-radius: 4px; padding: 4px; }"
 _WATCHLIST_STATUS_OPTIONS: list[tuple[str, str]] = [
     ("watching", WATCHLIST_STATUS_WATCHING),
     ("review", WATCHLIST_STATUS_REVIEW),
@@ -103,6 +110,16 @@ class CompanyDetailWidget(QWidget):
         self._placeholder = QLabel(_PLACEHOLDER)
         self._placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         outer_layout.addWidget(self._placeholder)
+
+        self._alert_frame = QFrame()
+        self._alert_frame.setStyleSheet(_ALERT_STYLE)
+        alert_layout = QVBoxLayout(self._alert_frame)
+        alert_layout.setContentsMargins(6, 4, 6, 4)
+        self._alert_label = QLabel()
+        self._alert_label.setWordWrap(True)
+        alert_layout.addWidget(self._alert_label)
+        self._alert_frame.setVisible(False)
+        outer_layout.addWidget(self._alert_frame)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -219,10 +236,17 @@ class CompanyDetailWidget(QWidget):
         self._set_field("Société", "Nom", row.name)
         self._set_field("Société", "Ticker", row.ticker or _NA)
         self._set_field("Société", "Secteur", row.sector or _NA)
+        self._set_field("Société", "Dernière actualisation", _fmt_refresh_date(row.last_universe_refresh_at))
+        self._set_field(
+            "Société",
+            "Snapshot KPI",
+            str(row.snapshot_date) if row.snapshot_date is not None else "Aucun",
+        )
 
-        self._populate_financial_overview(financial_detail)
+        self._populate_financial_overview(financial_detail, row.data_quality_score)
         self._populate_valuation_ratios(financial_detail)
         self._populate_quality_growth_risk(financial_detail)
+        self._update_alerts(row)
 
         self._set_field("Analyste", "Status watchlist", watchlist_status)
         self._set_field("Analyste", "Notes watchlist", watchlist_notes)
@@ -242,7 +266,11 @@ class CompanyDetailWidget(QWidget):
         self._placeholder.setVisible(False)
         self._scroll.setVisible(True)
 
-    def _populate_financial_overview(self, detail: CompanyFinancialDetail | None) -> None:
+    def _populate_financial_overview(
+        self,
+        detail: CompanyFinancialDetail | None,
+        data_quality_score: float | None = None,
+    ) -> None:
         ccy = detail.currency if detail is not None else "EUR"
         period = _fmt_period(detail) if detail is not None else _NA
         self._set_field("Financial overview", "Période", period)
@@ -286,10 +314,12 @@ class CompanyDetailWidget(QWidget):
             "Dette nette",
             _fmt_large(detail.net_debt if detail else None, ccy),
         )
+        fallback = detail.data_quality_score if detail else None
+        score = data_quality_score if data_quality_score is not None else fallback
         self._set_field(
             "Financial overview",
             "Qualité données",
-            _fmt_pct(detail.data_quality_score if detail else None),
+            _fmt_quality(score),
         )
 
     def _populate_valuation_ratios(self, detail: CompanyFinancialDetail | None) -> None:
@@ -361,6 +391,28 @@ class CompanyDetailWidget(QWidget):
             _fmt_ratio(detail.net_debt_to_ebitda if detail else None),
         )
 
+    def _update_alerts(self, row: ScreenerRow) -> None:
+        alerts: list[str] = []
+        if row.snapshot_date is None:
+            alerts.append("Aucun snapshot KPI disponible.")
+        if row.data_quality_score is None or row.data_quality_score < _DATA_QUALITY_MEDIUM:
+            alerts.append("Qualité des données faible ou inconnue.")
+        if row.last_universe_refresh_at is None:
+            alerts.append("Données jamais actualisées.")
+        else:
+            now = datetime.now(UTC)
+            refresh_at = row.last_universe_refresh_at
+            if refresh_at.tzinfo is None:
+                refresh_at = refresh_at.replace(tzinfo=UTC)
+            age_days = (now - refresh_at).days
+            if age_days > STALE_REFRESH_DAYS:
+                alerts.append(f"Données obsolètes ({age_days} jours depuis la dernière actualisation).")
+        if alerts:
+            self._alert_label.setText("\n".join(alerts))
+            self._alert_frame.setVisible(True)
+        else:
+            self._alert_frame.setVisible(False)
+
     def clear(self) -> None:
         self._current_row = None
         self._in_watchlist = False
@@ -370,6 +422,7 @@ class CompanyDetailWidget(QWidget):
             is_excluded=False,
         )
         self._set_actions_enabled(False)
+        self._alert_frame.setVisible(False)
         self._scroll.setVisible(False)
         self._placeholder.setVisible(True)
 
@@ -424,3 +477,24 @@ def _fmt_period(detail: CompanyFinancialDetail) -> str:
         return _NA
     period_label = "annuel" if "annual" in (detail.period_type or "") else (detail.period_type or "")
     return f"{detail.fiscal_year} ({period_label})"
+
+
+def _fmt_quality(score: float | None) -> str:
+    if score is None:
+        return _NA
+    pct = f"{score * 100:.1f}%"
+    if score >= _DATA_QUALITY_HIGH:
+        badge = "Élevée"
+    elif score >= _DATA_QUALITY_MEDIUM:
+        badge = "Moyenne"
+    else:
+        badge = "Faible"
+    return f"{pct} ({badge})"
+
+
+def _fmt_refresh_date(refresh_at: datetime | None) -> str:
+    if refresh_at is None:
+        return "Jamais"
+    if refresh_at.tzinfo is None:
+        refresh_at = refresh_at.replace(tzinfo=UTC)
+    return refresh_at.strftime("%Y-%m-%d %H:%M")

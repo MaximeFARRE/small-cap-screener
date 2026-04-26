@@ -2,7 +2,7 @@ import csv
 import io
 import zipfile
 from contextlib import contextmanager
-from datetime import date
+from datetime import UTC, date, datetime
 from xml.etree import ElementTree
 
 import pytest
@@ -795,3 +795,191 @@ def test_get_screening_snapshot_returns_none_when_missing(db_session):
     loaded = service.get_screening_snapshot(999999)
 
     assert loaded is None
+
+
+# --- Phase 19: data quality and freshness filters ---
+
+
+def _make_company_with_refresh(
+    db_session,
+    *,
+    isin: str,
+    ticker: str,
+    name: str,
+    last_universe_refresh_at=None,
+) -> Company:
+    company = company_repository.create(
+        db_session,
+        Company(
+            isin=isin,
+            ticker=ticker,
+            name=name,
+            country="France",
+            sector="Tech",
+            currency="EUR",
+            is_active=True,
+            market_cap=100_000_000.0,
+            average_daily_volume=50_000.0,
+        ),
+    )
+    if last_universe_refresh_at is not None:
+        company.last_universe_refresh_at = last_universe_refresh_at
+        company_repository.update(db_session, company)
+    return company
+
+
+def test_filter_by_min_data_quality_score_excludes_low_quality(db_session):
+    alpha = _make_company_with_refresh(db_session, isin="FR0000930001", ticker="ALQ.PA", name="AlphaQ")
+    beta = _make_company_with_refresh(db_session, isin="FR0000930002", ticker="BEQ.PA", name="BetaQ")
+
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=alpha.id,
+            snapshot_date=date(2025, 1, 1),
+            metrics={"total_score": 85.0, "data_quality_score": 0.9},
+            source="test",
+        ),
+    )
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=beta.id,
+            snapshot_date=date(2025, 1, 1),
+            metrics={"total_score": 80.0, "data_quality_score": 0.3},
+            source="test",
+        ),
+    )
+
+    service = _make_screening_service(db_session)
+    rows = service.filter_universe_with_scores(UniverseScreeningFilters(min_data_quality_score=0.7))
+    tickers = [r.ticker for r in rows]
+
+    assert "ALQ.PA" in tickers
+    assert "BEQ.PA" not in tickers
+
+
+def test_filter_by_min_data_quality_score_excludes_missing_quality(db_session):
+    alpha = _make_company_with_refresh(db_session, isin="FR0000940001", ticker="AMQ.PA", name="AlphaMQ")
+
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=alpha.id,
+            snapshot_date=date(2025, 1, 1),
+            metrics={"total_score": 85.0},
+            source="test",
+        ),
+    )
+
+    service = _make_screening_service(db_session)
+    rows = service.filter_universe_with_scores(UniverseScreeningFilters(min_data_quality_score=0.5))
+
+    assert not any(r.ticker == "AMQ.PA" for r in rows)
+
+
+def test_stale_only_filter_includes_company_with_no_refresh(db_session):
+    alpha = _make_company_with_refresh(db_session, isin="FR0000950001", ticker="AST.PA", name="AlphaST")
+
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=alpha.id,
+            snapshot_date=date(2025, 1, 1),
+            metrics={"total_score": 85.0},
+            source="test",
+        ),
+    )
+
+    service = _make_screening_service(db_session)
+    rows = service.filter_universe_with_scores(UniverseScreeningFilters(stale_only=True))
+
+    assert any(r.ticker == "AST.PA" for r in rows)
+
+
+def test_stale_only_filter_includes_company_refreshed_long_ago(db_session):
+    from datetime import timedelta
+
+    old_refresh = datetime.now(UTC) - timedelta(days=60)
+    alpha = _make_company_with_refresh(
+        db_session,
+        isin="FR0000960001",
+        ticker="AOL.PA",
+        name="AlphaOld",
+        last_universe_refresh_at=old_refresh,
+    )
+
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=alpha.id,
+            snapshot_date=date(2025, 1, 1),
+            metrics={"total_score": 80.0},
+            source="test",
+        ),
+    )
+
+    service = _make_screening_service(db_session)
+    rows = service.filter_universe_with_scores(UniverseScreeningFilters(stale_only=True))
+
+    assert any(r.ticker == "AOL.PA" for r in rows)
+
+
+def test_stale_only_filter_excludes_recently_refreshed_company(db_session):
+    from datetime import timedelta
+
+    fresh_refresh = datetime.now(UTC) - timedelta(days=5)
+    alpha = _make_company_with_refresh(
+        db_session,
+        isin="FR0000970001",
+        ticker="AFR.PA",
+        name="AlphaFresh",
+        last_universe_refresh_at=fresh_refresh,
+    )
+
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=alpha.id,
+            snapshot_date=date(2025, 1, 1),
+            metrics={"total_score": 80.0},
+            source="test",
+        ),
+    )
+
+    service = _make_screening_service(db_session)
+    rows = service.filter_universe_with_scores(UniverseScreeningFilters(stale_only=True))
+
+    assert not any(r.ticker == "AFR.PA" for r in rows)
+
+
+def test_universe_screening_entry_exposes_freshness_and_quality_fields(db_session):
+    from datetime import timedelta
+
+    refresh_at = datetime.now(UTC) - timedelta(days=10)
+    company = _make_company_with_refresh(
+        db_session,
+        isin="FR0000980001",
+        ticker="AFQ.PA",
+        name="AlphaFQ",
+        last_universe_refresh_at=refresh_at,
+    )
+
+    snap_date = date(2025, 3, 15)
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=company.id,
+            snapshot_date=snap_date,
+            metrics={"total_score": 88.0, "data_quality_score": 0.85},
+            source="test",
+        ),
+    )
+
+    service = _make_screening_service(db_session)
+    rows = service.filter_universe_with_scores(UniverseScreeningFilters())
+    row = next(r for r in rows if r.ticker == "AFQ.PA")
+
+    assert row.snapshot_date == snap_date
+    assert row.data_quality_score == pytest.approx(0.85)
+    assert row.last_universe_refresh_at is not None
