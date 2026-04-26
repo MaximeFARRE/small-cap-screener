@@ -1,53 +1,39 @@
 # Known Limitations
 
-This file documents the current limitations of the project.
-
-The goal is to be transparent about what is unfinished, simplified, or intentionally excluded.
-
----
+This document lists current product limitations and deliberate V1 boundaries.
 
 ## Current Limitations
 
-### Data ingestion
+### Market and data coverage
 
-- Financial data ingestion is not fully standardized yet.
-- Provider fallback behavior still needs hardening.
-- Historical completeness checks are partial.
+* Scope is limited to French listed small caps (Euronext Paris / Growth).
+* External data quality depends on third-party provider availability and consistency.
+* Coverage depth is lower than institutional premium data terminals.
 
-### KPI and scoring
+### Scoring model maturity
 
-- KPI coverage is not complete for all target ratios.
-- Scoring weights and ranking calibration are still evolving.
-- Missing-value handling is not finalized for every metric.
+* Scoring V1 is deterministic but intentionally simple.
+* Weights and thresholds are rule-based and not yet statistically calibrated on long backtests.
+* Model is designed for shortlist prioritization, not standalone investment decisioning.
 
-### User interface
+### Product and operations
 
-- The desktop UI is still in an early stage.
-- Advanced filtering and score visualization are incomplete.
-- Data freshness indicators are not fully implemented.
+* Desktop app is local-first and single-user (no shared workspace, no permissions model).
+* No cloud sync, no centralized monitoring, no enterprise deployment pipeline.
+* Packaging is available via PyInstaller, but installer/signing/distribution workflow is still basic.
 
-### Reliability
+### Testing scope
 
-- Cache strategy is not finalized.
-- Offline mode is not implemented.
-- Data quality scoring is still missing.
+* Unit and service-level coverage is strong; full UI end-to-end automation remains limited.
+* Real-world stress testing on very large universes is still to be expanded.
 
-### Testing
+## Deliberate V1 Non-Goals
 
-- End-to-end test coverage is incomplete.
-- Edge-case and failure-path tests still need to be expanded.
+* No multi-user collaboration layer.
+* No cloud backend.
+* No real-time market data streaming or execution.
+* No AI-generated investment recommendation.
 
----
+## Improvement Direction
 
-## Deliberate Non-Goals (V1)
-
-- No multi-user support.
-- No cloud deployment.
-- No real-time streaming.
-- No AI-generated investment decisions.
-
----
-
-## Future Improvements
-
-See [ROADMAP.md](./ROADMAP.md) for planned improvements and future work.
+See [ROADMAP.md](./ROADMAP.md) for prioritized post-V1 improvements.

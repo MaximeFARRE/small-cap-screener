@@ -1,182 +1,82 @@
 # Architecture
 
-This project follows a **strict layered architecture** to keep the code maintainable, testable, and scalable.
+The project uses a strict layered design to keep financial logic auditable and maintainable.
 
-The system is designed for a **desktop financial analysis application** (small-cap screener) with a local-first approach.
-
----
-
-## Core Rule
+## Core Principle
 
 ```
-UI / Components / Views
-        ↓
-Services / Business Logic
-        ↓
-Repositories / Database / External Data
+UI -> Services -> Repositories
 ```
 
-Each layer has a single responsibility.
+* UI handles display and user input only.
+* Services own business rules, calculations, ranking, and orchestration.
+* Repositories own persistence and external provider access.
 
----
+No layer may bypass this direction.
 
-## 1. UI Layer
+## Layer Responsibilities
 
-Examples:
-
-* Desktop views (PySide6)
-* Tables, filters, forms
-* Controllers linked to UI events
+### UI Layer (`src/ui`)
 
 Responsibilities:
 
-* Display data
-* Handle user interaction
-* Trigger actions
-* Call services
+* render screener tables, filters, and analyst detail views,
+* capture user actions and call service methods,
+* display service outputs and empty/error states.
 
-Rules:
+Forbidden in UI:
 
-* No business logic
-* No financial calculations
-* No SQL queries
-* No API calls
+* KPI/scoring calculations,
+* SQL/database access,
+* direct provider/API calls.
 
----
-
-## 2. Services Layer
-
-Examples:
-
-* Ratio calculations
-* Scoring logic
-* Screening logic
-* Data transformations
+### Services Layer (`src/services`)
 
 Responsibilities:
 
-* Centralize all business logic
-* Provide a clean API to UI
-* Combine multiple repositories
+* financial ingestion orchestration,
+* KPI and scoring calculations,
+* screening filters/sorting/export,
+* watchlist and analyst workflow behavior.
 
 Rules:
 
-* No UI code
-* No direct DB queries
-* Reuse existing logic
+* no UI dependencies,
+* no raw SQL,
+* reuse existing services before adding new ones.
 
-Example:
-
-```
-ScreeningService
-├── compute_ratios()
-├── compute_scores()
-├── filter_universe()
-└── get_top_picks()
-```
-
----
-
-## 3. Repository Layer
-
-Examples:
-
-* Database access (SQLite / SQLAlchemy)
-* External API calls (httpx)
-* File loading / saving
+### Repository Layer (`src/repositories`)
 
 Responsibilities:
 
-* Read/write data
-* Isolate external systems
+* SQLite/SQLAlchemy CRUD and queries,
+* provider data fetches and external IO.
 
 Rules:
 
-* No business logic
-* Only data access
+* no business decisions,
+* no formatting/presentation logic.
 
----
+## Operational Flow (Analyst Workflow)
 
-## Data Flow
+1. Repositories fetch/store financial and market data.
+2. Services normalize and compute KPI snapshots.
+3. Services compute scores and ranking.
+4. Screening service prepares filtered/sorted universe views and exports.
+5. UI renders results and sends analyst actions (notes/status/exclusion) back to services.
 
-```
-External APIs → Repositories → Services → UI
-                       ↓
-                   Database
-```
+## Service Ownership
 
----
+* `FinancialDataService`: ingestion, retry/fallback/offline orchestration.
+* `NormalizationService`: canonical data normalization.
+* `RatioService`: KPI calculations.
+* `ScoringService`: sub-scores, total score, ranking, score explanation.
+* `ScreeningService`: scored universe listing, filters, sorting, exports, screening snapshots.
+* `WatchlistService`: notes/status/exclusion workflow and analyst company detail.
 
-## Single Source of Truth
+## Guardrails
 
-Each feature must have one owner service.
-
-Examples:
-
-```
-Company data       → CompanyService
-Financial data     → FinancialService
-Ratios            → RatioService
-Scoring           → ScoreService
-Screening         → ScreeningService
-```
-
-Avoid duplicated logic across files.
-
----
-
-## File Creation Rules
-
-Before creating a new file:
-
-* Check if logic already exists
-* Prefer extending existing services
-* Avoid duplicates
-
----
-
-## Dependency Direction
-
-```
-UI → Services → Repositories
-```
-
-Never:
-
-* UI → Repository directly
-* Services → UI
-* Repository → Services (business logic)
-
----
-
-## Refactoring Policy
-
-* Prefer small changes
-* Avoid large rewrites
-* Keep behavior unchanged
-
----
-
-## Recommended Structure
-
-```
-src/
-├── ui/
-├── services/
-├── repositories/
-├── models/
-├── utils/
-└── tests/
-```
-
----
-
-## Final Rule
-
-If unsure:
-
-* UI = display
-* Service = logic
-* Repository = data
-
-Keep business logic out of the UI.
+* Prefer targeted edits over broad rewrites.
+* Keep one logical concern per change.
+* Avoid duplicate logic across services.
+* If behavior is ambiguous, define assumptions explicitly before coding.

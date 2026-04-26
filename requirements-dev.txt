@@ -15,3 +15,6 @@ python-semantic-release==9.8.3
 
 # Type checking
 mypy==1.8.0
+
+# Desktop packaging
+pyinstaller==6.11.1

@@ -15,7 +15,7 @@ _connect_args: dict = {"check_same_thread": False} if DATABASE_URL.startswith("s
 
 engine = create_engine(DATABASE_URL, connect_args=_connect_args)
 
-SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, expire_on_commit=False)
 
 
 class Base(DeclarativeBase):
