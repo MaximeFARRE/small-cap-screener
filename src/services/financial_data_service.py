@@ -9,7 +9,12 @@ from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
 
 from src.models.company import Company
-from src.repositories import company_repository, market_data_repository
+from src.repositories import (
+    company_repository,
+    financial_statement_repository,
+    market_data_repository,
+    price_history_repository,
+)
 from src.repositories.database import get_session
 from src.repositories.providers.base import (
     BaseProvider,
@@ -82,9 +87,16 @@ class FinancialDataService:
     default_min_average_daily_volume: float | None = None
     provider_call_max_attempts: int = 3
     provider_retry_delay_seconds: float = 0.0
+    offline_mode: bool = False
 
     def fetch_company_data(self, ticker: str) -> FetchedCompanyData:
         normalized_ticker = _normalize_ticker(ticker)
+        if self.offline_mode:
+            raise FinancialDataServiceError(
+                "offline",
+                normalized_ticker,
+                "offline mode is enabled; provider fetch is disabled",
+            )
         profile = (
             self._fetch_optional_provider_data(
                 ticker=normalized_ticker,
@@ -178,6 +190,9 @@ class FinancialDataService:
                     error="company isin is empty",
                     stage="validate",
                 )
+
+            if self.offline_mode:
+                return self._refresh_company_data_offline(session, company)
 
             try:
                 fetched = self.fetch_company_data(company.ticker)
@@ -327,6 +342,45 @@ class FinancialDataService:
             refreshed_count=refreshed_count,
             failed_count=failed_count,
             results=results,
+        )
+
+    def _refresh_company_data_offline(self, session: Session, company: Company) -> CompanyDataRefreshResult:
+        local_prices = price_history_repository.get_by_company(session, company.id)
+        local_statements = financial_statement_repository.get_by_company(session, company.id)
+        missing_data: list[str] = []
+        if not local_prices:
+            missing_data.append("price history")
+        if not local_statements:
+            missing_data.append("financial statements")
+        if missing_data:
+            missing_text = ", ".join(missing_data)
+            _LOGGER.warning(
+                "offline refresh blocked: company_id=%s ticker=%s missing=%s",
+                company.id,
+                company.ticker,
+                missing_text,
+            )
+            return CompanyDataRefreshResult(
+                company_id=company.id,
+                ticker=company.ticker,
+                success=False,
+                error=f"offline mode: missing local data ({missing_text})",
+                stage="offline",
+            )
+        _LOGGER.info(
+            "offline refresh succeeded: company_id=%s ticker=%s local_prices=%s local_statements=%s",
+            company.id,
+            company.ticker,
+            len(local_prices),
+            len(local_statements),
+        )
+        return CompanyDataRefreshResult(
+            company_id=company.id,
+            ticker=company.ticker,
+            success=True,
+            prices_added=0,
+            statements_added=0,
+            warnings=["offline mode: using local data only"],
         )
 
     def _fetch_required_provider_data(
