@@ -64,6 +64,7 @@ class CompanyDataRefreshResult:
     error: str | None = None
     stage: str | None = None
     warnings: list[str] = field(default_factory=list)
+    provider_used: str | None = None
 
 
 @dataclass
@@ -178,6 +179,7 @@ class FinancialDataService:
                     success=False,
                     error="company not found",
                     stage="validate",
+                    provider_used=self._provider_name(),
                 )
             if _is_blank(company.ticker):
                 _LOGGER.warning(
@@ -196,6 +198,7 @@ class FinancialDataService:
                     success=False,
                     error="company ticker is empty",
                     stage="validate",
+                    provider_used=self._provider_name(),
                 )
 
             if self.offline_mode:
@@ -248,6 +251,7 @@ class FinancialDataService:
                         error="; ".join(normalization.errors),
                         stage="normalize",
                         warnings=normalization.warnings,
+                        provider_used=self._provider_name(),
                     )
 
                 normalized_payload = _build_payload_from_normalized(normalization.data, fetched)
@@ -292,6 +296,7 @@ class FinancialDataService:
                         error="; ".join(validation.errors),
                         stage="validate",
                         warnings=combined_warnings,
+                        provider_used=self._provider_name(),
                     )
 
                 validated_data = validation.data
@@ -330,6 +335,7 @@ class FinancialDataService:
                     prices_added=sync.prices_added,
                     statements_added=sync.statements_added,
                     warnings=combined_warnings,
+                    provider_used=self._provider_name(),
                 )
             except FinancialDataServiceError as exc:
                 _LOGGER.error(
@@ -347,6 +353,7 @@ class FinancialDataService:
                     success=False,
                     error=exc.message,
                     stage=exc.stage,
+                    provider_used=self._provider_name(),
                 )
 
     def refresh_universe_data(self) -> UniverseDataRefreshResult:
@@ -413,6 +420,7 @@ class FinancialDataService:
                 success=False,
                 error=f"offline mode: missing local data ({missing_text})",
                 stage="offline",
+                provider_used=self._provider_name(),
             )
         _LOGGER.info(
             (
@@ -433,6 +441,7 @@ class FinancialDataService:
             prices_added=0,
             statements_added=0,
             warnings=["offline mode: using local data only"],
+            provider_used=self._provider_name(),
         )
 
     def _fetch_required_provider_data(
@@ -535,7 +544,7 @@ class FinancialDataService:
         return max(1, self.provider_call_max_attempts)
 
     def _provider_name(self) -> str:
-        return type(self.provider).__name__
+        return self.provider.source_name
 
 
 def _normalize_ticker(ticker: str) -> str:
