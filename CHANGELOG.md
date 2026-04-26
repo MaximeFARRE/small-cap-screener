@@ -1,6 +1,32 @@
 # CHANGELOG
 
+## v0.29.0 (2026-04-26)
+
+### Documentation
+
+* docs: mark Phase 34 as delivered in ROADMAP ([`641b2a6`](https://github.com/MaximeFARRE/small-cap-screener/commit/641b2a62e21887cfbe71a5aa72c0e987c167ee26))
+
+### Feature
+
+* feat(ui): add WaitCursor loading state during network tasks ([`0402606`](https://github.com/MaximeFARRE/small-cap-screener/commit/040260684be68779a317373730d33c289f70b60c))
+
+* feat(ui): add data quality column with color badges to screener table ([`555b38b`](https://github.com/MaximeFARRE/small-cap-screener/commit/555b38bb1b106b663ae14bbd8f68b1b38a20956e))
+
+### Style
+
+* style(ui): improve detail panel empty state and alert styling ([`dbe6a0c`](https://github.com/MaximeFARRE/small-cap-screener/commit/dbe6a0caab797473da8cbfb18725ff1c796ff401))
+
+### Unknown
+
+* Merge pull request #41 from MaximeFARRE/feat/phase34-ui-polish
+
+Feat/phase34 UI polish ([`e21e9f3`](https://github.com/MaximeFARRE/small-cap-screener/commit/e21e9f32907b3b809a9436b6139aba19255a0532))
+
 ## v0.28.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.28.0 [skip ci] ([`f71d19c`](https://github.com/MaximeFARRE/small-cap-screener/commit/f71d19c8ceef0ad81c651ba72e256ee81fe10326))
 
 ### Feature
 
