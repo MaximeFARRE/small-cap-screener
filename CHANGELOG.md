@@ -1,8 +1,30 @@
 # CHANGELOG
 
+## v0.23.0 (2026-04-26)
+
+### Feature
+
+* feat: add backtesting validation dialog ([`f15ef71`](https://github.com/MaximeFARRE/small-cap-screener/commit/f15ef71d89e67a55e794c8c4875a29fd0f87c6e7))
+
+* feat: add ranking backtesting analysis service ([`5c3b5a7`](https://github.com/MaximeFARRE/small-cap-screener/commit/5c3b5a7a2204f2792aea50668d886031490b85f2))
+
+### Test
+
+* test: stub backtesting service in main window tests ([`153fdd5`](https://github.com/MaximeFARRE/small-cap-screener/commit/153fdd582dd24c46c72896d9c56bdc0d71517423))
+
+* test: cover backtesting buckets and benchmark ([`7485603`](https://github.com/MaximeFARRE/small-cap-screener/commit/7485603dfc0df020d6708c925d90708b18526e23))
+
+### Unknown
+
+* Merge pull request #33 from MaximeFARRE/feat/phase28-backtesting-ranking-validation
+
+Feat/phase28 backtesting ranking validation ([`3727df4`](https://github.com/MaximeFARRE/small-cap-screener/commit/3727df4579f0c825d22f8c6baec035750f1e94df))
+
 ## v0.22.0 (2026-04-26)
 
 ### Chore
+
+* chore(release): 0.22.0 [skip ci] ([`24d0ade`](https://github.com/MaximeFARRE/small-cap-screener/commit/24d0adec3966ad795c1d00a6d0d1c87c9404aa4d))
 
 * chore: rerun ci after black validation ([`e6b1446`](https://github.com/MaximeFARRE/small-cap-screener/commit/e6b14467f6885a5db59af075deb2107eec589f82))
 
