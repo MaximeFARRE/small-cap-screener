@@ -162,7 +162,16 @@ class FinancialDataService:
         with self.session_scope_factory() as session:
             company = company_repository.get_by_id(session, company_id)
             if company is None:
-                _LOGGER.warning("company skipped: company_id=%s reason=not_found", company_id)
+                _LOGGER.warning(
+                    (
+                        "company skipped | stage=validate provider=%s offline_mode=%s "
+                        "company_id=%s ticker=%s reason=not_found"
+                    ),
+                    self._provider_name(),
+                    self.offline_mode,
+                    company_id,
+                    "",
+                )
                 return CompanyDataRefreshResult(
                     company_id=company_id,
                     ticker="",
@@ -171,7 +180,16 @@ class FinancialDataService:
                     stage="validate",
                 )
             if _is_blank(company.ticker):
-                _LOGGER.warning("company skipped: company_id=%s reason=empty_ticker", company.id)
+                _LOGGER.warning(
+                    (
+                        "company skipped | stage=validate provider=%s offline_mode=%s "
+                        "company_id=%s ticker=%s reason=empty_ticker"
+                    ),
+                    self._provider_name(),
+                    self.offline_mode,
+                    company.id,
+                    "",
+                )
                 return CompanyDataRefreshResult(
                     company_id=company.id,
                     ticker="",
@@ -181,7 +199,14 @@ class FinancialDataService:
                 )
             if _is_blank(company.isin):
                 _LOGGER.warning(
-                    "company skipped: company_id=%s ticker=%s reason=empty_isin", company.id, company.ticker
+                    (
+                        "company skipped | stage=validate provider=%s offline_mode=%s "
+                        "company_id=%s ticker=%s reason=empty_isin"
+                    ),
+                    self._provider_name(),
+                    self.offline_mode,
+                    company.id,
+                    company.ticker,
                 )
                 return CompanyDataRefreshResult(
                     company_id=company.id,
@@ -212,14 +237,24 @@ class FinancialDataService:
                 )
                 if normalization.warnings:
                     _LOGGER.warning(
-                        "normalization warning: company_id=%s ticker=%s warnings=%s",
+                        (
+                            "normalization warning | stage=normalize provider=%s offline_mode=%s "
+                            "company_id=%s ticker=%s warnings=%s"
+                        ),
+                        self._provider_name(),
+                        self.offline_mode,
                         company.id,
                         company.ticker,
                         "; ".join(normalization.warnings),
                     )
                 if not normalization.is_normalized:
                     _LOGGER.error(
-                        "normalization blocked storage: company_id=%s ticker=%s errors=%s",
+                        (
+                            "normalization blocked storage | stage=normalize provider=%s offline_mode=%s "
+                            "company_id=%s ticker=%s errors=%s"
+                        ),
+                        self._provider_name(),
+                        self.offline_mode,
                         company.id,
                         company.ticker,
                         "; ".join(normalization.errors),
@@ -246,14 +281,24 @@ class FinancialDataService:
                 combined_warnings = _merge_warnings(normalization.warnings, validation.warnings)
                 if validation.warnings:
                     _LOGGER.warning(
-                        "validation warning: company_id=%s ticker=%s warnings=%s",
+                        (
+                            "validation warning | stage=validate provider=%s offline_mode=%s "
+                            "company_id=%s ticker=%s warnings=%s"
+                        ),
+                        self._provider_name(),
+                        self.offline_mode,
                         company.id,
                         company.ticker,
                         "; ".join(validation.warnings),
                     )
                 if not validation.is_valid:
                     _LOGGER.error(
-                        "validation blocked storage: company_id=%s ticker=%s errors=%s",
+                        (
+                            "validation blocked storage | stage=validate provider=%s offline_mode=%s "
+                            "company_id=%s ticker=%s errors=%s"
+                        ),
+                        self._provider_name(),
+                        self.offline_mode,
                         company.id,
                         company.ticker,
                         "; ".join(validation.errors),
@@ -283,9 +328,12 @@ class FinancialDataService:
                 company_repository.update(session, company)
                 _LOGGER.info(
                     (
-                        "company storage succeeded: company_id=%s ticker=%s "
-                        "prices_added=%s statements_added=%s dividends_added=%s splits_added=%s"
+                        "company storage succeeded | stage=store provider=%s offline_mode=%s "
+                        "company_id=%s ticker=%s prices_added=%s statements_added=%s "
+                        "dividends_added=%s splits_added=%s"
                     ),
+                    self._provider_name(),
+                    self.offline_mode,
                     sync.company_id,
                     company.ticker,
                     sync.prices_added,
@@ -303,10 +351,15 @@ class FinancialDataService:
                 )
             except FinancialDataServiceError as exc:
                 _LOGGER.error(
-                    "company refresh failed: company_id=%s ticker=%s stage=%s error=%s",
+                    (
+                        "company refresh failed | stage=%s provider=%s offline_mode=%s "
+                        "company_id=%s ticker=%s error=%s"
+                    ),
+                    exc.stage,
+                    self._provider_name(),
+                    self.offline_mode,
                     company.id,
                     company.ticker,
-                    exc.stage,
                     exc.message,
                 )
                 return CompanyDataRefreshResult(
@@ -326,13 +379,23 @@ class FinancialDataService:
                 country=self.default_country,
             )
             company_ids = [company.id for company in companies]
-        _LOGGER.info("universe refresh started: total_companies=%s", len(company_ids))
+        _LOGGER.info(
+            "universe refresh started | stage=refresh provider=%s offline_mode=%s total_companies=%s",
+            self._provider_name(),
+            self.offline_mode,
+            len(company_ids),
+        )
 
         results = [self.refresh_company_data(company_id) for company_id in company_ids]
         refreshed_count = sum(1 for result in results if result.success)
         failed_count = len(results) - refreshed_count
         _LOGGER.info(
-            "universe refresh completed: total_companies=%s refreshed=%s failed=%s",
+            (
+                "universe refresh completed | stage=refresh provider=%s offline_mode=%s "
+                "total_companies=%s refreshed=%s failed=%s"
+            ),
+            self._provider_name(),
+            self.offline_mode,
             len(company_ids),
             refreshed_count,
             failed_count,
@@ -355,7 +418,12 @@ class FinancialDataService:
         if missing_data:
             missing_text = ", ".join(missing_data)
             _LOGGER.warning(
-                "offline refresh blocked: company_id=%s ticker=%s missing=%s",
+                (
+                    "offline refresh blocked | stage=offline provider=%s offline_mode=%s "
+                    "company_id=%s ticker=%s missing=%s"
+                ),
+                self._provider_name(),
+                self.offline_mode,
                 company.id,
                 company.ticker,
                 missing_text,
@@ -368,7 +436,12 @@ class FinancialDataService:
                 stage="offline",
             )
         _LOGGER.info(
-            "offline refresh succeeded: company_id=%s ticker=%s local_prices=%s local_statements=%s",
+            (
+                "offline refresh succeeded | stage=offline provider=%s offline_mode=%s "
+                "company_id=%s ticker=%s local_prices=%s local_statements=%s"
+            ),
+            self._provider_name(),
+            self.offline_mode,
             company.id,
             company.ticker,
             len(local_prices),
@@ -420,7 +493,12 @@ class FinancialDataService:
         if success:
             return result
         _LOGGER.warning(
-            "provider fallback used: ticker=%s operation=%s attempts=%s error=%s",
+            (
+                "provider fallback used | stage=fetch provider=%s offline_mode=%s "
+                "ticker=%s operation=%s attempts=%s error=%s"
+            ),
+            self._provider_name(),
+            self.offline_mode,
             ticker,
             operation,
             self._effective_max_attempts(),
@@ -446,7 +524,12 @@ class FinancialDataService:
                 last_error = exc
             if attempt < max_attempts:
                 _LOGGER.warning(
-                    "provider retry scheduled: ticker=%s operation=%s attempt=%s/%s error=%s",
+                    (
+                        "provider retry scheduled | stage=fetch provider=%s offline_mode=%s "
+                        "ticker=%s operation=%s attempt=%s/%s error=%s"
+                    ),
+                    self._provider_name(),
+                    self.offline_mode,
                     ticker,
                     operation,
                     attempt,
@@ -456,7 +539,12 @@ class FinancialDataService:
                 if self.provider_retry_delay_seconds > 0:
                     time.sleep(self.provider_retry_delay_seconds)
         _LOGGER.error(
-            "provider fetch failed after retries: ticker=%s operation=%s attempts=%s error=%s",
+            (
+                "provider fetch failed after retries | stage=fetch provider=%s offline_mode=%s "
+                "ticker=%s operation=%s attempts=%s error=%s"
+            ),
+            self._provider_name(),
+            self.offline_mode,
             ticker,
             operation,
             max_attempts,
@@ -466,6 +554,9 @@ class FinancialDataService:
 
     def _effective_max_attempts(self) -> int:
         return max(1, self.provider_call_max_attempts)
+
+    def _provider_name(self) -> str:
+        return type(self.provider).__name__
 
 
 def _normalize_ticker(ticker: str) -> str:
