@@ -5,6 +5,8 @@ from datetime import date
 from unittest.mock import MagicMock
 
 from src.models.company import SOURCE_MANUAL, SOURCE_SEED, Company
+from src.models.watchlist_entry import WatchlistEntry
+from src.repositories import watchlist_repository
 from src.services.financial_data_service import CompanyDataRefreshResult
 from src.services.kpi_snapshot_service import KpiSnapshotServiceResult
 from src.services.universe_discovery_service import (
@@ -253,3 +255,123 @@ def test_manual_ingestion_sets_source_origin(db_session):
 def test_seed_sets_source_origin(db_session):
     company = _add_company(db_session, ticker="MC.PA", source=SOURCE_SEED)
     assert company.source_origin == SOURCE_SEED
+
+
+# ---------------------------------------------------------------------------
+# refresh_watchlist
+# ---------------------------------------------------------------------------
+
+
+def _add_watchlist_entry(session, company_id: int, *, notes: str = "", status: str = "watching") -> WatchlistEntry:
+    entry = WatchlistEntry(company_id=company_id, notes=notes or None, status=status)
+    session.add(entry)
+    session.flush()
+    return entry
+
+
+def test_refresh_watchlist_only_refreshes_watchlist_companies(db_session):
+    c_watched = _add_company(db_session, ticker="MC.PA")
+    c_other = _add_company(db_session, ticker="BNP.PA")
+    _add_watchlist_entry(db_session, c_watched.id)
+
+    fin_svc = MagicMock()
+    kpi_svc = MagicMock()
+    fin_svc.refresh_company_data.return_value = _make_data_result(c_watched.id, "MC.PA")
+    kpi_svc.compute_and_upsert_for_company.return_value = _make_kpi_result(c_watched.id)
+
+    svc = UniverseDiscoveryService(
+        financial_data_service=fin_svc,
+        kpi_snapshot_service=kpi_svc,
+        session_scope_factory=_make_session_scope(db_session),
+    )
+    result = svc.refresh_watchlist()
+
+    assert result.total == 1
+    assert result.succeeded == 1
+    assert result.failed == 0
+    # BNP.PA (not in watchlist) must not have been touched
+    fin_svc.refresh_company_data.assert_called_once_with(c_watched.id)
+    _ = c_other  # referenced to silence linter
+
+
+def test_refresh_watchlist_empty_watchlist(db_session):
+    _add_company(db_session, ticker="MC.PA")
+
+    svc = UniverseDiscoveryService(
+        financial_data_service=MagicMock(),
+        kpi_snapshot_service=MagicMock(),
+        session_scope_factory=_make_session_scope(db_session),
+    )
+    result = svc.refresh_watchlist()
+
+    assert result.total == 0
+    assert result.succeeded == 0
+
+
+def test_refresh_watchlist_preserves_analyst_notes(db_session):
+    company = _add_company(db_session, ticker="MC.PA")
+    entry = _add_watchlist_entry(db_session, company.id, notes="top pick", status="conviction")
+
+    fin_svc = MagicMock()
+    kpi_svc = MagicMock()
+    fin_svc.refresh_company_data.return_value = _make_data_result(company.id, "MC.PA")
+    kpi_svc.compute_and_upsert_for_company.return_value = _make_kpi_result(company.id)
+
+    svc = UniverseDiscoveryService(
+        financial_data_service=fin_svc,
+        kpi_snapshot_service=kpi_svc,
+        session_scope_factory=_make_session_scope(db_session),
+    )
+    svc.refresh_watchlist()
+
+    # Analyst data must be untouched after refresh
+    refreshed = watchlist_repository.get_by_company_id(db_session, company.id)
+    assert refreshed is not None
+    assert refreshed.notes == "top pick"
+    assert refreshed.status == "conviction"
+    _ = entry  # referenced to silence linter
+
+
+def test_refresh_watchlist_partial_failure(db_session):
+    c1 = _add_company(db_session, ticker="MC.PA")
+    c2 = _add_company(db_session, ticker="BNP.PA")
+    _add_watchlist_entry(db_session, c1.id)
+    _add_watchlist_entry(db_session, c2.id)
+
+    fin_svc = MagicMock()
+    kpi_svc = MagicMock()
+    fin_svc.refresh_company_data.side_effect = [
+        _make_data_result(c1.id, "MC.PA"),
+        _make_data_result(c2.id, "BNP.PA", success=False),
+    ]
+    kpi_svc.compute_and_upsert_for_company.return_value = _make_kpi_result(c1.id)
+
+    svc = UniverseDiscoveryService(
+        financial_data_service=fin_svc,
+        kpi_snapshot_service=kpi_svc,
+        session_scope_factory=_make_session_scope(db_session),
+    )
+    result = svc.refresh_watchlist()
+
+    assert result.total == 2
+    assert result.succeeded == 1
+    assert result.failed == 1
+
+
+def test_refresh_watchlist_tolerates_unexpected_exception(db_session):
+    company = _add_company(db_session, ticker="MC.PA")
+    _add_watchlist_entry(db_session, company.id)
+
+    fin_svc = MagicMock()
+    fin_svc.refresh_company_data.side_effect = RuntimeError("boom")
+
+    svc = UniverseDiscoveryService(
+        financial_data_service=fin_svc,
+        kpi_snapshot_service=MagicMock(),
+        session_scope_factory=_make_session_scope(db_session),
+    )
+    result = svc.refresh_watchlist()
+
+    assert result.total == 1
+    assert result.failed == 1
+    assert "boom" in result.results[0].error

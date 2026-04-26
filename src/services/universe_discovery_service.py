@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime
 
 from sqlalchemy.orm import Session
 
-from src.repositories import company_repository
+from src.repositories import company_repository, watchlist_repository
 from src.repositories.database import get_session
 from src.services.financial_data_service import CompanyDataRefreshResult, FinancialDataService
 from src.services.kpi_snapshot_service import KpiSnapshotService
@@ -128,6 +128,54 @@ class UniverseDiscoveryService:
 
         _LOGGER.info(
             "universe batch refresh completed | total=%s succeeded=%s failed=%s skipped=%s",
+            total,
+            succeeded,
+            failed,
+            skipped,
+        )
+        return UniverseRefreshResult(
+            total=total,
+            succeeded=succeeded,
+            failed=failed,
+            skipped=skipped,
+            results=results,
+        )
+
+    def refresh_watchlist(self) -> UniverseRefreshResult:
+        """Refresh only companies currently in the watchlist, preserving analyst data."""
+        with self.session_scope_factory() as session:
+            entries = watchlist_repository.list_all(session)
+            company_ids = [(e.company_id, "") for e in entries]
+
+        total = len(company_ids)
+        _LOGGER.info("watchlist refresh started | total_companies=%s", total)
+
+        results: list[CompanyUniverseRefreshResult] = []
+        skipped = 0
+        for company_id, _ in company_ids:
+            try:
+                result = self.refresh_company(company_id)
+                results.append(result)
+            except Exception as exc:  # noqa: BLE001
+                _LOGGER.error(
+                    "watchlist refresh unexpected error | company_id=%s error=%s",
+                    company_id,
+                    exc,
+                )
+                results.append(
+                    CompanyUniverseRefreshResult(
+                        company_id=company_id,
+                        ticker="",
+                        success=False,
+                        error=str(exc),
+                        stage="unexpected",
+                    )
+                )
+
+        succeeded = sum(1 for r in results if r.success)
+        failed = len(results) - succeeded
+        _LOGGER.info(
+            "watchlist refresh completed | total=%s succeeded=%s failed=%s skipped=%s",
             total,
             succeeded,
             failed,
