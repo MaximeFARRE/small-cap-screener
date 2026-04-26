@@ -127,9 +127,10 @@ class FinancialDataService:
             operation="price_history",
             fetch_fn=lambda: self.provider.get_price_history(normalized_ticker, period=self.default_period),
         )
-        financial_statements = self._fetch_required_provider_data(
+        financial_statements = self._fetch_optional_provider_data(
             ticker=normalized_ticker,
             operation="financial_statements",
+            fallback=[],
             fetch_fn=lambda: self.provider.get_financial_statements(normalized_ticker, years=self.default_years),
         )
         dividends = (
