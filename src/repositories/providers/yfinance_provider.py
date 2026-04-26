@@ -116,6 +116,7 @@ def _get_company_profile(ticker: str) -> CompanyProfile:
         country=info.get("country"),
         currency=info.get("currency", "EUR"),
         website=info.get("website"),
+        isin=info.get("isin") or None,
         source=_SOURCE_NAME,
         fetched_at=fetched_at,
     )

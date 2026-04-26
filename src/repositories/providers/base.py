@@ -35,6 +35,7 @@ class CompanyProfile:
     country: str | None
     currency: str
     website: str | None
+    isin: str | None = None
     source: str | None = None
     fetched_at: datetime | None = None
 
