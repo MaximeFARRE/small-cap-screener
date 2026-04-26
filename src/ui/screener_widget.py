@@ -54,3 +54,13 @@ class ScreenerWidget(QWidget):
 
     def load(self, rows: list[ScreenerRow]) -> None:
         self._model.load(rows)
+
+    def select_company(self, company_id: int) -> bool:
+        rows = self._model.rows()
+        for index, row in enumerate(rows):
+            if row.company_id != company_id:
+                continue
+            self._table.selectRow(index)
+            self._table.scrollTo(self._model.index(index, 0))
+            return True
+        return False

@@ -4,14 +4,22 @@ import csv
 import math
 from collections.abc import Callable
 from contextlib import AbstractContextManager
-from dataclasses import dataclass, field
-from io import StringIO
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from io import BytesIO, StringIO
 from typing import Literal
 
+import pandas as pd
 from sqlalchemy.orm import Session
 
 from src.models.kpi_snapshot import KpiSnapshot
-from src.repositories import company_repository, kpi_snapshot_repository
+from src.models.screening_snapshot import ScreeningSnapshot
+from src.repositories import (
+    company_repository,
+    kpi_snapshot_repository,
+    screening_snapshot_repository,
+    watchlist_repository,
+)
 from src.repositories.database import get_session
 from src.services.kpi_snapshot_service import KpiSnapshotService
 from src.services.ratio_service import CompanyRatios
@@ -88,9 +96,21 @@ class UniverseScreeningFilters:
     sector: str | None = None
     min_total_score: float | None = None
     scored_only: bool = False
+    include_excluded: bool = False
     top_n: int | None = None
     sort_by: UniverseScreeningSortField = "rank"
     descending: bool = False
+
+
+@dataclass(frozen=True)
+class SavedScreeningSnapshot:
+    snapshot_id: int
+    name: str
+    created_at: datetime
+    filters: dict[str, object]
+    company_count: int
+    company_ids: list[int]
+    results: list[dict[str, object]]
 
 
 @dataclass
@@ -163,7 +183,15 @@ class ScreeningService:
             min_average_daily_volume=min_average_daily_volume,
             country=country,
         )
-        filtered = _apply_universe_screening_filters(universe, filters)
+        excluded_company_ids: set[int] = set()
+        if not filters.include_excluded:
+            excluded_company_ids = self._list_excluded_company_ids()
+
+        filtered = _apply_universe_screening_filters(
+            universe,
+            filters,
+            excluded_company_ids=excluded_company_ids,
+        )
         ordered = _sort_universe_screening_entries(
             filtered,
             sort_by=filters.sort_by,
@@ -190,6 +218,66 @@ class ScreeningService:
             country=country,
         )
         return _build_universe_screening_csv(rows)
+
+    def export_universe_with_scores_excel(
+        self,
+        filters: UniverseScreeningFilters,
+        *,
+        max_market_cap: float | None = None,
+        min_average_daily_volume: float | None = None,
+        country: str | None = None,
+    ) -> bytes:
+        rows = self.filter_universe_with_scores(
+            filters,
+            max_market_cap=max_market_cap,
+            min_average_daily_volume=min_average_daily_volume,
+            country=country,
+        )
+        return _build_universe_screening_excel(rows)
+
+    def save_screening_snapshot(
+        self,
+        filters: UniverseScreeningFilters,
+        *,
+        name: str = "screening snapshot",
+        max_market_cap: float | None = None,
+        min_average_daily_volume: float | None = None,
+        country: str | None = None,
+    ) -> SavedScreeningSnapshot:
+        rows = self.filter_universe_with_scores(
+            filters,
+            max_market_cap=max_market_cap,
+            min_average_daily_volume=min_average_daily_volume,
+            country=country,
+        )
+        company_ids = [row.company_id for row in rows]
+        results = _build_universe_screening_export_records(rows)
+        with self.session_scope_factory() as session:
+            stored = screening_snapshot_repository.add(
+                session,
+                ScreeningSnapshot(
+                    name=name,
+                    filters=asdict(filters),
+                    company_ids=company_ids,
+                    scores={
+                        "company_count": len(company_ids),
+                        "results": results,
+                    },
+                ),
+            )
+            session.refresh(stored)
+            return _to_saved_screening_snapshot(stored)
+
+    def get_screening_snapshot(self, snapshot_id: int) -> SavedScreeningSnapshot | None:
+        with self.session_scope_factory() as session:
+            snapshot = screening_snapshot_repository.get_by_id(session, snapshot_id)
+        if snapshot is None:
+            return None
+        return _to_saved_screening_snapshot(snapshot)
+
+    def _list_excluded_company_ids(self) -> set[int]:
+        with self.session_scope_factory() as session:
+            return watchlist_repository.list_excluded_company_ids(session)
 
 
 def _passes(ratios: CompanyRatios, criteria: ScreeningCriteria) -> bool:
@@ -269,10 +357,14 @@ def _snapshot_metric_as_float(snapshot: KpiSnapshot | None, metric_key: str) -> 
 def _apply_universe_screening_filters(
     entries: list[UniverseScreeningEntry],
     filters: UniverseScreeningFilters,
+    *,
+    excluded_company_ids: set[int],
 ) -> list[UniverseScreeningEntry]:
     target_sector = _normalize_optional_text(filters.sector)
     output: list[UniverseScreeningEntry] = []
     for entry in entries:
+        if entry.company_id in excluded_company_ids:
+            continue
         if target_sector is not None:
             sector = _normalize_optional_text(entry.sector)
             if sector != target_sector:
@@ -375,6 +467,7 @@ def _normalize_optional_text(value: str | None) -> str | None:
 
 
 def _build_universe_screening_csv(entries: list[UniverseScreeningEntry]) -> str:
+    records = _build_universe_screening_export_records(entries)
     buffer = StringIO()
     writer = csv.DictWriter(
         buffer,
@@ -382,27 +475,71 @@ def _build_universe_screening_csv(entries: list[UniverseScreeningEntry]) -> str:
         lineterminator="\n",
     )
     writer.writeheader()
-    for entry in entries:
-        writer.writerow(_serialize_universe_screening_entry(entry))
+    writer.writerows(records)
     return buffer.getvalue()
+
+
+def _build_universe_screening_excel(entries: list[UniverseScreeningEntry]) -> bytes:
+    records = _build_universe_screening_export_records(entries)
+    dataframe = pd.DataFrame(records, columns=list(_UNIVERSE_SCREENING_EXPORT_COLUMNS))
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+        dataframe.to_excel(writer, index=False, sheet_name="Screening")
+    return buffer.getvalue()
+
+
+def _build_universe_screening_export_records(entries: list[UniverseScreeningEntry]) -> list[dict[str, object]]:
+    return [_serialize_universe_screening_entry(entry) for entry in entries]
 
 
 def _serialize_universe_screening_entry(entry: UniverseScreeningEntry) -> dict[str, object]:
     return {
-        "ticker": _csv_value(entry.ticker),
-        "name": _csv_value(entry.name),
-        "sector": _csv_value(entry.sector),
-        "total_score": _csv_value(entry.total_score),
-        "quality_score": _csv_value(entry.quality_score),
-        "value_score": _csv_value(entry.value_score),
-        "growth_score": _csv_value(entry.growth_score),
-        "risk_score": _csv_value(entry.risk_score),
-        "rank": _csv_value(entry.rank),
-        "sector_rank": _csv_value(entry.sector_rank),
+        "ticker": _export_value(entry.ticker),
+        "name": _export_value(entry.name),
+        "sector": _export_value(entry.sector),
+        "total_score": _export_value(entry.total_score),
+        "quality_score": _export_value(entry.quality_score),
+        "value_score": _export_value(entry.value_score),
+        "growth_score": _export_value(entry.growth_score),
+        "risk_score": _export_value(entry.risk_score),
+        "rank": _export_value(entry.rank),
+        "sector_rank": _export_value(entry.sector_rank),
     }
 
 
-def _csv_value(value: object) -> object:
+def _export_value(value: object) -> object:
     if value is None:
         return ""
     return value
+
+
+def _to_saved_screening_snapshot(snapshot: ScreeningSnapshot) -> SavedScreeningSnapshot:
+    if snapshot.created_at is None:
+        raise RuntimeError("screening snapshot is missing created_at")
+    filters = snapshot.filters if isinstance(snapshot.filters, dict) else {}
+    company_ids = snapshot.company_ids if isinstance(snapshot.company_ids, list) else []
+    scores = snapshot.scores if isinstance(snapshot.scores, dict) else {}
+    company_count = scores.get("company_count")
+    if not isinstance(company_count, int):
+        company_count = len(company_ids)
+    results = _normalize_snapshot_results(scores.get("results"))
+    return SavedScreeningSnapshot(
+        snapshot_id=snapshot.id,
+        name=snapshot.name,
+        created_at=snapshot.created_at,
+        filters={str(key): value for key, value in filters.items()},
+        company_count=company_count,
+        company_ids=[company_id for company_id in company_ids if isinstance(company_id, int)],
+        results=results,
+    )
+
+
+def _normalize_snapshot_results(raw_results: object) -> list[dict[str, object]]:
+    if not isinstance(raw_results, list):
+        return []
+    normalized: list[dict[str, object]] = []
+    for row in raw_results:
+        if not isinstance(row, dict):
+            continue
+        normalized.append({column: row.get(column, "") for column in _UNIVERSE_SCREENING_EXPORT_COLUMNS})
+    return normalized

@@ -49,6 +49,7 @@ def test_add_and_get_by_company_id(db_session):
     assert fetched.id == added.id
     assert fetched.notes == "watch earnings"
     assert fetched.status == WATCHLIST_STATUS_WATCHING
+    assert fetched.is_excluded is False
 
 
 def test_list_all_ordered_by_added_at_desc(db_session):
@@ -115,6 +116,23 @@ def test_update_status_by_company_id(db_session):
 
 def test_update_status_by_company_id_nonexistent(db_session):
     assert watchlist_repository.update_status_by_company_id(db_session, 999999, WATCHLIST_STATUS_REVIEW) is None
+
+
+def test_update_excluded_by_company_id(db_session):
+    company = _make_company(db_session, isin="FR0000800008", ticker="WL8.PA")
+    watchlist_repository.add(db_session, _make_entry(company.id))
+
+    updated = watchlist_repository.update_excluded_by_company_id(db_session, company.id, True)
+
+    assert updated is not None
+    assert updated.is_excluded is True
+    stored = watchlist_repository.get_by_company_id(db_session, company.id)
+    assert stored is not None
+    assert stored.is_excluded is True
+
+
+def test_update_excluded_by_company_id_nonexistent(db_session):
+    assert watchlist_repository.update_excluded_by_company_id(db_session, 999999, True) is None
 
 
 def test_unique_constraint_company_id(db_session):

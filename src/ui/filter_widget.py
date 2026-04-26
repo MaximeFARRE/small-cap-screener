@@ -80,6 +80,7 @@ class FilterWidget(QWidget):
         self._min_score_input.setPlaceholderText(_MIN_SCORE_PLACEHOLDER)
 
         self._scored_only_input = QCheckBox("Sociétés scorées uniquement")
+        self._include_excluded_input = QCheckBox("Inclure sociétés exclues")
 
         self._top_n_input = QLineEdit()
         self._top_n_input.setValidator(QIntValidator(1, 999_999, self))
@@ -96,6 +97,7 @@ class FilterWidget(QWidget):
         form.addRow("Secteur", self._sector_input)
         form.addRow("Score min", self._min_score_input)
         form.addRow("", self._scored_only_input)
+        form.addRow("", self._include_excluded_input)
         form.addRow("Top N", self._top_n_input)
         form.addRow("Tri", self._sort_by_input)
         form.addRow("Ordre", self._sort_order_input)
@@ -124,6 +126,7 @@ class FilterWidget(QWidget):
                 sector=sector,
                 min_total_score=min_total_score,
                 scored_only=self._scored_only_input.isChecked(),
+                include_excluded=self._include_excluded_input.isChecked(),
                 top_n=top_n,
                 sort_by=sort_by,
                 descending=descending,
@@ -134,6 +137,7 @@ class FilterWidget(QWidget):
         self._sector_input.clear()
         self._min_score_input.clear()
         self._scored_only_input.setChecked(False)
+        self._include_excluded_input.setChecked(False)
         self._top_n_input.clear()
         self._sort_by_input.setCurrentIndex(0)
         self._sort_order_input.setCurrentIndex(0)

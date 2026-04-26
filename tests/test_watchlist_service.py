@@ -7,7 +7,12 @@ import pytest
 
 from src.models.company import Company
 from src.models.kpi_snapshot import KpiSnapshot
-from src.models.watchlist_entry import WATCHLIST_STATUS_CONVICTION, WATCHLIST_STATUS_REVIEW, WatchlistEntry
+from src.models.watchlist_entry import (
+    WATCHLIST_STATUS_CONVICTION,
+    WATCHLIST_STATUS_REVIEW,
+    WATCHLIST_STATUS_WATCHING,
+    WatchlistEntry,
+)
 from src.repositories import company_repository, kpi_snapshot_repository, watchlist_repository
 from src.services.watchlist_service import WatchlistService
 
@@ -130,6 +135,63 @@ def test_update_company_status_rejects_invalid_status(db_session):
         service.update_company_status(company.id, "invalid")
 
 
+def test_update_company_exclusion_updates_existing_entry(db_session):
+    company = _make_company(db_session, isin="FR0000810006", ticker="WS6.PA")
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=company.id, notes="keep notes", status=WATCHLIST_STATUS_REVIEW),
+    )
+    service = _make_service(db_session)
+
+    updated = service.update_company_exclusion(company.id, True)
+
+    assert updated is not None
+    assert updated.is_excluded is True
+    assert updated.notes == "keep notes"
+    assert updated.status == WATCHLIST_STATUS_REVIEW
+    stored = watchlist_repository.get_by_company_id(db_session, company.id)
+    assert stored is not None
+    assert stored.is_excluded is True
+    assert stored.notes == "keep notes"
+    assert stored.status == WATCHLIST_STATUS_REVIEW
+
+
+def test_update_company_exclusion_creates_entry_when_missing(db_session):
+    company = _make_company(db_session, isin="FR0000810007", ticker="WS7.PA")
+    service = _make_service(db_session)
+
+    created = service.update_company_exclusion(company.id, True)
+
+    assert created is not None
+    assert created.company_id == company.id
+    assert created.is_excluded is True
+    assert created.notes is None
+    assert created.status == WATCHLIST_STATUS_WATCHING
+
+
+def test_update_company_exclusion_returns_none_for_unknown_company(db_session):
+    service = _make_service(db_session)
+
+    result = service.update_company_exclusion(999999, True)
+
+    assert result is None
+    assert service.list_entries() == []
+
+
+def test_update_company_exclusion_can_reintegrate_company(db_session):
+    company = _make_company(db_session, isin="FR0000810008", ticker="WS8.PA")
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=company.id, notes="notes", is_excluded=True),
+    )
+    service = _make_service(db_session)
+
+    updated = service.update_company_exclusion(company.id, False)
+
+    assert updated is not None
+    assert updated.is_excluded is False
+
+
 def test_list_watchlist_with_scores_reuses_global_ranking(db_session):
     hidden_top = _make_company(
         db_session,
@@ -226,11 +288,10 @@ def test_list_watchlist_with_scores_reuses_global_ranking(db_session):
     assert no_score_entry.sector_rank is None
 
 
-def test_get_company_analyst_detail_returns_watchlist_and_score_explanation(db_session):
+def test_get_company_analyst_detail_returns_unified_watchlist_and_scoring_data(db_session):
     company = _make_company(db_session, isin="FR0000810100", ticker="DET.PA", name="Detail Co")
     watchlist_repository.add(
-        db_session,
-        WatchlistEntry(company_id=company.id, notes="analyst note", status=WATCHLIST_STATUS_REVIEW),
+        db_session, WatchlistEntry(company_id=company.id, notes="analyst note", status=WATCHLIST_STATUS_REVIEW)
     )
     kpi_snapshot_repository.create(
         db_session,
@@ -253,6 +314,14 @@ def test_get_company_analyst_detail_returns_watchlist_and_score_explanation(db_s
 
     assert detail.watchlist_status == WATCHLIST_STATUS_REVIEW
     assert detail.watchlist_notes == "analyst note"
+    assert detail.watchlist_is_excluded is False
+    assert detail.total_score == pytest.approx(74.95)
+    assert detail.quality_score == pytest.approx(81.0)
+    assert detail.value_score == pytest.approx(74.0)
+    assert detail.growth_score == pytest.approx(69.0)
+    assert detail.risk_score == pytest.approx(66.0)
+    assert detail.rank == 1
+    assert detail.sector_rank == 1
     assert detail.score_explanation.total_score == pytest.approx(74.95)
     assert detail.score_explanation.quality == pytest.approx(81.0)
     assert detail.score_explanation.value == pytest.approx(74.0)
@@ -261,7 +330,7 @@ def test_get_company_analyst_detail_returns_watchlist_and_score_explanation(db_s
     assert "total 74.95/100" in detail.score_explanation.summary
 
 
-def test_get_company_analyst_detail_handles_missing_watchlist_and_snapshot(db_session):
+def test_get_company_analyst_detail_handles_non_scored_company(db_session):
     company = _make_company(db_session, isin="FR0000810101", ticker="MSS.PA", name="Missing Data Co")
     service = _make_service(db_session)
 
@@ -269,9 +338,56 @@ def test_get_company_analyst_detail_handles_missing_watchlist_and_snapshot(db_se
 
     assert detail.watchlist_status is None
     assert detail.watchlist_notes is None
+    assert detail.watchlist_is_excluded is False
+    assert detail.total_score is None
+    assert detail.quality_score is None
+    assert detail.value_score is None
+    assert detail.growth_score is None
+    assert detail.risk_score is None
+    assert detail.rank is None
+    assert detail.sector_rank is None
     assert detail.score_explanation.total_score is None
     assert detail.score_explanation.quality is None
     assert detail.score_explanation.value is None
     assert detail.score_explanation.growth is None
     assert detail.score_explanation.risk is None
     assert detail.score_explanation.summary == "score unavailable: no snapshot data."
+
+
+def test_get_company_analyst_detail_keeps_excluded_flag_with_scoring_data(db_session):
+    company = _make_company(db_session, isin="FR0000810102", ticker="EXC.PA", name="Excluded Co", sector="Tech")
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(
+            company_id=company.id,
+            notes="exclude for governance issue",
+            status=WATCHLIST_STATUS_CONVICTION,
+            is_excluded=True,
+        ),
+    )
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=company.id,
+            snapshot_date=date(2024, 11, 30),
+            metrics={
+                "quality_score": 70.0,
+                "value_score": 72.0,
+                "growth_score": 60.0,
+                "risk_score": 55.0,
+                "total_score": 66.25,
+            },
+            source="s1",
+        ),
+    )
+    service = _make_service(db_session)
+
+    detail = service.get_company_analyst_detail(company.id)
+
+    assert detail.watchlist_status == WATCHLIST_STATUS_CONVICTION
+    assert detail.watchlist_notes == "exclude for governance issue"
+    assert detail.watchlist_is_excluded is True
+    assert detail.total_score == pytest.approx(66.25)
+    assert detail.rank == 1
+    assert detail.sector_rank == 1
+    assert "total 66.25/100" in detail.score_explanation.summary
