@@ -11,6 +11,7 @@ _HEADERS: list[str] = [
     "Score total",
     "Rang global",
     "Rang secteur",
+    "Qualité data",
 ]
 
 _NA = "—"
@@ -23,6 +24,16 @@ def _fmt_score(value: float | None) -> str:
     if value is None:
         return _NA
     return f"{value:.2f}"
+
+
+def _fmt_quality(value: float | None) -> str:
+    if value is None:
+        return _NA
+    if value >= 0.8:
+        return f"{value * 100:.0f}% (Élevée)"
+    if value >= 0.5:
+        return f"{value * 100:.0f}% (Moyenne)"
+    return f"{value * 100:.0f}% (Faible)"
 
 
 class CompanyTableModel(QAbstractTableModel):
@@ -63,6 +74,16 @@ class CompanyTableModel(QAbstractTableModel):
         row = self._rows[index.row()]
         col = index.column()
 
+        if role == Qt.ItemDataRole.ForegroundRole:
+            if col == 6 and row.data_quality_score is not None:
+                from PySide6.QtGui import QColor
+
+                if row.data_quality_score < 0.5:
+                    return QColor("#d62728")  # Red for poor quality
+                if row.data_quality_score < 0.8:
+                    return QColor("#ff7f0e")  # Orange for medium quality
+            return None
+
         if role == Qt.ItemDataRole.TextAlignmentRole:
             if col >= 3:
                 return Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
@@ -81,7 +102,9 @@ class CompanyTableModel(QAbstractTableModel):
             case 3:
                 return _fmt_score(row.total_score)
             case 4:
-                return row.rank if row.rank is not None else _NA
+                return str(row.rank) if row.rank is not None else _NA
             case 5:
-                return row.sector_rank if row.sector_rank is not None else _NA
+                return str(row.sector_rank) if row.sector_rank is not None else _NA
+            case 6:
+                return _fmt_quality(row.data_quality_score)
         return None
