@@ -102,7 +102,7 @@ def _label(text: str) -> QLabel:
 class CompanyDetailWidget(QWidget):
     add_watchlist_requested = Signal(int, str)
     remove_watchlist_requested = Signal(int)
-    save_watchlist_requested = Signal(int, str, str, bool, str, str, str, str, str)
+    save_watchlist_requested = Signal(int, str, str, bool, str, str, str, str, str, str)
     refresh_company_requested = Signal(int)
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -158,6 +158,8 @@ class CompanyDetailWidget(QWidget):
 
         self._notes_input = QLineEdit()
         self._excluded_input = QCheckBox("Exclure du screening")
+        self._next_review_input = QLineEdit()
+        self._next_review_input.setPlaceholderText("YYYY-MM-DD or YYYY-MM-DD HH:MM")
         self._investment_thesis_input = QTextEdit()
         self._key_risks_input = QTextEdit()
         self._catalysts_input = QTextEdit()
@@ -176,6 +178,7 @@ class CompanyDetailWidget(QWidget):
         actions_form.addRow("Status", self._status_input)
         actions_form.addRow("Notes", self._notes_input)
         actions_form.addRow("", self._excluded_input)
+        actions_form.addRow("Next review at", self._next_review_input)
         actions_form.addRow("Investment thesis", self._investment_thesis_input)
         actions_form.addRow("Key risks", self._key_risks_input)
         actions_form.addRow("Catalysts", self._catalysts_input)
@@ -256,6 +259,7 @@ class CompanyDetailWidget(QWidget):
                 status=analyst_detail.watchlist_status or WATCHLIST_STATUS_WATCHING,
                 notes=analyst_detail.watchlist_notes or "",
                 is_excluded=analyst_detail.watchlist_is_excluded,
+                next_review_at=analyst_detail.next_review_at,
                 memo=analyst_detail.analyst_memo,
             )
         else:
@@ -264,6 +268,7 @@ class CompanyDetailWidget(QWidget):
                 status=WATCHLIST_STATUS_WATCHING,
                 notes="",
                 is_excluded=False,
+                next_review_at=None,
                 memo=AnalystMemo(),
             )
 
@@ -286,6 +291,9 @@ class CompanyDetailWidget(QWidget):
         self._set_field("Analyste", "Status watchlist", watchlist_status)
         self._set_field("Analyste", "Notes watchlist", watchlist_notes)
         self._set_field("Analyste", "Exclue", "oui" if watchlist_is_excluded else "non")
+        self._set_field(
+            "Analyste", "Next review at", _fmt_next_review_at(analyst_detail.next_review_at if analyst_detail else None)
+        )
         self._populate_analyst_memo(analyst_memo)
         self._set_field("Scoring", "Score total", _fmt(total_score))
         self._set_field("Scoring", "Quality", _fmt(quality_score))
@@ -492,6 +500,7 @@ class CompanyDetailWidget(QWidget):
             status=WATCHLIST_STATUS_WATCHING,
             notes="",
             is_excluded=False,
+            next_review_at=None,
             memo=AnalystMemo(),
         )
         self._set_actions_enabled(False)
@@ -499,7 +508,15 @@ class CompanyDetailWidget(QWidget):
         self._scroll.setVisible(False)
         self._placeholder.setVisible(True)
 
-    def _set_editor_values(self, *, status: str, notes: str, is_excluded: bool, memo: AnalystMemo) -> None:
+    def _set_editor_values(
+        self,
+        *,
+        status: str,
+        notes: str,
+        is_excluded: bool,
+        next_review_at: datetime | None,
+        memo: AnalystMemo,
+    ) -> None:
         status_index = self._status_input.findData(status)
         if status_index < 0:
             status_index = self._status_input.findData(WATCHLIST_STATUS_WATCHING)
@@ -507,6 +524,7 @@ class CompanyDetailWidget(QWidget):
             self._status_input.setCurrentIndex(status_index)
         self._notes_input.setText(notes)
         self._excluded_input.setChecked(is_excluded)
+        self._next_review_input.setText(_to_next_review_editor_text(next_review_at))
         self._investment_thesis_input.setPlainText(memo.investment_thesis or "")
         self._key_risks_input.setPlainText(memo.key_risks or "")
         self._catalysts_input.setPlainText(memo.catalysts or "")
@@ -517,6 +535,7 @@ class CompanyDetailWidget(QWidget):
         self._status_input.setEnabled(enabled)
         self._notes_input.setEnabled(enabled)
         self._excluded_input.setEnabled(enabled)
+        self._next_review_input.setEnabled(enabled)
         self._investment_thesis_input.setEnabled(enabled)
         self._key_risks_input.setEnabled(enabled)
         self._catalysts_input.setEnabled(enabled)
@@ -552,6 +571,7 @@ class CompanyDetailWidget(QWidget):
             self._catalysts_input.toPlainText().strip(),
             self._valuation_notes_input.toPlainText().strip(),
             self._next_action_input.toPlainText().strip(),
+            self._next_review_input.text().strip(),
         )
 
     def _on_refresh_clicked(self) -> None:
@@ -701,3 +721,17 @@ def _fmt_refresh_date(refresh_at: datetime | None) -> str:
     if refresh_at.tzinfo is None:
         refresh_at = refresh_at.replace(tzinfo=UTC)
     return refresh_at.strftime("%Y-%m-%d %H:%M")
+
+
+def _fmt_next_review_at(next_review_at: datetime | None) -> str:
+    if next_review_at is None:
+        return _NA
+    return _to_next_review_editor_text(next_review_at)
+
+
+def _to_next_review_editor_text(next_review_at: datetime | None) -> str:
+    if next_review_at is None:
+        return ""
+    if next_review_at.tzinfo is not None:
+        next_review_at = next_review_at.astimezone(UTC)
+    return next_review_at.strftime("%Y-%m-%d %H:%M")

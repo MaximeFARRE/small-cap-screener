@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -216,6 +216,37 @@ def test_update_company_memo_creates_entry_when_missing(db_session):
     assert created.next_action == memo.next_action
 
 
+def test_update_company_next_review_updates_existing_entry(db_session):
+    company = _make_company(db_session, isin="FR0000810017", ticker="NR1.PA")
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=company.id, status=WATCHLIST_STATUS_WATCHING),
+    )
+    service = _make_service(db_session)
+    next_review_at = datetime(2026, 5, 15, 9, 30)
+
+    updated = service.update_company_next_review(company.id, next_review_at)
+
+    assert updated is not None
+    assert updated.next_review_at == next_review_at
+    stored = watchlist_repository.get_by_company_id(db_session, company.id)
+    assert stored is not None
+    assert stored.next_review_at == next_review_at
+
+
+def test_update_company_next_review_creates_entry_when_missing(db_session):
+    company = _make_company(db_session, isin="FR0000810018", ticker="NR2.PA")
+    service = _make_service(db_session)
+    next_review_at = datetime(2026, 6, 1, 8, 0)
+
+    created = service.update_company_next_review(company.id, next_review_at)
+
+    assert created is not None
+    assert created.company_id == company.id
+    assert created.next_review_at == next_review_at
+    assert created.status == WATCHLIST_STATUS_WATCHING
+
+
 def test_update_company_memo_updates_existing_entry_without_overwriting_watchlist_fields(db_session):
     company = _make_company(db_session, isin="FR0000810014", ticker="WM1.PA")
     watchlist_repository.add(
@@ -301,6 +332,122 @@ def test_analyst_memo_persists_after_snapshot_refresh(db_session):
     assert detail.analyst_memo.catalysts == memo.catalysts
     assert detail.analyst_memo.valuation_notes == memo.valuation_notes
     assert detail.analyst_memo.next_action == memo.next_action
+
+
+def test_next_review_persists_after_snapshot_refresh(db_session):
+    company = _make_company(db_session, isin="FR0000810019", ticker="NR3.PA")
+    service = _make_service(db_session)
+    next_review_at = datetime(2026, 5, 20, 10, 0)
+    service.update_company_next_review(company.id, next_review_at)
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=company.id,
+            snapshot_date=date(2024, 12, 31),
+            metrics={"total_score": 65.0},
+            source="s1",
+        ),
+    )
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=company.id,
+            snapshot_date=date(2025, 1, 31),
+            metrics={"total_score": 78.0},
+            source="s2",
+        ),
+    )
+
+    detail = service.get_company_analyst_detail(company.id)
+
+    assert detail.total_score == pytest.approx(78.0)
+    assert detail.next_review_at == next_review_at
+
+
+def test_list_action_queue_returns_overdue_and_priority_statuses(db_session):
+    overdue = _make_company(db_session, isin="FR0000810020", ticker="AQ1.PA", sector="Tech")
+    review = _make_company(db_session, isin="FR0000810021", ticker="AQ2.PA", sector="Tech")
+    conviction = _make_company(db_session, isin="FR0000810022", ticker="AQ3.PA", sector="Energy")
+    watching = _make_company(db_session, isin="FR0000810023", ticker="AQ4.PA", sector="Energy")
+    now = datetime(2026, 4, 26, 12, 0, tzinfo=UTC)
+
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(
+            company_id=overdue.id,
+            status=WATCHLIST_STATUS_REVIEW,
+            next_review_at=(now - timedelta(days=2)).replace(tzinfo=None),
+        ),
+    )
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=review.id, status=WATCHLIST_STATUS_REVIEW),
+    )
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=conviction.id, status=WATCHLIST_STATUS_CONVICTION),
+    )
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=watching.id, status=WATCHLIST_STATUS_WATCHING),
+    )
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=overdue.id,
+            snapshot_date=date(2025, 1, 1),
+            metrics={"total_score": 70.0, "data_quality_score": 0.75},
+            source="s1",
+        ),
+    )
+
+    service = _make_service(db_session)
+    queue = service.list_action_queue(reference_time=now)
+
+    assert [entry.company_id for entry in queue.overdue_reviews] == [overdue.id]
+    assert [entry.company_id for entry in queue.high_priority_statuses] == [overdue.id, review.id, conviction.id]
+    overdue_entry = queue.overdue_reviews[0]
+    assert overdue_entry.memo_summary is None
+    assert overdue_entry.data_quality_score == pytest.approx(0.75)
+
+
+def test_list_watchlist_workflow_returns_enriched_view(db_session):
+    company = _make_company(db_session, isin="FR0000810024", ticker="WF1.PA", sector="Tech")
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(
+            company_id=company.id,
+            status=WATCHLIST_STATUS_REVIEW,
+            notes="workflow note",
+            investment_thesis="recurring revenue expansion",
+            next_review_at=datetime(2026, 7, 1, 10, 0),
+        ),
+    )
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=company.id,
+            snapshot_date=date(2025, 2, 1),
+            metrics={"total_score": 82.0, "data_quality_score": 0.88},
+            source="s1",
+        ),
+    )
+    service = _make_service(db_session)
+
+    workflow = service.list_watchlist_workflow()
+
+    assert len(workflow) == 1
+    row = workflow[0]
+    assert row.company_id == company.id
+    assert row.status == WATCHLIST_STATUS_REVIEW
+    assert row.notes == "workflow note"
+    assert row.memo_summary is not None
+    assert "recurring revenue expansion" in row.memo_summary
+    assert row.total_score == pytest.approx(82.0)
+    assert row.rank == 1
+    assert row.sector_rank == 1
+    assert row.data_quality_score == pytest.approx(0.88)
+    assert row.next_review_at == datetime(2026, 7, 1, 10, 0)
 
 
 def test_list_watchlist_with_scores_reuses_global_ranking(db_session):

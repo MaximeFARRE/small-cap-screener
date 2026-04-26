@@ -60,6 +60,7 @@ def _ensure_watchlist_memo_columns() -> None:
         "catalysts": "VARCHAR(2000)",
         "valuation_notes": "VARCHAR(2000)",
         "next_action": "VARCHAR(500)",
+        "next_review_at": "DATETIME",
     }
     with engine.begin() as connection:
         inspector = inspect(connection)

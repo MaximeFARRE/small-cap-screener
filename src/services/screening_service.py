@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from src.models.company import Company
 from src.models.kpi_snapshot import KpiSnapshot
 from src.models.screening_snapshot import ScreeningSnapshot
+from src.models.watchlist_entry import WatchlistEntry
 from src.repositories import (
     company_repository,
     kpi_snapshot_repository,
@@ -47,6 +48,8 @@ UniverseScreeningSortField = Literal[
     "risk_score",
     "ticker",
 ]
+WatchlistScopeFilter = Literal["all", "watchlist_only", "non_watchlist_only"]
+WatchlistExclusionFilter = Literal["all", "excluded_only", "non_excluded_only"]
 _UNIVERSE_SCREENING_EXPORT_COLUMNS: tuple[str, ...] = (
     "ticker",
     "name",
@@ -104,6 +107,9 @@ class UniverseScreeningFilters:
     min_data_quality_score: float | None = None
     stale_only: bool = False
     scored_only: bool = False
+    watchlist_scope: WatchlistScopeFilter = "all"
+    watchlist_status: str | None = None
+    exclusion_filter: WatchlistExclusionFilter | None = None
     include_excluded: bool = False
     top_n: int | None = None
     sort_by: UniverseScreeningSortField = "rank"
@@ -191,13 +197,17 @@ class ScreeningService:
             min_average_daily_volume=min_average_daily_volume,
             country=country,
         )
-        excluded_company_ids: set[int] = set()
-        if not filters.include_excluded:
-            excluded_company_ids = self._list_excluded_company_ids()
+        watchlist_entries_by_company_id = self._list_watchlist_entries_by_company_id()
+        excluded_company_ids = {
+            company_id for company_id, entry in watchlist_entries_by_company_id.items() if entry.is_excluded
+        }
+        if filters.include_excluded:
+            excluded_company_ids = set()
 
         filtered = _apply_universe_screening_filters(
             universe,
             filters,
+            watchlist_entries_by_company_id=watchlist_entries_by_company_id,
             excluded_company_ids=excluded_company_ids,
         )
         ordered = _sort_universe_screening_entries(
@@ -287,6 +297,11 @@ class ScreeningService:
         with self.session_scope_factory() as session:
             return watchlist_repository.list_excluded_company_ids(session)
 
+    def _list_watchlist_entries_by_company_id(self) -> dict[int, WatchlistEntry]:
+        with self.session_scope_factory() as session:
+            entries = watchlist_repository.list_all(session)
+        return {entry.company_id: entry for entry in entries}
+
 
 def _passes(ratios: CompanyRatios, criteria: ScreeningCriteria) -> bool:
     checks: list[tuple[float | None, float | None, bool]] = [
@@ -369,12 +384,31 @@ def _apply_universe_screening_filters(
     entries: list[UniverseScreeningEntry],
     filters: UniverseScreeningFilters,
     *,
+    watchlist_entries_by_company_id: dict[int, WatchlistEntry],
     excluded_company_ids: set[int],
 ) -> list[UniverseScreeningEntry]:
     target_sector = _normalize_optional_text(filters.sector)
+    target_watchlist_status = _normalize_optional_text(filters.watchlist_status)
     stale_threshold = datetime.now(UTC) - timedelta(days=STALE_REFRESH_DAYS) if filters.stale_only else None
     output: list[UniverseScreeningEntry] = []
     for entry in entries:
+        watchlist_entry = watchlist_entries_by_company_id.get(entry.company_id)
+        is_in_watchlist = watchlist_entry is not None
+        is_excluded = watchlist_entry.is_excluded if watchlist_entry is not None else False
+        if filters.watchlist_scope == "watchlist_only" and not is_in_watchlist:
+            continue
+        if filters.watchlist_scope == "non_watchlist_only" and is_in_watchlist:
+            continue
+        if target_watchlist_status is not None:
+            entry_status = _normalize_optional_text(watchlist_entry.status) if watchlist_entry is not None else None
+            if entry_status != target_watchlist_status:
+                continue
+        if filters.exclusion_filter == "excluded_only":
+            if not is_excluded:
+                continue
+        elif filters.exclusion_filter == "non_excluded_only":
+            if is_excluded:
+                continue
         if entry.company_id in excluded_company_ids:
             continue
         if target_sector is not None:
