@@ -9,7 +9,12 @@ import pytest
 
 from src.models.company import Company
 from src.models.kpi_snapshot import KpiSnapshot
-from src.models.watchlist_entry import WatchlistEntry
+from src.models.watchlist_entry import (
+    WATCHLIST_STATUS_CONVICTION,
+    WATCHLIST_STATUS_REVIEW,
+    WATCHLIST_STATUS_WATCHING,
+    WatchlistEntry,
+)
 from src.repositories import company_repository, kpi_snapshot_repository, watchlist_repository
 from src.services.ratio_service import CompanyRatios
 from src.services.screening_service import (
@@ -382,6 +387,83 @@ def test_filter_universe_with_scores_scored_only(db_session):
         companies["beta"].id,
         companies["epsilon"].id,
     ]
+
+
+def test_filter_universe_with_scores_watchlist_only(db_session):
+    companies = _seed_scored_universe_for_filters(db_session)
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=companies["alpha"].id, status=WATCHLIST_STATUS_WATCHING),
+    )
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=companies["gamma"].id, status=WATCHLIST_STATUS_REVIEW),
+    )
+    service = _make_screening_service(db_session)
+
+    rows = service.filter_universe_with_scores(
+        UniverseScreeningFilters(watchlist_scope="watchlist_only", include_excluded=True),
+    )
+
+    assert [row.company_id for row in rows] == [companies["alpha"].id, companies["gamma"].id]
+
+
+def test_filter_universe_with_scores_non_watchlist_only(db_session):
+    companies = _seed_scored_universe_for_filters(db_session)
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=companies["beta"].id, status=WATCHLIST_STATUS_CONVICTION),
+    )
+    service = _make_screening_service(db_session)
+
+    rows = service.filter_universe_with_scores(
+        UniverseScreeningFilters(watchlist_scope="non_watchlist_only"),
+    )
+
+    assert companies["beta"].id not in [row.company_id for row in rows]
+    assert len(rows) == 4
+
+
+def test_filter_universe_with_scores_by_watchlist_status(db_session):
+    companies = _seed_scored_universe_for_filters(db_session)
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=companies["alpha"].id, status=WATCHLIST_STATUS_WATCHING),
+    )
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=companies["beta"].id, status=WATCHLIST_STATUS_REVIEW),
+    )
+    service = _make_screening_service(db_session)
+
+    rows = service.filter_universe_with_scores(
+        UniverseScreeningFilters(watchlist_status=WATCHLIST_STATUS_REVIEW, include_excluded=True),
+    )
+
+    assert [row.company_id for row in rows] == [companies["beta"].id]
+
+
+def test_filter_universe_with_scores_exclusion_filter_modes(db_session):
+    companies = _seed_scored_universe_for_filters(db_session)
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=companies["alpha"].id, is_excluded=True, status=WATCHLIST_STATUS_REVIEW),
+    )
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=companies["beta"].id, is_excluded=False, status=WATCHLIST_STATUS_WATCHING),
+    )
+    service = _make_screening_service(db_session)
+
+    excluded_only = service.filter_universe_with_scores(
+        UniverseScreeningFilters(exclusion_filter="excluded_only", include_excluded=True),
+    )
+    non_excluded_only = service.filter_universe_with_scores(
+        UniverseScreeningFilters(exclusion_filter="non_excluded_only"),
+    )
+
+    assert [row.company_id for row in excluded_only] == [companies["alpha"].id]
+    assert companies["alpha"].id not in [row.company_id for row in non_excluded_only]
 
 
 def test_filter_universe_with_scores_excludes_analyst_excluded_companies_by_default(db_session):

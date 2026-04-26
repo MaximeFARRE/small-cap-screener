@@ -16,12 +16,40 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from src.services.screening_service import UniverseScreeningFilters, UniverseScreeningSortField
+from src.models.watchlist_entry import (
+    WATCHLIST_STATUS_CONVICTION,
+    WATCHLIST_STATUS_REJECTED,
+    WATCHLIST_STATUS_REVIEW,
+    WATCHLIST_STATUS_WATCHING,
+)
+from src.services.screening_service import (
+    UniverseScreeningFilters,
+    UniverseScreeningSortField,
+    WatchlistExclusionFilter,
+    WatchlistScopeFilter,
+)
 
 _SECTOR_PLACEHOLDER = "ex: energy"
 _MIN_SCORE_PLACEHOLDER = "ex: 70.0"
 _MIN_QUALITY_PLACEHOLDER = "ex: 0.6"
 _TOP_N_PLACEHOLDER = "ex: 25"
+_WATCHLIST_SCOPE_OPTIONS: list[tuple[str, str]] = [
+    ("Toutes sociétés", "all"),
+    ("Watchlist uniquement", "watchlist_only"),
+    ("Hors watchlist uniquement", "non_watchlist_only"),
+]
+_WATCHLIST_STATUS_OPTIONS: list[tuple[str, str | None]] = [
+    ("Tous statuts", None),
+    ("watching", WATCHLIST_STATUS_WATCHING),
+    ("review", WATCHLIST_STATUS_REVIEW),
+    ("rejected", WATCHLIST_STATUS_REJECTED),
+    ("conviction", WATCHLIST_STATUS_CONVICTION),
+]
+_EXCLUSION_FILTER_OPTIONS: list[tuple[str, str]] = [
+    ("Non exclues uniquement", "non_excluded_only"),
+    ("Exclues uniquement", "excluded_only"),
+    ("Toutes (exclues + non exclues)", "all"),
+]
 _SORT_OPTIONS: list[tuple[str, UniverseScreeningSortField]] = [
     ("Rang global", "rank"),
     ("Score total", "total_score"),
@@ -88,7 +116,18 @@ class FilterWidget(QWidget):
 
         self._stale_only_input = QCheckBox("Données obsolètes uniquement (>30j)")
         self._scored_only_input = QCheckBox("Sociétés scorées uniquement")
-        self._include_excluded_input = QCheckBox("Inclure sociétés exclues")
+
+        self._watchlist_scope_input = QComboBox()
+        for label, value in _WATCHLIST_SCOPE_OPTIONS:
+            self._watchlist_scope_input.addItem(label, value)
+
+        self._watchlist_status_input = QComboBox()
+        for label, value in _WATCHLIST_STATUS_OPTIONS:
+            self._watchlist_status_input.addItem(label, value)
+
+        self._exclusion_filter_input = QComboBox()
+        for label, value in _EXCLUSION_FILTER_OPTIONS:
+            self._exclusion_filter_input.addItem(label, value)
 
         self._top_n_input = QLineEdit()
         self._top_n_input.setValidator(QIntValidator(1, 999_999, self))
@@ -107,7 +146,9 @@ class FilterWidget(QWidget):
         form.addRow("Qualité min", self._min_quality_input)
         form.addRow("", self._stale_only_input)
         form.addRow("", self._scored_only_input)
-        form.addRow("", self._include_excluded_input)
+        form.addRow("Scope watchlist", self._watchlist_scope_input)
+        form.addRow("Status watchlist", self._watchlist_status_input)
+        form.addRow("Exclusions", self._exclusion_filter_input)
         form.addRow("Top N", self._top_n_input)
         form.addRow("Tri", self._sort_by_input)
         form.addRow("Ordre", self._sort_order_input)
@@ -130,8 +171,14 @@ class FilterWidget(QWidget):
         min_total_score = _parse_float(self._min_score_input.text())
         min_data_quality_score = _parse_float(self._min_quality_input.text())
         top_n = _parse_int(self._top_n_input.text())
+        watchlist_scope = cast(WatchlistScopeFilter, self._watchlist_scope_input.currentData() or "all")
+        watchlist_status = self._watchlist_status_input.currentData()
+        exclusion_filter = cast(
+            WatchlistExclusionFilter, self._exclusion_filter_input.currentData() or "non_excluded_only"
+        )
         sort_by = cast(UniverseScreeningSortField, self._sort_by_input.currentData() or "rank")
         descending = bool(self._sort_order_input.currentData())
+        include_excluded = exclusion_filter in ("all", "excluded_only")
         self.filters_applied.emit(
             UniverseScreeningFilters(
                 sector=sector,
@@ -139,7 +186,10 @@ class FilterWidget(QWidget):
                 min_data_quality_score=min_data_quality_score,
                 stale_only=self._stale_only_input.isChecked(),
                 scored_only=self._scored_only_input.isChecked(),
-                include_excluded=self._include_excluded_input.isChecked(),
+                watchlist_scope=watchlist_scope,
+                watchlist_status=cast(str | None, watchlist_status),
+                exclusion_filter=exclusion_filter,
+                include_excluded=include_excluded,
                 top_n=top_n,
                 sort_by=sort_by,
                 descending=descending,
@@ -152,7 +202,9 @@ class FilterWidget(QWidget):
         self._min_quality_input.clear()
         self._stale_only_input.setChecked(False)
         self._scored_only_input.setChecked(False)
-        self._include_excluded_input.setChecked(False)
+        self._watchlist_scope_input.setCurrentIndex(0)
+        self._watchlist_status_input.setCurrentIndex(0)
+        self._exclusion_filter_input.setCurrentIndex(0)
         self._top_n_input.clear()
         self._sort_by_input.setCurrentIndex(0)
         self._sort_order_input.setCurrentIndex(0)
