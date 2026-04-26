@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime
 
 from PySide6.QtCharts import (
@@ -44,6 +45,7 @@ from src.services.company_charts_service import (
     YearlyChartPoint,
 )
 from src.services.company_detail_service import CompanyFinancialDetail
+from src.services.peer_comparison_service import PeerCompanyRow, PeerComparisonData, PeerMetricComparison
 from src.services.scoring_service import ScoreExplanation, ScoreMetricDriver
 from src.services.screening_service import STALE_REFRESH_DAYS
 from src.services.watchlist_service import AnalystMemo, CompanyAnalystDetail
@@ -68,6 +70,7 @@ _GROUPS_ORDER = [
     "Historical fundamentals",
     "Valuation ratios",
     "Quality / Growth / Risk",
+    "Peer Comparison",
     "Analyste",
     "Analyst Memo",
     "Scoring",
@@ -258,6 +261,7 @@ class CompanyDetailWidget(QWidget):
         analyst_detail: CompanyAnalystDetail | None = None,
         financial_detail: CompanyFinancialDetail | None = None,
         chart_data: CompanyChartsData | None = None,
+        peer_comparison: PeerComparisonData | None = None,
     ) -> None:
         self._current_row = row
         for form in self._groups.values():
@@ -325,6 +329,7 @@ class CompanyDetailWidget(QWidget):
         self._populate_valuation_ratios(financial_detail)
         self._populate_quality_growth_risk(financial_detail)
         self._populate_charts(chart_data)
+        self._populate_peer_comparison(peer_comparison)
         self._update_alerts(row)
 
         self._set_field("Analyste", "Status watchlist", watchlist_status)
@@ -548,6 +553,25 @@ class CompanyDetailWidget(QWidget):
         self._fundamentals_chart_view.setChart(_empty_chart("Revenue and EBITDA / operating income"))
         self._margin_chart_view.setChart(_empty_chart("Operating margin history (%)"))
         self._score_chart_view.setChart(_empty_chart("Score breakdown"))
+
+    def _populate_peer_comparison(self, comparison: PeerComparisonData | None) -> None:
+        if comparison is None:
+            self._set_field("Peer Comparison", "Sector", _NA)
+            self._set_field("Peer Comparison", "Relative rank", _NA)
+            self._set_field("Peer Comparison", "Peer count", _NA)
+            self._set_field("Peer Comparison", "Median comparison", _NA)
+            self._set_field("Peer Comparison", "Peer table", _NA)
+            return
+
+        self._set_field("Peer Comparison", "Sector", comparison.sector or _NA)
+        self._set_field(
+            "Peer Comparison",
+            "Relative rank",
+            _fmt_relative_rank(comparison.company_sector_rank, comparison.sector_scored_count),
+        )
+        self._set_field("Peer Comparison", "Peer count", str(comparison.peer_count))
+        self._set_field("Peer Comparison", "Median comparison", _fmt_peer_metric_comparisons(comparison.metrics))
+        self._set_field("Peer Comparison", "Peer table", _fmt_peer_table(comparison.peer_rows))
 
     def _populate_analyst_memo(self, memo: AnalystMemo) -> None:
         self._set_field("Analyst Memo", "Investment thesis", _fmt_memo(memo.investment_thesis))
@@ -941,6 +965,78 @@ def _fmt_memo_quick_line(memo: AnalystMemo) -> str:
     if not present:
         return _NA
     return " | ".join(present)
+
+
+def _fmt_relative_rank(rank: int | None, sector_size: int) -> str:
+    if rank is None or sector_size <= 0:
+        return _NA
+    return f"#{rank}/{sector_size} ({_relative_rank_signal(rank, sector_size)})"
+
+
+def _relative_rank_signal(rank: int, sector_size: int) -> str:
+    top_limit = max(1, math.ceil(sector_size / 3))
+    mid_limit = max(top_limit, math.ceil((sector_size * 2) / 3))
+    if rank <= top_limit:
+        return "top tier"
+    if rank <= mid_limit:
+        return "mid tier"
+    return "bottom tier"
+
+
+def _fmt_peer_metric_comparisons(metrics: list[PeerMetricComparison]) -> str:
+    if not metrics:
+        return _NA
+    lines = ["Metric | Company | Sector median | Position"]
+    for metric in metrics:
+        lines.append(
+            " | ".join(
+                [
+                    metric.label,
+                    _fmt_peer_metric_value(metric.key, metric.company_value),
+                    _fmt_peer_metric_value(metric.key, metric.sector_median),
+                    metric.position or _NA,
+                ]
+            )
+        )
+    return "<pre>" + "\n".join(lines) + "</pre>"
+
+
+def _fmt_peer_table(rows: list[PeerCompanyRow]) -> str:
+    if not rows:
+        return _NA
+    lines = ["Ticker | Rank | Score | EV/EBITDA | P/E | Op. margin | Rev. growth"]
+    for row in rows:
+        lines.append(
+            " | ".join(
+                [
+                    row.ticker or _NA,
+                    str(row.sector_rank) if row.sector_rank is not None else _NA,
+                    _fmt_peer_metric_value("total_score", row.total_score),
+                    _fmt_peer_metric_value("ev_ebitda", row.ev_ebitda),
+                    _fmt_peer_metric_value("pe_ratio", row.pe_ratio),
+                    _fmt_peer_metric_value("operating_margin", row.operating_margin),
+                    _fmt_peer_metric_value("revenue_growth", row.revenue_growth),
+                ]
+            )
+        )
+    return "<pre>" + "\n".join(lines) + "</pre>"
+
+
+def _fmt_peer_metric_value(metric_key: str, value: float | None) -> str:
+    if metric_key in {"gross_margin", "operating_margin", "revenue_growth", "ebitda_growth"}:
+        return _fmt_pct(value)
+    if metric_key in {"ev_ebitda", "pe_ratio"}:
+        return _fmt_ratio(value)
+    if metric_key in {
+        "total_score",
+        "quality_score",
+        "value_score",
+        "growth_score",
+        "risk_score",
+        "data_quality_score",
+    }:
+        return _fmt(value, 1)
+    return _fmt(value)
 
 
 def _fmt_score_weights(explanation: ScoreExplanation | None) -> str:

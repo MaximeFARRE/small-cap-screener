@@ -10,6 +10,7 @@ from src.services.company_charts_service import CompanyChartsService, ScoreBreak
 from src.services.company_detail_service import CompanyDetailService
 from src.services.financial_data_service import FinancialDataService
 from src.services.kpi_snapshot_service import KpiSnapshotService
+from src.services.peer_comparison_service import PeerComparisonService
 from src.services.screening_service import ScreeningService, ScreeningSnapshotSummary, UniverseScreeningFilters
 from src.services.ticker_ingestion_service import TickerIngestionService
 from src.services.universe_discovery_service import UniverseDiscoveryService
@@ -35,6 +36,7 @@ class MainWindow(QMainWindow):
         self._watchlist_service = WatchlistService()
         self._company_detail_service = CompanyDetailService()
         self._company_charts_service = CompanyChartsService()
+        self._peer_comparison_service = PeerComparisonService()
         _financial_data_service = FinancialDataService(provider=YFinanceProvider())
         _kpi_snapshot_service = KpiSnapshotService()
         self._ticker_ingestion_service = TickerIngestionService(
@@ -132,7 +134,8 @@ class MainWindow(QMainWindow):
             financial_detail=financial_detail,
             score_breakdown=score_breakdown,
         )
-        self._detail.load(row, analyst_detail, financial_detail, chart_data)
+        peer_comparison = self._peer_comparison_service.get_company_peer_comparison(row.company_id)
+        self._detail.load(row, analyst_detail, financial_detail, chart_data, peer_comparison)
 
     def _on_selection_cleared(self) -> None:
         self._selected_company_id = None
