@@ -6,6 +6,7 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QDockWidget, QFileDialog, QInputDialog, QMainWindow, QMessageBox, QSplitter
 
 from src.repositories.providers.yfinance_provider import YFinanceProvider
+from src.services.backtesting_service import BacktestingService
 from src.services.company_charts_service import CompanyChartsService, ScoreBreakdownInput
 from src.services.company_detail_service import CompanyDetailService
 from src.services.financial_data_service import FinancialDataService
@@ -16,6 +17,7 @@ from src.services.ticker_ingestion_service import TickerIngestionService
 from src.services.universe_discovery_service import UniverseDiscoveryService
 from src.services.watchlist_service import AnalystMemo, CompanyAnalystDetail, WatchlistService
 from src.ui.add_ticker_dialog import AddTickerDialog
+from src.ui.backtesting_validation_dialog import BacktestingValidationDialog
 from src.ui.company_detail_widget import CompanyDetailWidget
 from src.ui.company_table_model import ScreenerRow
 from src.ui.filter_widget import FilterWidget
@@ -37,6 +39,7 @@ class MainWindow(QMainWindow):
         self._company_detail_service = CompanyDetailService()
         self._company_charts_service = CompanyChartsService()
         self._peer_comparison_service = PeerComparisonService()
+        self._backtesting_service = BacktestingService()
         _financial_data_service = FinancialDataService(provider=YFinanceProvider())
         _kpi_snapshot_service = KpiSnapshotService()
         self._ticker_ingestion_service = TickerIngestionService(
@@ -100,6 +103,7 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction("Sauvegarder ce screening…", self._save_screening_snapshot)
         file_menu.addAction("Snapshots récents…", self._open_recent_screening_snapshots)
+        file_menu.addAction("Validation ranking backtest…", self._open_backtesting_validation)
         file_menu.addSeparator()
         file_menu.addAction("Exporter CSV…", self._export_csv)
         file_menu.addAction("Exporter Excel…", self._export_excel)
@@ -346,6 +350,25 @@ class MainWindow(QMainWindow):
             self._current_filters,
         )
         dialog = ScreeningSnapshotDialog(snapshot_view, comparison_rows, parent=self)
+        dialog.exec()
+
+    def _open_backtesting_validation(self) -> None:
+        forward_days, accepted = QInputDialog.getInt(
+            self,
+            "Backtesting ranking",
+            "Forward horizon (days)",
+            90,
+            1,
+            3650,
+            1,
+        )
+        if not accepted:
+            return
+        analysis = self._backtesting_service.analyze_ranking_validation(forward_days=forward_days)
+        if analysis.total_snapshots == 0:
+            QMessageBox.information(self, "Backtesting", "Aucun snapshot KPI disponible pour le backtest.")
+            return
+        dialog = BacktestingValidationDialog(analysis, parent=self)
         dialog.exec()
 
 
