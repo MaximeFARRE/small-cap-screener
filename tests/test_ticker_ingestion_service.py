@@ -91,6 +91,7 @@ def _make_profile(ticker: str, isin: str | None = None) -> CompanyProfile:
 def _make_financial_service(profile: CompanyProfile, *, refresh_success: bool = True) -> MagicMock:
     svc = MagicMock()
     svc.provider.get_company_profile.return_value = profile
+    svc.provider.search_by_isin.return_value = profile.ticker
     svc.refresh_company_data.return_value = CompanyDataRefreshResult(
         company_id=1,
         ticker=profile.ticker,

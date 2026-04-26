@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import copy
 import datetime as dt
+import json
 import logging
 import time
+import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TypeVar
@@ -287,6 +289,20 @@ def _get_splits(ticker: str) -> list[SplitData]:
     return records
 
 
+def _search_by_isin(isin: str) -> str | None:
+    url = f"https://query2.finance.yahoo.com/v1/finance/search?q={isin}"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode())
+            quotes = data.get("quotes", [])
+            if quotes and "symbol" in quotes[0]:
+                return quotes[0]["symbol"]
+    except Exception as exc:
+        _LOGGER.warning("ISIN search failed for %s: %s", isin, exc)
+    return None
+
+
 class YFinanceProvider(BaseProvider):
     def __init__(self, cache_max_age: dt.timedelta | None = None) -> None:
         self._cache_max_age = _DEFAULT_CACHE_MAX_AGE if cache_max_age is None else cache_max_age
@@ -370,3 +386,11 @@ class YFinanceProvider(BaseProvider):
 
     def get_current_price(self, ticker: str) -> float:
         return self.get_current_market_data(ticker).current_price
+
+    def search_by_isin(self, isin: str) -> str | None:
+        return self._get_cached_or_fetch(
+            ticker=isin,
+            data_type="isin_search",
+            variant="default",
+            fetch_fn=lambda: _search_by_isin(isin),
+        )
