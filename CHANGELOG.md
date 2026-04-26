@@ -1,6 +1,30 @@
 # CHANGELOG
 
+## v0.9.0 (2026-04-26)
+
+### Feature
+
+* feat: pass company financial detail to detail widget on row selection ([`87a6942`](https://github.com/MaximeFARRE/small-cap-screener/commit/87a6942bfbc654055adb889be71756026b0a246d))
+
+* feat: enrich company detail widget with financial overview, valuation and quality sections ([`7783cd6`](https://github.com/MaximeFARRE/small-cap-screener/commit/7783cd66051cc05118a2db2f18ff1a8fb0b0d048))
+
+* feat: add company detail service with financial detail dto ([`9cd7b3d`](https://github.com/MaximeFARRE/small-cap-screener/commit/9cd7b3dcdfa20ae08564d2d83fa02b0f8726ffbb))
+
+### Test
+
+* test: add coverage for company detail service ([`f5f40e4`](https://github.com/MaximeFARRE/small-cap-screener/commit/f5f40e48d0a95abdb3a67c5a72cc5aae687d5f24))
+
+### Unknown
+
+* Merge pull request #19 from MaximeFARRE/feat/phase15-company-financial-detail
+
+Feat/phase15 company financial detail ([`6618cfe`](https://github.com/MaximeFARRE/small-cap-screener/commit/6618cfeb716841c2479e522aa5f30c3f4f30af07))
+
 ## v0.8.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.8.0 [skip ci] ([`efba7dc`](https://github.com/MaximeFARRE/small-cap-screener/commit/efba7dc45377388aba73f29f577c293eef6a3d19))
 
 ### Feature
 
