@@ -11,6 +11,7 @@ from src.services.company_charts_service import CompanyChartsService, ScoreBreak
 from src.services.company_detail_service import CompanyDetailService
 from src.services.financial_data_service import FinancialDataService
 from src.services.kpi_snapshot_service import KpiSnapshotService
+from src.services.maintenance_service import MaintenanceService
 from src.services.peer_comparison_service import PeerComparisonService
 from src.services.scoring_service import ScoringService
 from src.services.screening_service import ScreeningService, ScreeningSnapshotSummary, UniverseScreeningFilters
@@ -40,6 +41,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._settings_service = SettingsService()
         self._settings = self._settings_service.load()
+        self._maintenance_service = MaintenanceService()
         self._scoring_service = ScoringService(sub_score_weights=self._settings.scoring_weights())
         self._screening_service = ScreeningService(scoring_service=self._scoring_service)
         self._watchlist_service = WatchlistService()
@@ -117,6 +119,13 @@ class MainWindow(QMainWindow):
         file_menu.addAction("Exporter watchlist CSV…", self._export_watchlist_csv)
         file_menu.addSeparator()
         file_menu.addAction("Paramètres…", self._open_settings_dialog)
+
+        maintenance_menu = self.menuBar().addMenu("Maintenance")
+        maintenance_menu.addAction("Sauvegarder la base de données…", self._backup_database)
+        maintenance_menu.addAction("Nettoyer/Optimiser (VACUUM)", self._vacuum_database)
+        maintenance_menu.addSeparator()
+        maintenance_menu.addAction("Réinitialiser les données…", self._reset_demo_data)
+        maintenance_menu.addAction("Afficher l'emplacement de la base", self._show_database_location)
 
     def _load_scored_universe(self, selected_company_id: int | None = None) -> None:
         rows = self._screening_service.filter_universe_with_scores(self._current_filters)
@@ -390,6 +399,52 @@ class MainWindow(QMainWindow):
         self._scoring_service.sub_score_weights = settings.scoring_weights()
         self._load_scored_universe(selected_company_id=self._selected_company_id)
         self.statusBar().showMessage("Paramètres appliqués.", 4000)
+
+    def _backup_database(self) -> None:
+        try:
+            backup_path = self._maintenance_service.backup_database()
+            QMessageBox.information(
+                self,
+                "Sauvegarde réussie",
+                f"Base de données sauvegardée dans :\n{backup_path.resolve()}",
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur de sauvegarde", f"Impossible de sauvegarder la base de données :\n{e}")
+
+    def _vacuum_database(self) -> None:
+        try:
+            self._maintenance_service.vacuum_database()
+            QMessageBox.information(
+                self,
+                "Optimisation terminée",
+                "La base de données a été nettoyée et optimisée avec succès.",
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur", f"Impossible d'optimiser la base de données :\n{e}")
+
+    def _reset_demo_data(self) -> None:
+        reply = QMessageBox.question(
+            self,
+            "Réinitialisation",
+            "Attention : cette action supprimera TOUTES les données en base "
+            "(entreprises, ratios, watchlists, etc.).\n\nVoulez-vous continuer ?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                self._maintenance_service.reset_demo_data()
+                self._load_scored_universe()
+                QMessageBox.information(self, "Réinitialisation", "Toutes les données ont été effacées avec succès.")
+            except Exception as e:
+                QMessageBox.critical(self, "Erreur", f"Impossible de réinitialiser la base :\n{e}")
+
+    def _show_database_location(self) -> None:
+        path = self._maintenance_service.get_database_path()
+        if path is not None:
+            QMessageBox.information(self, "Emplacement", f"La base de données se trouve ici :\n{path.resolve()}")
+        else:
+            QMessageBox.warning(self, "Emplacement", "Emplacement indisponible (la base n'est peut-être pas locale).")
 
     @staticmethod
     def _build_financial_data_service(settings: AppSettings) -> FinancialDataService:

@@ -34,6 +34,7 @@ Target universe:
 * Provider redundancy layer (`ChainedProvider`, `NoOpProvider`, `YFinanceProvider`): delivered.
 * Error feedback polish (clean user-facing messages in French): delivered.
 * Settings & Configuration (offline mode, scoring weights, JSON persistence): delivered.
+* Database & Data Maintenance (backup, vacuum, data reset UI, schema migration strategy): delivered.
 * Reliability layer (retry/fallback, offline mode, data quality score): delivered.
 * Desktop packaging baseline (PyInstaller): delivered.
 * Recruiter-ready documentation and demo assets: in progress.
@@ -122,13 +123,11 @@ Target universe:
 * Real-time UI validation for scoring weights (must sum to 1.0).
 * Hot-reload of settings into running services.
 
-## Phase 32 — Database migrations and data maintenance
+### Phase 32 — Database migrations and data maintenance
 
-* Add explicit migration strategy if schema continues evolving
-* Add DB backup command or UI action
-* Add reset demo data command
-* Add vacuum/cleanup maintenance command if useful
-* Document DB location and recovery process
+* Explicit manual migration strategy via `database.py` initialization.
+* `MaintenanceService` with UI actions for database backup (`.bak`), VACUUM optimization, and full demo data reset.
+* Documentation of database location and recovery process in `ARCHITECTURE.md`.
 
 ## Phase 33 — Performance and scalability
 
