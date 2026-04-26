@@ -102,24 +102,24 @@ Out of scope V1:
 
 ## Phase 11 — Analyst workflow
 
-* Watchlist
-* Personal notes
-* Exclusions
-* CSV / Excel export
-* Screening snapshots
+- [x] Watchlist
+- [x] Personal notes
+- [x] Exclusions
+- [x] CSV / Excel export
+- [x] Screening snapshots
 
 ## Phase 12 — Reliability
 
-* Cache strategy
-* Retry + fallback handling
-* Offline mode
-* Data quality score
-* Clean logs
+- [x] Cache strategy
+- [x] Retry + fallback handling
+- [x] Offline mode
+- [x] Data quality score
+- [x] Clean logs
 
 ## Phase 13 — Final delivery
 
-* Full tests + linting
-* Packaging (desktop executable)
-* Recruiter-ready GitHub presentation
-* Demo dataset + screenshots
-* Final documentation
+- [x] Full tests + linting
+- [ ] Packaging (desktop executable)
+- [ ] Recruiter-ready GitHub presentation
+- [ ] Demo dataset + screenshots
+- [ ] Final documentation

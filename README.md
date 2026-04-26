@@ -15,7 +15,7 @@ The goal is to provide a **simple, reliable and extensible tool** to:
 
 * Local database of companies and financial data
 * Financial ratios (valuation, quality, growth, risk)
-* Multi-factor scoring (quality, value, growth)
+* Multi-factor scoring (quality, value, growth, risk)
 * Screening and filtering
 * Export (CSV / Excel)
 
