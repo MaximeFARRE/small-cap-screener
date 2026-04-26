@@ -22,8 +22,18 @@ Target universe:
 * KPI computation and V1 multi-factor scoring: delivered.
 * Global and sector ranking: delivered.
 * Analyst workflow (watchlist, notes, status, exclusions): delivered.
+* Analyst memo workflow (thesis, risks, catalysts, valuation notes, next action): delivered.
+* Historical fundamentals and multi-year CAGR table: delivered.
+* Scoring transparency and weight configuration: delivered.
+* Real ticker and ISIN ingestion from the app (no CSV required): delivered.
 * Screening filters/sorting and CSV/Excel exports: delivered.
-* Reliability layer (cache, retry/fallback, offline mode, data quality score): delivered.
+* Screening snapshots V2 with comparison: delivered.
+* Charts and visual analysis: delivered.
+* Sector peer comparison: delivered.
+* Backtesting and ranking validation service: delivered.
+* Provider redundancy layer (`ChainedProvider`, `NoOpProvider`, `YFinanceProvider`): delivered.
+* Error feedback polish (clean user-facing messages in French): delivered.
+* Reliability layer (retry/fallback, offline mode, data quality score): delivered.
 * Desktop packaging baseline (PyInstaller): delivered.
 * Recruiter-ready documentation and demo assets: in progress.
 
@@ -55,170 +65,53 @@ Target universe:
 
 ### Phase 12 to 13 — Reliability and release readiness
 
-* Provider calls hardened with cache, retry, fallback, and offline mode.
+* Provider calls hardened with retry, fallback, and offline mode.
 * Data quality score added to highlight low-confidence dossiers.
-* CI quality gates aligned (`pytest`, `ruff`, `black --check`) and desktop build configured.
+* CI quality gates aligned (`pytest`, `ruff check`, `ruff format --check`) and desktop build configured.
 
 
-## Phase 14 — Real ticker ingestion from the app
+### Phase 14 to 19 — Real ingestion, refresh workflow, and data freshness UI
 
-* Add company manually from a Yahoo Finance ticker inside the desktop app
-* Validate ticker format and show clear error messages
-* Fetch company profile, price history, market data and financial statements from provider
-* Create or update the company in local DB automatically
-* Trigger normalization, KPI snapshot, scoring and ranking after ingestion
-* Refresh screener table immediately after successful import
-* Remove dependency on manual CSV import for normal user workflow
+* Real ticker and ISIN ingestion from the desktop app (no CSV required).
+* Ticker format validation and suffix resolution (`.PA`, `.AL`, etc.).
+* Company profile, price history, market data, and financial statements fetched from provider.
+* One-click refresh for single company, watchlist, or full universe.
+* Progress feedback with success count, failure count, and error details.
+* Data freshness and quality score visible in screener and detail panel.
+* Warning indicators for stale or low-confidence data.
 
-## Phase 15 — Real company financial detail page
+### Phase 20 to 22 — Historical fundamentals, scoring transparency, and analyst memo
 
-* Display current price and market cap
-* Display enterprise value when computable
-* Display revenue, EBITDA/operating income, net income, free cash flow and net debt
-* Display valuation ratios: P/E, P/B, EV/EBITDA, EV/Sales, FCF yield
-* Display quality ratios: margins, ROE/ROA/ROIC if available
-* Display growth metrics: revenue growth, earnings growth, FCF growth
-* Display risk metrics: leverage, liquidity, volatility/data confidence if available
-* Show latest financial period used for each metric
-* Clearly mark missing or unreliable values
+* Historical financials multi-year table with CAGR and trend indicators.
+* Score transparency: weighted sub-score decomposition, positive/negative drivers.
+* Sub-score weight configuration in `src/services/scoring_config.py` (deterministic and auditable).
+* Structured analyst memo: thesis, risks, catalysts, valuation notes, next action.
 
-## Phase 16 — Provider coverage and ticker resolution
+### Phase 23 to 25 — Advanced watchlist and export
 
-* Improve Yahoo Finance ticker handling for French stocks
-* Add ticker suffix assistance (`.PA`, `.AL`, etc.)
-* Add provider response validation before saving data
-* Add clear distinction between no data, invalid ticker and temporary provider error
-* Add provider health diagnostics in logs
-* Prepare provider abstraction for future redundancy
+* Advanced watchlist workflow with status views: watching, review, conviction, rejected.
+* Screening snapshots V2: create, list, inspect, and compare vs current ranking.
+* Export polish: CSV/Excel with metadata sheet, watchlist export, snapshot export.
 
-## Phase 17 — Universe discovery without CSV workflow
+### Phase 26 to 28 — Charts, peer comparison, and backtesting
 
-* Add an in-app way to build or refresh the French small-cap universe
-* Start from provider/search sources where possible
-* Allow manual ticker addition as fallback
-* Store source and refresh date for every company
-* Add universe refresh service to update existing companies in batch
-* Keep CSV seed only as demo/dev fixture, not as core user flow
+* Price history, revenue/EBITDA, margin evolution, and score breakdown charts.
+* Sector peer comparison: valuation, quality/growth/risk ratios vs sector median.
+* Backtesting and ranking validation: forward returns by score bucket, hit rate, top-vs-bottom spread.
 
-## Phase 18 — Full refresh workflow
+### Phase 29 — Provider redundancy
 
-* Add one-click refresh for selected company
-* Add one-click refresh for watchlist
-* Add one-click refresh for full universe
-* Show progress, success count, failure count and error details
-* Ensure batch refresh is resilient company by company
-* Preserve existing notes, status, exclusions and snapshots during refresh
+* `BaseProvider` abstract interface for all financial data sources.
+* `YFinanceProvider`: Yahoo Finance implementation.
+* `ChainedProvider`: ordered fallback across multiple providers; non-ProviderError exceptions propagate.
+* `NoOpProvider`: safe stub for testing and offline scenarios.
 
-## Phase 19 — Data freshness and quality UI
+### Phase 30 — Error handling and user feedback polish
 
-* Display last data refresh date per company
-* Display last KPI snapshot date
-* Display data quality score in screener and detail panel
-* Add warning badges for stale, incomplete or low-quality data
-* Add filter for minimum data quality
-* Add filter for recently refreshed companies
-
-## Phase 20 — Ratio table and historical fundamentals
-
-* Add a dedicated ratios table in company detail page
-* Show latest metrics and historical values over several years when available
-* Add revenue, margin, earnings and cash-flow history
-* Add debt and balance sheet evolution
-* Add CAGR calculations where data quality allows it
-* Add simple trend indicators without over-engineering
-
-## Phase 21 — Score transparency and scoring configuration
-
-* Display how total score is built from quality, value, growth and risk
-* Show strongest positive and negative score contributors
-* Add score explanation at factor level, not only summary level
-* Allow basic scoring weights configuration in a service/config layer
-* Keep scoring deterministic and auditable
-* Add tests ensuring ranking changes correctly when weights change
-
-## Phase 22 — Analyst memo workflow
-
-* Add structured analyst memo fields:
-  * investment thesis
-  * risks
-  * catalysts
-  * valuation notes
-  * next action
-* Persist memo locally
-* Display memo in company detail page
-* Allow editing without breaking watchlist notes
-* Add export-ready memo format
-
-## Phase 23 — Advanced watchlist workflow
-
-* Add watchlist views by status: watching, review, conviction, rejected
-* Add filters for watchlist only / non-watchlist only
-* Add filter for excluded companies
-* Add next review date
-* Add simple analyst action queue
-* Preserve all workflow data across refreshes
-
-## Phase 24 — Screening snapshots V2
-
-* Add UI action to create a screening snapshot
-* List previous screening snapshots
-* Open and inspect a saved snapshot
-* Compare current ranking vs previous snapshot
-* Show rank changes and score changes
-* Keep snapshot format stable and readable
-
-## Phase 25 — Export polish
-
-* Improve CSV and Excel formatting
-* Add export for current screener view
-* Add export for watchlist only
-* Add export for company memo
-* Add export for screening snapshot
-* Add metadata sheet in Excel exports with date, filters and scoring version
-
-## Phase 26 — Charts and visual analysis
-
-* Add price history chart
-* Add revenue and EBITDA chart
-* Add margin evolution chart
-* Add score breakdown visual
-* Add simple ranking distribution chart
-* Keep charts lightweight and desktop-friendly
-
-## Phase 27 — Benchmark and relative analysis
-
-* Add sector peer comparison
-* Compare valuation ratios against sector median
-* Compare quality/growth/risk against sector median
-* Add relative rank within sector
-* Add simple peer table in company detail page
-* Avoid advanced backtesting until data coverage is strong enough
-
-## Phase 28 — Backtesting and ranking validation
-
-* Save historical score snapshots over time
-* Track forward performance after ranking date
-* Compare top-ranked bucket vs lower-ranked bucket
-* Add basic benchmark comparison if data is available
-* Add performance summary by score factor
-* Clearly mark limitations and data bias
-
-## Phase 29 — Provider redundancy
-
-* Add a second provider interface if a reliable free/affordable source is selected
-* Implement fallback provider logic
-* Compare conflicting provider values explicitly
-* Store provider source per data point or snapshot when useful
-* Add tests for provider fallback behavior
-
-## Phase 30 — Error handling and user feedback polish
-
-* Replace technical errors in UI with clear user messages
-* Add detailed logs for developers
-* Add retry feedback in UI during refresh
-* Add provider unavailable state
-* Add invalid ticker state
-* Add partial success state for batch refresh
+* `error_formatter` UI helper: clean French-language messages replacing raw provider exceptions.
+* Error kind propagation (`not_found`, `provider_error`, `data_inconsistent`) from provider to UI.
+* Batch refresh summary with success/failure counts and first failed tickers.
+* `error_kind` field carried through ingestion and refresh result dataclasses.
 
 ## Phase 31 — Settings and configuration
 
