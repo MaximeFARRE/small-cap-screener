@@ -739,3 +739,59 @@ def test_export_universe_with_scores_excel_excludes_excluded_companies_by_defaul
     included_tickers = [row["ticker"] for row in rows_with_excluded]
 
     assert "BET.PA" in included_tickers
+
+
+def test_save_and_get_screening_snapshot_roundtrip(db_session):
+    companies = _seed_scored_universe_for_filters(db_session)
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=companies["beta"].id, is_excluded=True),
+    )
+    service = _make_screening_service(db_session)
+
+    saved = service.save_screening_snapshot(
+        UniverseScreeningFilters(sort_by="ticker", descending=True),
+        name="snapshot one",
+    )
+    loaded = service.get_screening_snapshot(saved.snapshot_id)
+
+    assert loaded is not None
+    assert loaded.snapshot_id == saved.snapshot_id
+    assert loaded.name == "snapshot one"
+    assert loaded.filters["sort_by"] == "ticker"
+    assert loaded.filters["descending"] is True
+    assert loaded.filters["include_excluded"] is False
+    assert loaded.company_count == 4
+    assert loaded.company_ids == [
+        companies["gamma"].id,
+        companies["epsilon"].id,
+        companies["delta"].id,
+        companies["alpha"].id,
+    ]
+    assert [row["ticker"] for row in loaded.results] == ["GAM.PA", "EPS.PA", "DEL.PA", "ALP.PA"]
+
+
+def test_save_screening_snapshot_can_include_excluded_companies(db_session):
+    companies = _seed_scored_universe_for_filters(db_session)
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=companies["beta"].id, is_excluded=True),
+    )
+    service = _make_screening_service(db_session)
+
+    saved = service.save_screening_snapshot(
+        UniverseScreeningFilters(include_excluded=True, sort_by="rank"),
+        name="snapshot include excluded",
+    )
+
+    assert saved.company_count == 5
+    assert companies["beta"].id in saved.company_ids
+    assert "BET.PA" in [row["ticker"] for row in saved.results]
+
+
+def test_get_screening_snapshot_returns_none_when_missing(db_session):
+    service = _make_screening_service(db_session)
+
+    loaded = service.get_screening_snapshot(999999)
+
+    assert loaded is None
