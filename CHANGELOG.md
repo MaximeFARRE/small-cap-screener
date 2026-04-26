@@ -1,6 +1,48 @@
 # CHANGELOG
 
+## v0.6.0 (2026-04-26)
+
+### Chore
+
+* chore: harmonize kpi snapshot reliability logging ([`aeee6e9`](https://github.com/MaximeFARRE/small-cap-screener/commit/aeee6e94edaf77e4466af3c7c69355ebd21b4d3e))
+
+* chore: structure reliability logs in financial data service ([`d6a9b9a`](https://github.com/MaximeFARRE/small-cap-screener/commit/d6a9b9ad44e7989a7a4216159c02c4d101deadcc))
+
+### Feature
+
+* feat: add data quality score to kpi snapshots ([`3016a6f`](https://github.com/MaximeFARRE/small-cap-screener/commit/3016a6f63943324164d99e6583f905fea831de43))
+
+* feat: add offline mode path in financial data service ([`1ea28e0`](https://github.com/MaximeFARRE/small-cap-screener/commit/1ea28e07a8a12411ac2054df528b4619ab9f2aee))
+
+* feat: add provider retry and fallback in ingestion service ([`8203979`](https://github.com/MaximeFARRE/small-cap-screener/commit/8203979e8357157c91656a44a83b958e6bfa1f10))
+
+* feat: add ttl cache for yfinance provider calls ([`a3ef5d1`](https://github.com/MaximeFARRE/small-cap-screener/commit/a3ef5d17fe0f6ab361953aafa0fb7e9ae964027a))
+
+### Fix
+
+* fix: align data quality ratio coverage with snapshot metrics ([`af0f1b4`](https://github.com/MaximeFARRE/small-cap-screener/commit/af0f1b434246dd77a14ea2eec613a33a1b34674e))
+
+### Test
+
+* test: add data quality score checks for kpi snapshots ([`87dfeb3`](https://github.com/MaximeFARRE/small-cap-screener/commit/87dfeb3141259f9d98d755f274f2468606b0132c))
+
+* test: add offline mode coverage for local data ([`48a4bf7`](https://github.com/MaximeFARRE/small-cap-screener/commit/48a4bf792cf11a6ce40980c3b3a39e78dcbd18af))
+
+* test: cover ingestion retry success and fallback ([`e5f23eb`](https://github.com/MaximeFARRE/small-cap-screener/commit/e5f23eb12228fc9fcff42bc8832840ff4e72929d))
+
+* test: add cache hit and miss coverage for provider ([`8b7bf0b`](https://github.com/MaximeFARRE/small-cap-screener/commit/8b7bf0b60171acbad42e9fde05350ba89562618f))
+
+### Unknown
+
+* Merge pull request #16 from MaximeFARRE/feat/phase12-cache-strategy
+
+Feat/phase12 cache strategy ([`5aedca3`](https://github.com/MaximeFARRE/small-cap-screener/commit/5aedca3ca1d26b91b22e9ff16478ad794d605f4e))
+
 ## v0.5.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.5.0 [skip ci] ([`8629bff`](https://github.com/MaximeFARRE/small-cap-screener/commit/8629bfff6f218415740a041783d6a206e8a24b2a))
 
 ### Documentation
 
