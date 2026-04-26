@@ -38,6 +38,15 @@ def update_status_by_company_id(session: Session, company_id: int, status: str) 
     return entry
 
 
+def update_excluded_by_company_id(session: Session, company_id: int, is_excluded: bool) -> WatchlistEntry | None:
+    entry = get_by_company_id(session, company_id)
+    if entry is None:
+        return None
+    entry.is_excluded = is_excluded
+    session.flush()
+    return entry
+
+
 def remove_by_company_id(session: Session, company_id: int) -> bool:
     entry = get_by_company_id(session, company_id)
     if entry is None:

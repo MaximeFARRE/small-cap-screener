@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, String, UniqueConstraint, false, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.repositories.database import Base
@@ -38,6 +38,11 @@ class WatchlistEntry(Base):
         String(20),
         default=WATCHLIST_STATUS_WATCHING,
         server_default=WATCHLIST_STATUS_WATCHING,
+    )
+    is_excluded: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default=false(),
     )
     added_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
