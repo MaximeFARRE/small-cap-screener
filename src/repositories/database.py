@@ -37,6 +37,7 @@ def init_db() -> None:
     import src.models.watchlist_entry  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _ensure_company_columns()
     _ensure_watchlist_memo_columns()
 
 
@@ -71,3 +72,19 @@ def _ensure_watchlist_memo_columns() -> None:
             if column_name in existing_columns:
                 continue
             connection.exec_driver_sql(f"ALTER TABLE watchlist_entries ADD COLUMN {column_name} {column_sql_type}")
+
+
+def _ensure_company_columns() -> None:
+    company_columns: dict[str, str] = {
+        "source_origin": "VARCHAR(20)",
+        "last_universe_refresh_at": "DATETIME",
+    }
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        if "companies" not in inspector.get_table_names():
+            return
+        existing_columns = {column["name"] for column in inspector.get_columns("companies")}
+        for column_name, column_sql_type in company_columns.items():
+            if column_name in existing_columns:
+                continue
+            connection.exec_driver_sql(f"ALTER TABLE companies ADD COLUMN {column_name} {column_sql_type}")
