@@ -4,7 +4,8 @@ import csv
 import math
 from collections.abc import Callable
 from contextlib import AbstractContextManager
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
 from io import BytesIO, StringIO
 from typing import Literal
 
@@ -12,7 +13,13 @@ import pandas as pd
 from sqlalchemy.orm import Session
 
 from src.models.kpi_snapshot import KpiSnapshot
-from src.repositories import company_repository, kpi_snapshot_repository, watchlist_repository
+from src.models.screening_snapshot import ScreeningSnapshot
+from src.repositories import (
+    company_repository,
+    kpi_snapshot_repository,
+    screening_snapshot_repository,
+    watchlist_repository,
+)
 from src.repositories.database import get_session
 from src.services.kpi_snapshot_service import KpiSnapshotService
 from src.services.ratio_service import CompanyRatios
@@ -93,6 +100,17 @@ class UniverseScreeningFilters:
     top_n: int | None = None
     sort_by: UniverseScreeningSortField = "rank"
     descending: bool = False
+
+
+@dataclass(frozen=True)
+class SavedScreeningSnapshot:
+    snapshot_id: int
+    name: str
+    created_at: datetime
+    filters: dict[str, object]
+    company_count: int
+    company_ids: list[int]
+    results: list[dict[str, object]]
 
 
 @dataclass
@@ -216,6 +234,46 @@ class ScreeningService:
             country=country,
         )
         return _build_universe_screening_excel(rows)
+
+    def save_screening_snapshot(
+        self,
+        filters: UniverseScreeningFilters,
+        *,
+        name: str = "screening snapshot",
+        max_market_cap: float | None = None,
+        min_average_daily_volume: float | None = None,
+        country: str | None = None,
+    ) -> SavedScreeningSnapshot:
+        rows = self.filter_universe_with_scores(
+            filters,
+            max_market_cap=max_market_cap,
+            min_average_daily_volume=min_average_daily_volume,
+            country=country,
+        )
+        company_ids = [row.company_id for row in rows]
+        results = _build_universe_screening_export_records(rows)
+        with self.session_scope_factory() as session:
+            stored = screening_snapshot_repository.add(
+                session,
+                ScreeningSnapshot(
+                    name=name,
+                    filters=asdict(filters),
+                    company_ids=company_ids,
+                    scores={
+                        "company_count": len(company_ids),
+                        "results": results,
+                    },
+                ),
+            )
+            session.refresh(stored)
+            return _to_saved_screening_snapshot(stored)
+
+    def get_screening_snapshot(self, snapshot_id: int) -> SavedScreeningSnapshot | None:
+        with self.session_scope_factory() as session:
+            snapshot = screening_snapshot_repository.get_by_id(session, snapshot_id)
+        if snapshot is None:
+            return None
+        return _to_saved_screening_snapshot(snapshot)
 
     def _list_excluded_company_ids(self) -> set[int]:
         with self.session_scope_factory() as session:
@@ -453,3 +511,35 @@ def _export_value(value: object) -> object:
     if value is None:
         return ""
     return value
+
+
+def _to_saved_screening_snapshot(snapshot: ScreeningSnapshot) -> SavedScreeningSnapshot:
+    if snapshot.created_at is None:
+        raise RuntimeError("screening snapshot is missing created_at")
+    filters = snapshot.filters if isinstance(snapshot.filters, dict) else {}
+    company_ids = snapshot.company_ids if isinstance(snapshot.company_ids, list) else []
+    scores = snapshot.scores if isinstance(snapshot.scores, dict) else {}
+    company_count = scores.get("company_count")
+    if not isinstance(company_count, int):
+        company_count = len(company_ids)
+    results = _normalize_snapshot_results(scores.get("results"))
+    return SavedScreeningSnapshot(
+        snapshot_id=snapshot.id,
+        name=snapshot.name,
+        created_at=snapshot.created_at,
+        filters={str(key): value for key, value in filters.items()},
+        company_count=company_count,
+        company_ids=[company_id for company_id in company_ids if isinstance(company_id, int)],
+        results=results,
+    )
+
+
+def _normalize_snapshot_results(raw_results: object) -> list[dict[str, object]]:
+    if not isinstance(raw_results, list):
+        return []
+    normalized: list[dict[str, object]] = []
+    for row in raw_results:
+        if not isinstance(row, dict):
+            continue
+        normalized.append({column: row.get(column, "") for column in _UNIVERSE_SCREENING_EXPORT_COLUMNS})
+    return normalized
