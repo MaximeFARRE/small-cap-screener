@@ -1,6 +1,32 @@
 # CHANGELOG
 
+## v0.24.0 (2026-04-26)
+
+### Feature
+
+* feat: add provider_used to CompanyDataRefreshResult and use source_name in FinancialDataService ([`c9403eb`](https://github.com/MaximeFARRE/small-cap-screener/commit/c9403ebe1211d48e955d463fbcb368a38fc0f66f))
+
+* feat: add ChainedProvider for primary/fallback provider orchestration ([`f1645a5`](https://github.com/MaximeFARRE/small-cap-screener/commit/f1645a566345eb0bcd480583bd37e90e2faf9d09))
+
+* feat: add NoOpProvider as explicit provider failure sentinel ([`2cad6ef`](https://github.com/MaximeFARRE/small-cap-screener/commit/2cad6ef0dd3e3cd6c77009274682af0b12b68a41))
+
+* feat: add source_name property to BaseProvider for provider identification ([`8e3b889`](https://github.com/MaximeFARRE/small-cap-screener/commit/8e3b889b6106babf2d01a06ba6cc2de15f2972e8))
+
+### Test
+
+* test: add ChainedProvider and NoOpProvider tests for provider redundancy ([`92eb4e1`](https://github.com/MaximeFARRE/small-cap-screener/commit/92eb4e1742b815a3883178d7daa5a453e3853e3c))
+
+### Unknown
+
+* Merge pull request #34 from MaximeFARRE/feat/phase29-provider-redundancy
+
+Feat/phase29 provider redundancy ([`7bd1159`](https://github.com/MaximeFARRE/small-cap-screener/commit/7bd1159133967b9582fc4f8e0a7eae023b550c34))
+
 ## v0.23.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.23.0 [skip ci] ([`84130c4`](https://github.com/MaximeFARRE/small-cap-screener/commit/84130c4353c94864964dcd677be739a9b1cd167a))
 
 ### Feature
 
