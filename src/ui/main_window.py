@@ -2,13 +2,14 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QAction, QDockWidget, QFileDialog, QMainWindow, QMessageBox, QSplitter
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QDockWidget, QFileDialog, QInputDialog, QMainWindow, QMessageBox, QSplitter
 
 from src.repositories.providers.yfinance_provider import YFinanceProvider
 from src.services.company_detail_service import CompanyDetailService
 from src.services.financial_data_service import FinancialDataService
 from src.services.kpi_snapshot_service import KpiSnapshotService
-from src.services.screening_service import ScreeningService, UniverseScreeningFilters
+from src.services.screening_service import ScreeningService, ScreeningSnapshotSummary, UniverseScreeningFilters
 from src.services.ticker_ingestion_service import TickerIngestionService
 from src.services.universe_discovery_service import UniverseDiscoveryService
 from src.services.watchlist_service import AnalystMemo, WatchlistService
@@ -17,6 +18,7 @@ from src.ui.company_detail_widget import CompanyDetailWidget
 from src.ui.company_table_model import ScreenerRow
 from src.ui.filter_widget import FilterWidget
 from src.ui.screener_widget import ScreenerWidget
+from src.ui.screening_snapshot_dialog import ScreeningSnapshotDialog
 
 WINDOW_TITLE = "Small Cap Screener"
 WINDOW_WIDTH = 1280
@@ -91,6 +93,9 @@ class MainWindow(QMainWindow):
         self._refresh_watchlist_action = QAction("Actualiser la watchlist", self)
         self._refresh_watchlist_action.triggered.connect(self._refresh_watchlist)
         file_menu.addAction(self._refresh_watchlist_action)
+        file_menu.addSeparator()
+        file_menu.addAction("Sauvegarder ce screening…", self._save_screening_snapshot)
+        file_menu.addAction("Snapshots récents…", self._open_recent_screening_snapshots)
         file_menu.addSeparator()
         file_menu.addAction("Exporter CSV…", self._export_csv)
 
@@ -253,6 +258,50 @@ class MainWindow(QMainWindow):
             )
             Path(path).write_text(csv_content, encoding="utf-8-sig")
 
+    def _save_screening_snapshot(self) -> None:
+        default_name = _default_screening_snapshot_name()
+        name, accepted = QInputDialog.getText(self, "Sauvegarder screening", "Nom du snapshot", text=default_name)
+        if not accepted:
+            return
+        snapshot_name = name.strip() or default_name
+        saved = self._screening_service.save_screening_snapshot(
+            self._current_filters,
+            name=snapshot_name,
+        )
+        self.statusBar().showMessage(
+            f"Snapshot #{saved.snapshot_id} enregistré ({saved.company_count} société(s)).",
+            5000,
+        )
+
+    def _open_recent_screening_snapshots(self) -> None:
+        summaries = self._screening_service.list_recent_screening_snapshots(limit=20)
+        if not summaries:
+            QMessageBox.information(self, "Snapshots", "Aucun snapshot enregistré.")
+            return
+        options = [_snapshot_summary_option(summary) for summary in summaries]
+        selected, accepted = QInputDialog.getItem(
+            self,
+            "Snapshots récents",
+            "Choisir un snapshot",
+            options,
+            0,
+            False,
+        )
+        if not accepted or not selected:
+            return
+        selected_index = options.index(selected)
+        summary = summaries[selected_index]
+        snapshot_view = self._screening_service.get_screening_snapshot_view(summary.snapshot_id)
+        if snapshot_view is None:
+            QMessageBox.warning(self, "Snapshots", "Impossible de charger ce snapshot.")
+            return
+        comparison_rows = self._screening_service.compare_snapshot_to_current(
+            summary.snapshot_id,
+            self._current_filters,
+        )
+        dialog = ScreeningSnapshotDialog(snapshot_view, comparison_rows, parent=self)
+        dialog.exec()
+
 
 def _parse_next_review_at(value: str) -> datetime | None:
     text = value.strip()
@@ -265,3 +314,14 @@ def _parse_next_review_at(value: str) -> datetime | None:
             return datetime.strptime(text, "%Y-%m-%d %H:%M")
         except ValueError as exc:
             raise ValueError("invalid next review format, expected YYYY-MM-DD or YYYY-MM-DD HH:MM") from exc
+
+
+def _default_screening_snapshot_name() -> str:
+    return f"screening snapshot {datetime.now():%Y-%m-%d %H:%M}"
+
+
+def _snapshot_summary_option(summary: ScreeningSnapshotSummary) -> str:
+    return (
+        f"#{summary.snapshot_id} | {summary.created_at:%Y-%m-%d %H:%M} | "
+        f"{summary.company_count} société(s) | {summary.name} | {summary.filters_summary}"
+    )
