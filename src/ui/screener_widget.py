@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QHeaderView, QTableView, QVBoxLayout, QWidget
 from src.ui.company_table_model import CompanyTableModel, ScreenerRow
 
 _MIN_COLUMN_WIDTH = 80
-_STRETCH_COLUMN = 0  # "Nom" stretches to fill remaining space
+_STRETCH_COLUMN = 1  # "Nom" stretches to fill remaining space
 
 
 class ScreenerWidget(QWidget):

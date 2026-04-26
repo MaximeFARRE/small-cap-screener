@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from typing import cast
+
 from PySide6.QtCore import Signal
-from PySide6.QtGui import QDoubleValidator
+from PySide6.QtGui import QDoubleValidator, QIntValidator
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -12,42 +16,51 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from src.services.screening_service import ScreeningCriteria
+from src.services.screening_service import UniverseScreeningFilters, UniverseScreeningSortField
 
-_EMPTY_PLACEHOLDER = "aucun filtre"
-
-_FIELDS: list[tuple[str, str, bool]] = [
-    # (label, attr_name, is_max)
-    ("P/E max", "max_pe", True),
-    ("P/B max", "max_pb", True),
-    ("EV/EBITDA max", "max_ev_ebitda", True),
-    ("ROE min (%)", "min_roe", False),
-    ("Marge nette min (%)", "min_net_margin", False),
-    ("Marge EBIT min (%)", "min_ebit_margin", False),
-    ("Dette/CP max", "max_debt_to_equity", True),
-    ("DN/EBITDA max", "max_net_debt_to_ebitda", True),
+_SECTOR_PLACEHOLDER = "ex: energy"
+_MIN_SCORE_PLACEHOLDER = "ex: 70.0"
+_TOP_N_PLACEHOLDER = "ex: 25"
+_SORT_OPTIONS: list[tuple[str, UniverseScreeningSortField]] = [
+    ("Rang global", "rank"),
+    ("Score total", "total_score"),
+    ("Quality score", "quality_score"),
+    ("Value score", "value_score"),
+    ("Growth score", "growth_score"),
+    ("Risk score", "risk_score"),
+    ("Ticker", "ticker"),
+]
+_ORDER_OPTIONS: list[tuple[str, bool]] = [
+    ("Ascendant", False),
+    ("Descendant", True),
 ]
 
-_PCT_FIELDS = {"min_roe", "min_net_margin", "min_ebit_margin"}
 
-
-def _parse(text: str, pct: bool) -> float | None:
+def _parse_float(text: str) -> float | None:
     text = text.strip()
     if not text:
         return None
     try:
-        value = float(text.replace(",", "."))
-        return value / 100.0 if pct else value
+        return float(text.replace(",", "."))
+    except ValueError:
+        return None
+
+
+def _parse_int(text: str) -> int | None:
+    text = text.strip()
+    if not text:
+        return None
+    try:
+        return int(text)
     except ValueError:
         return None
 
 
 class FilterWidget(QWidget):
-    filters_applied = Signal(ScreeningCriteria)
+    filters_applied = Signal(UniverseScreeningFilters)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._inputs: dict[str, QLineEdit] = {}
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -56,15 +69,36 @@ class FilterWidget(QWidget):
 
         box = QGroupBox("Filtres")
         form = QFormLayout(box)
-        validator = QDoubleValidator()
-        validator.setNotation(QDoubleValidator.Notation.StandardNotation)
 
-        for label, attr, _ in _FIELDS:
-            field = QLineEdit()
-            field.setPlaceholderText(_EMPTY_PLACEHOLDER)
-            field.setValidator(validator)
-            self._inputs[attr] = field
-            form.addRow(label, field)
+        self._sector_input = QLineEdit()
+        self._sector_input.setPlaceholderText(_SECTOR_PLACEHOLDER)
+
+        self._min_score_input = QLineEdit()
+        score_validator = QDoubleValidator(0.0, 100.0, 2, self)
+        score_validator.setNotation(QDoubleValidator.Notation.StandardNotation)
+        self._min_score_input.setValidator(score_validator)
+        self._min_score_input.setPlaceholderText(_MIN_SCORE_PLACEHOLDER)
+
+        self._scored_only_input = QCheckBox("Sociétés scorées uniquement")
+
+        self._top_n_input = QLineEdit()
+        self._top_n_input.setValidator(QIntValidator(1, 999_999, self))
+        self._top_n_input.setPlaceholderText(_TOP_N_PLACEHOLDER)
+
+        self._sort_by_input = QComboBox()
+        for label, value in _SORT_OPTIONS:
+            self._sort_by_input.addItem(label, value)
+
+        self._sort_order_input = QComboBox()
+        for label, value in _ORDER_OPTIONS:
+            self._sort_order_input.addItem(label, value)
+
+        form.addRow("Secteur", self._sector_input)
+        form.addRow("Score min", self._min_score_input)
+        form.addRow("", self._scored_only_input)
+        form.addRow("Top N", self._top_n_input)
+        form.addRow("Tri", self._sort_by_input)
+        form.addRow("Ordre", self._sort_order_input)
 
         outer.addWidget(box)
 
@@ -80,13 +114,27 @@ class FilterWidget(QWidget):
         self._reset_btn.clicked.connect(self._on_reset)
 
     def _on_apply(self) -> None:
-        kwargs: dict[str, float | None] = {}
-        for _, attr, _ in _FIELDS:
-            pct = attr in _PCT_FIELDS
-            kwargs[attr] = _parse(self._inputs[attr].text(), pct)
-        self.filters_applied.emit(ScreeningCriteria(**kwargs))
+        sector = self._sector_input.text().strip() or None
+        min_total_score = _parse_float(self._min_score_input.text())
+        top_n = _parse_int(self._top_n_input.text())
+        sort_by = cast(UniverseScreeningSortField, self._sort_by_input.currentData() or "rank")
+        descending = bool(self._sort_order_input.currentData())
+        self.filters_applied.emit(
+            UniverseScreeningFilters(
+                sector=sector,
+                min_total_score=min_total_score,
+                scored_only=self._scored_only_input.isChecked(),
+                top_n=top_n,
+                sort_by=sort_by,
+                descending=descending,
+            )
+        )
 
     def _on_reset(self) -> None:
-        for field in self._inputs.values():
-            field.clear()
-        self.filters_applied.emit(ScreeningCriteria())
+        self._sector_input.clear()
+        self._min_score_input.clear()
+        self._scored_only_input.setChecked(False)
+        self._top_n_input.clear()
+        self._sort_by_input.setCurrentIndex(0)
+        self._sort_order_input.setCurrentIndex(0)
+        self.filters_applied.emit(UniverseScreeningFilters())

@@ -10,7 +10,7 @@ from src.models.watchlist_entry import WATCHLIST_ALLOWED_STATUSES, WatchlistEntr
 from src.repositories import company_repository, kpi_snapshot_repository, watchlist_repository
 from src.repositories.database import get_session
 from src.services.kpi_snapshot_service import KpiSnapshotService
-from src.services.scoring_service import RankedCompanyTotalScore, ScoringService
+from src.services.scoring_service import RankedCompanyTotalScore, ScoreExplanation, ScoringService
 
 SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
 
@@ -25,6 +25,13 @@ class WatchlistEntryWithScore:
     total_score: float | None
     rank: int | None
     sector_rank: int | None
+
+
+@dataclass(frozen=True)
+class CompanyAnalystDetail:
+    watchlist_status: str | None
+    watchlist_notes: str | None
+    score_explanation: ScoreExplanation
 
 
 @dataclass
@@ -67,6 +74,16 @@ class WatchlistService:
     def list_entries(self) -> list[WatchlistEntry]:
         with self.session_scope_factory() as session:
             return watchlist_repository.list_all(session)
+
+    def get_company_analyst_detail(self, company_id: int) -> CompanyAnalystDetail:
+        with self.session_scope_factory() as session:
+            watchlist_entry = watchlist_repository.get_by_company_id(session, company_id)
+            snapshot = kpi_snapshot_repository.get_latest_by_company(session, company_id)
+        return CompanyAnalystDetail(
+            watchlist_status=watchlist_entry.status if watchlist_entry is not None else None,
+            watchlist_notes=watchlist_entry.notes if watchlist_entry is not None else None,
+            score_explanation=self.scoring_service.describe_snapshot_score(snapshot),
+        )
 
     def update_company_notes(self, company_id: int, notes: str | None) -> WatchlistEntry | None:
         with self.session_scope_factory() as session:
