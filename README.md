@@ -18,6 +18,8 @@ This project provides one coherent workflow: ingest data, compute KPIs, score co
 
 * KPI pipeline (valuation, quality, growth, risk metrics)
 * Deterministic scoring V1 (quality/value/growth/risk + total score)
+* Score transparency (weighted decomposition, deterministic positive/negative drivers)
+* Simple sub-score weight configuration (`src/services/scoring_config.py`)
 * Global and sector ranking on the scored universe
 * Analyst workflow (watchlist, notes, status, exclusions)
 * Historical fundamentals in company detail (multi-year table, CAGR, trend flags)

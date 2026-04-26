@@ -3,10 +3,15 @@ from datetime import date
 import pytest
 
 from src.models.kpi_snapshot import KpiSnapshot
+from src.services.scoring_config import SnapshotSubScoreWeights
 from src.services.scoring_service import (
     GROWTH_SCORE_KEY,
     QUALITY_SCORE_KEY,
     RISK_SCORE_KEY,
+    SCORE_WEIGHT_GROWTH_KEY,
+    SCORE_WEIGHT_QUALITY_KEY,
+    SCORE_WEIGHT_RISK_KEY,
+    SCORE_WEIGHT_VALUE_KEY,
     TOTAL_SCORE_KEY,
     VALUE_SCORE_KEY,
     CompanyTotalScore,
@@ -214,3 +219,117 @@ def test_describe_snapshot_score_handles_missing_snapshot():
     assert explanation.strengths == ()
     assert explanation.weaknesses == ()
     assert explanation.summary == "score unavailable: no snapshot data."
+
+
+def test_apply_scores_persists_weight_configuration():
+    service = ScoringService(
+        sub_score_weights=SnapshotSubScoreWeights(
+            quality_weight=0.40,
+            value_weight=0.30,
+            growth_weight=0.20,
+            risk_weight=0.10,
+        )
+    )
+    snapshot = _make_snapshot({"roe": 0.2, "pe_ratio": 10.0})
+
+    updated = service.apply_scores(snapshot)
+
+    assert updated.metrics[SCORE_WEIGHT_QUALITY_KEY] == pytest.approx(0.40)
+    assert updated.metrics[SCORE_WEIGHT_VALUE_KEY] == pytest.approx(0.30)
+    assert updated.metrics[SCORE_WEIGHT_GROWTH_KEY] == pytest.approx(0.20)
+    assert updated.metrics[SCORE_WEIGHT_RISK_KEY] == pytest.approx(0.10)
+
+
+def test_describe_snapshot_score_exposes_deterministic_breakdown_and_drivers():
+    snapshot = _make_snapshot(
+        {
+            "roe": 0.20,
+            "roic": 0.16,
+            "operating_margin": 0.14,
+            "gross_margin": 0.33,
+            "pe_ratio": 20.0,
+            "pb_ratio": 2.5,
+            "ev_ebitda": 12.0,
+            "fcf_yield": 0.02,
+            "revenue_growth": 0.12,
+            "ebitda_growth": 0.09,
+            "net_debt_to_ebitda": 2.8,
+            "current_ratio": 1.0,
+            "interest_coverage": 2.5,
+        }
+    )
+    scored_snapshot = apply_scores(snapshot)
+
+    first = describe_snapshot_score(scored_snapshot)
+    second = describe_snapshot_score(scored_snapshot)
+
+    assert first == second
+    assert len(first.weights) == 4
+    assert len(first.category_contributions) == 4
+    assert first.total_score is not None
+    total_from_contributions = sum(item.weighted_points for item in first.category_contributions)
+    assert total_from_contributions == pytest.approx(first.total_score, abs=0.02)
+    assert "construction:" in first.summary
+    assert "positive drivers:" in first.summary
+    assert "negative drivers:" in first.summary
+
+
+def test_weight_change_modifies_ranking_and_stays_deterministic():
+    metrics_quality_heavy = {
+        "roe": 0.20,
+        "roic": 0.15,
+        "operating_margin": 0.15,
+        "gross_margin": 0.35,
+        "pe_ratio": 35.0,
+        "pb_ratio": 5.0,
+        "ev_ebitda": 20.0,
+        "fcf_yield": -0.02,
+    }
+    metrics_value_heavy = {
+        "roe": -0.05,
+        "roic": -0.02,
+        "operating_margin": -0.01,
+        "gross_margin": 0.05,
+        "pe_ratio": 8.0,
+        "pb_ratio": 0.8,
+        "ev_ebitda": 5.0,
+        "fcf_yield": 0.10,
+    }
+
+    default_service = ScoringService()
+    value_service = ScoringService(
+        sub_score_weights=SnapshotSubScoreWeights(
+            quality_weight=0.10,
+            value_weight=0.70,
+            growth_weight=0.10,
+            risk_weight=0.10,
+        )
+    )
+
+    default_a = default_service.compute_metrics_scores(metrics_quality_heavy).total
+    default_b = default_service.compute_metrics_scores(metrics_value_heavy).total
+    value_a = value_service.compute_metrics_scores(metrics_quality_heavy).total
+    value_b = value_service.compute_metrics_scores(metrics_value_heavy).total
+
+    ranking_default = default_service.rank_companies_by_total_score(
+        [
+            CompanyTotalScore(company_id=1, ticker="Q.PA", total_score=default_a, sector="Tech"),
+            CompanyTotalScore(company_id=2, ticker="V.PA", total_score=default_b, sector="Tech"),
+        ]
+    )
+    ranking_value_first = value_service.rank_companies_by_total_score(
+        [
+            CompanyTotalScore(company_id=1, ticker="Q.PA", total_score=value_a, sector="Tech"),
+            CompanyTotalScore(company_id=2, ticker="V.PA", total_score=value_b, sector="Tech"),
+        ]
+    )
+    ranking_value_second = value_service.rank_companies_by_total_score(
+        [
+            CompanyTotalScore(company_id=1, ticker="Q.PA", total_score=value_a, sector="Tech"),
+            CompanyTotalScore(company_id=2, ticker="V.PA", total_score=value_b, sector="Tech"),
+        ]
+    )
+
+    assert [entry.company_id for entry in ranking_default] == [1, 2]
+    assert [entry.company_id for entry in ranking_value_first] == [2, 1]
+    assert ranking_value_first == ranking_value_second

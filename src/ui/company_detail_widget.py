@@ -26,6 +26,7 @@ from src.models.watchlist_entry import (
     WATCHLIST_STATUS_WATCHING,
 )
 from src.services.company_detail_service import CompanyFinancialDetail
+from src.services.scoring_service import ScoreExplanation, ScoreMetricDriver
 from src.services.screening_service import STALE_REFRESH_DAYS
 from src.services.watchlist_service import CompanyAnalystDetail
 from src.ui.company_table_model import ScreenerRow
@@ -212,6 +213,7 @@ class CompanyDetailWidget(QWidget):
         rank = row.rank
         sector_rank = row.sector_rank
         explanation_summary = _NA
+        score_explanation: ScoreExplanation | None = None
 
         if analyst_detail is not None:
             self._in_watchlist = analyst_detail.watchlist_status is not None
@@ -225,6 +227,7 @@ class CompanyDetailWidget(QWidget):
             risk_score = analyst_detail.risk_score
             rank = analyst_detail.rank
             sector_rank = analyst_detail.sector_rank
+            score_explanation = analyst_detail.score_explanation
             explanation_summary = analyst_detail.score_explanation.summary
             self._set_editor_values(
                 status=analyst_detail.watchlist_status or WATCHLIST_STATUS_WATCHING,
@@ -265,6 +268,12 @@ class CompanyDetailWidget(QWidget):
         self._set_field("Scoring", "Risk", _fmt(risk_score))
         self._set_field("Scoring", "Rang global", str(rank) if rank is not None else _NA)
         self._set_field("Scoring", "Rang secteur", str(sector_rank) if sector_rank is not None else _NA)
+        self._set_field("Scoring", "Poids actifs", _fmt_score_weights(score_explanation))
+        self._set_field("Scoring", "Décomposition", _fmt_score_contributions(score_explanation))
+        self._set_field("Scoring", "Drivers +", _fmt_score_drivers(score_explanation, positive=True))
+        self._set_field("Scoring", "Drivers -", _fmt_score_drivers(score_explanation, positive=False))
+        self._set_field("Scoring", "Forces", _fmt_score_points(score_explanation, strengths=True))
+        self._set_field("Scoring", "Faiblesses", _fmt_score_points(score_explanation, strengths=False))
         self._set_field("Scoring", "Résumé score", explanation_summary)
         self._set_actions_enabled(True)
         self._add_watchlist_btn.setEnabled(not self._in_watchlist)
@@ -564,6 +573,46 @@ def _fmt_quality(score: float | None) -> str:
     else:
         badge = "Faible"
     return f"{pct} ({badge})"
+
+
+def _fmt_score_weights(explanation: ScoreExplanation | None) -> str:
+    if explanation is None or not explanation.weights:
+        return _NA
+    return ", ".join(f"{entry.category} {entry.weight * 100:.1f}%" for entry in explanation.weights)
+
+
+def _fmt_score_contributions(explanation: ScoreExplanation | None) -> str:
+    if explanation is None or not explanation.category_contributions:
+        return _NA
+    rows = ["Category | Sub-score | Weight | Points"]
+    for entry in explanation.category_contributions:
+        rows.append(f"{entry.category} | {entry.sub_score:.2f} | {entry.weight:.2f} | {entry.weighted_points:.2f}")
+    return "<pre>" + "\n".join(rows) + "</pre>"
+
+
+def _fmt_score_drivers(explanation: ScoreExplanation | None, *, positive: bool) -> str:
+    if explanation is None:
+        return _NA
+    drivers = explanation.positive_drivers if positive else explanation.negative_drivers
+    if not drivers:
+        return _NA
+    return "<pre>" + "\n".join(_fmt_single_driver(driver) for driver in drivers) + "</pre>"
+
+
+def _fmt_single_driver(driver: ScoreMetricDriver) -> str:
+    return (
+        f"{driver.category}.{driver.metric}: impact {driver.impact_points:+.2f} pts, "
+        f"metric {driver.metric_score:.1f}/100, raw {driver.raw_value:.4g}"
+    )
+
+
+def _fmt_score_points(explanation: ScoreExplanation | None, *, strengths: bool) -> str:
+    if explanation is None:
+        return _NA
+    points = explanation.strengths if strengths else explanation.weaknesses
+    if not points:
+        return _NA
+    return "; ".join(points)
 
 
 def _fmt_refresh_date(refresh_at: datetime | None) -> str:
