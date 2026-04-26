@@ -9,7 +9,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from src.models.company import Company
+from src.models.company import SOURCE_MANUAL, Company
 from src.repositories import company_repository
 from src.repositories.database import get_session
 from src.services.financial_data_service import FinancialDataService
@@ -176,6 +176,7 @@ class TickerIngestionService:
                 market=profile.market,
                 currency=profile.currency or "EUR",
                 is_active=True,
+                source_origin=SOURCE_MANUAL,
             )
             created_company = company_repository.create(session, company)
             _LOGGER.info(
