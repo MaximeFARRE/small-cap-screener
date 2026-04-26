@@ -1,6 +1,22 @@
 # CHANGELOG
 
+## v0.29.1 (2026-04-26)
+
+### Fix
+
+* fix(ui): correct QDateTime constructor arguments in chart builder ([`36c9c84`](https://github.com/MaximeFARRE/small-cap-screener/commit/36c9c84eaec83fdd20aa49837b095a0118138772))
+
+### Unknown
+
+* Merge pull request #42 from MaximeFARRE/feat/phase34-ui-polish
+
+fix(ui): correct QDateTime constructor arguments in chart builder ([`d97f6ff`](https://github.com/MaximeFARRE/small-cap-screener/commit/d97f6ff4f32352f2284317b515c2706265d0d919))
+
 ## v0.29.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.29.0 [skip ci] ([`e8c3d5b`](https://github.com/MaximeFARRE/small-cap-screener/commit/e8c3d5b4b008d7f7e02a97f527d3dd0c2764fd7e))
 
 ### Documentation
 
