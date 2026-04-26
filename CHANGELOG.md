@@ -1,6 +1,36 @@
 # CHANGELOG
 
+## v0.19.0 (2026-04-26)
+
+### Feature
+
+* feat: allow ticker ingestion from ticker or isin input ([`b0d4492`](https://github.com/MaximeFARRE/small-cap-screener/commit/b0d4492b9e7969c414c43a4ea06ded1c481f1b1a))
+
+### Fix
+
+* fix: include companies without isin in investable universe ([`060f002`](https://github.com/MaximeFARRE/small-cap-screener/commit/060f002ada698ae22decdeefe464d235e595445e))
+
+* fix: clean invalid existing isin during ticker ingestion ([`3305147`](https://github.com/MaximeFARRE/small-cap-screener/commit/3305147de8f92f0985e65e5434e695f3c62d4f39))
+
+* fix: ignore invalid provider isin during ticker ingestion ([`46bdc7c`](https://github.com/MaximeFARRE/small-cap-screener/commit/46bdc7c0f43f220ed97e23d5fccf983fe9db3e06))
+
+* fix: allow nullable company isin with sqlite migration ([`efa2516`](https://github.com/MaximeFARRE/small-cap-screener/commit/efa25160017362731a8189c70d5b858cbc89c304))
+
+### Test
+
+* test: cover ticker ingestion without valid isin ([`9a6e2c8`](https://github.com/MaximeFARRE/small-cap-screener/commit/9a6e2c8d96706c0c7bc122c9b3548bf974e929cb))
+
+### Unknown
+
+* Merge pull request #29 from MaximeFARRE/fix/isin-invalid-ticker-ingestion
+
+Fix/isin invalid ticker ingestion ([`dd2c2ed`](https://github.com/MaximeFARRE/small-cap-screener/commit/dd2c2ed547feda7596e6e4426ff151dfeed8d7d5))
+
 ## v0.18.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.18.0 [skip ci] ([`ab1fa21`](https://github.com/MaximeFARRE/small-cap-screener/commit/ab1fa2150e55f17b820d4730ed8275eb5db9490a))
 
 ### Feature
 
