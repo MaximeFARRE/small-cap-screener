@@ -729,15 +729,15 @@ def _line_chart_for_dated_points(
 
     values: list[float] = []
     for point in points:
-        qdt = QDateTime(point.point_date.year, point.point_date.month, point.point_date.day, 0, 0)
+        qdt = QDateTime(point.point_date.year, point.point_date.month, point.point_date.day, 0, 0, 0)
         series.append(float(qdt.toMSecsSinceEpoch()), point.value)
         values.append(point.value)
 
     axis_x = QDateTimeAxis()
     axis_x.setFormat("yyyy-MM")
     axis_x.setTitleText("Date")
-    start = QDateTime(points[0].point_date.year, points[0].point_date.month, points[0].point_date.day, 0, 0)
-    end = QDateTime(points[-1].point_date.year, points[-1].point_date.month, points[-1].point_date.day, 0, 0)
+    start = QDateTime(points[0].point_date.year, points[0].point_date.month, points[0].point_date.day, 0, 0, 0)
+    end = QDateTime(points[-1].point_date.year, points[-1].point_date.month, points[-1].point_date.day, 0, 0, 0)
     if len(points) == 1:
         start = start.addDays(-1)
         end = end.addDays(1)
