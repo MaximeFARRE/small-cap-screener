@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -22,6 +23,7 @@ from src.services.ratio_service import CompanyRatios, RatioService
 from src.services.scoring_service import CompanyTotalScore, RankedCompanyTotalScore, ScoringService
 
 SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
+_LOGGER = logging.getLogger(__name__)
 DATA_QUALITY_SCORE_KEY: str = "data_quality_score"
 _DATA_QUALITY_WEIGHT_FINANCIAL_COMPLETENESS: float = 0.40
 _DATA_QUALITY_WEIGHT_PRICE_AVAILABILITY: float = 0.20
@@ -113,6 +115,12 @@ class KpiSnapshotService:
         with self.session_scope_factory() as session:
             load = _load_company_kpi_context(session, company_id)
             if load.context is None:
+                _LOGGER.warning(
+                    "kpi snapshot load failed | stage=load company_id=%s snapshot_date=%s error=%s",
+                    company_id,
+                    snapshot_date,
+                    load.error,
+                )
                 return KpiSnapshotServiceResult(
                     company_id=company_id,
                     snapshot_date=snapshot_date,
@@ -146,6 +154,18 @@ class KpiSnapshotService:
             )
             scored_snapshot = self.scoring_service.apply_scores(snapshot)
             stored = kpi_snapshot_repository.upsert(session, scored_snapshot)
+            _LOGGER.info(
+                (
+                    "kpi snapshot upserted | stage=compute company_id=%s snapshot_id=%s "
+                    "snapshot_date=%s source=%s data_quality_score=%s total_score=%s"
+                ),
+                company_id,
+                stored.id,
+                snapshot_date,
+                self.source_name,
+                stored.metrics.get(DATA_QUALITY_SCORE_KEY),
+                stored.metrics.get("total_score"),
+            )
             return KpiSnapshotServiceResult(
                 company_id=company_id,
                 snapshot_date=snapshot_date,
@@ -175,6 +195,11 @@ class KpiSnapshotService:
                 country=target_country,
             )
             companies = [(company.id, company.ticker) for company in investable]
+        _LOGGER.info(
+            "kpi snapshot universe refresh started | stage=refresh total=%s snapshot_date=%s",
+            len(companies),
+            snapshot_date,
+        )
 
         success_count = 0
         errors: list[UniverseKpiSnapshotError] = []
@@ -186,6 +211,16 @@ class KpiSnapshotService:
                     snapshot_date=snapshot_date,
                 )
             except Exception as exc:  # pragma: no cover - defensive guard
+                _LOGGER.error(
+                    (
+                        "kpi snapshot refresh unexpected error | stage=unexpected company_id=%s "
+                        "ticker=%s snapshot_date=%s error=%s"
+                    ),
+                    company_id,
+                    ticker,
+                    snapshot_date,
+                    exc,
+                )
                 errors.append(
                     UniverseKpiSnapshotError(
                         company_id=company_id,
@@ -200,6 +235,14 @@ class KpiSnapshotService:
                 success_count += 1
                 continue
 
+            _LOGGER.warning(
+                ("kpi snapshot refresh failed | stage=%s company_id=%s ticker=%s " "snapshot_date=%s error=%s"),
+                result.stage,
+                company_id,
+                ticker,
+                snapshot_date,
+                result.error,
+            )
             errors.append(
                 UniverseKpiSnapshotError(
                     company_id=company_id,
@@ -210,6 +253,16 @@ class KpiSnapshotService:
             )
 
         failed_count = len(errors)
+        _LOGGER.info(
+            (
+                "kpi snapshot universe refresh completed | stage=refresh total=%s "
+                "success_count=%s failed_count=%s snapshot_date=%s"
+            ),
+            len(companies),
+            success_count,
+            failed_count,
+            snapshot_date,
+        )
         return UniverseKpiSnapshotRefreshResult(
             total=len(companies),
             success_count=success_count,
