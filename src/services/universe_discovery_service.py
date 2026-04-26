@@ -4,7 +4,7 @@ import logging
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy.orm import Session
 
@@ -145,5 +145,5 @@ class UniverseDiscoveryService:
         with self.session_scope_factory() as session:
             company = company_repository.get_by_id(session, company_id)
             if company is not None:
-                company.last_universe_refresh_at = datetime.utcnow()
+                company.last_universe_refresh_at = datetime.now(UTC)
                 company_repository.update(session, company)
