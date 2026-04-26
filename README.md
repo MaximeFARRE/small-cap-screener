@@ -21,12 +21,20 @@ This project provides one coherent workflow: ingest data, compute KPIs, score co
 * Score transparency (weighted decomposition, deterministic positive/negative drivers)
 * Simple sub-score weight configuration (`src/services/scoring_config.py`)
 * Global and sector ranking on the scored universe
+* Real ticker and ISIN ingestion from the app (no CSV workflow required)
+* Automatic ticker resolution with exchange suffix probing (`.PA`, `.AL`, etc.)
+* One-click refresh for single company, watchlist, or full universe
 * Analyst workflow (watchlist, notes, status, exclusions)
 * Analyst memo workflow (investment thesis, key risks, catalysts, valuation notes, next action)
 * Historical fundamentals in company detail (multi-year table, CAGR, trend flags)
+* Charts: price history, revenue/EBITDA, margin evolution, score breakdown
+* Sector peer comparison (valuation, quality/growth/risk ratios vs sector median)
+* Backtesting and ranking validation (bucket forward returns, hit rate, top-vs-bottom spread)
 * Screening filters/sorting + CSV and Excel exports
-* Screening snapshots to freeze filtered/ranked results at a given date
-* Reliability features (cache, retry/fallback, offline mode, data quality score)
+* Screening snapshots to freeze and compare filtered/ranked results
+* Provider redundancy (`ChainedProvider`, `NoOpProvider`, `YFinanceProvider`)
+* Error feedback: clean French-language user messages with `error_kind` propagation
+* Reliability features (retry, fallback, offline mode, data quality score)
 * Desktop UI (PySide6) connected to service layer only
 
 ## Analyst Workflow (End-to-End Demo)
@@ -55,7 +63,8 @@ Detailed architecture: `docs/ARCHITECTURE.md`.
 * PySide6 (desktop UI)
 * SQLite + SQLAlchemy
 * pandas / numpy
-* pytest / ruff / black / pre-commit
+* yfinance (Yahoo Finance provider)
+* pytest / ruff / pre-commit
 * PyInstaller (desktop packaging)
 
 Detailed stack: `STACK.md`.
