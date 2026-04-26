@@ -19,6 +19,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self._screening_service = ScreeningService()
+        self._current_filters = UniverseScreeningFilters()
         self.setWindowTitle(WINDOW_TITLE)
         self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
         self._setup_ui()
@@ -44,6 +45,7 @@ class MainWindow(QMainWindow):
 
     def _setup_filter_dock(self) -> None:
         self._filters = FilterWidget()
+        self._filters.filters_applied.connect(self._on_filters_applied)
         dock = QDockWidget("Filtres", self)
         dock.setWidget(self._filters)
         features = QDockWidget.DockWidgetFeature.DockWidgetMovable | QDockWidget.DockWidgetFeature.DockWidgetClosable
@@ -57,10 +59,17 @@ class MainWindow(QMainWindow):
         file_menu.addAction("Exporter CSV…", self._export_csv)
 
     def _load_scored_universe(self) -> None:
-        rows = self._screening_service.list_universe_with_scores()
+        rows = self._screening_service.filter_universe_with_scores(self._current_filters)
         self._screener.load(rows)
+        self._detail.clear()
         if not rows:
-            self.statusBar().showMessage("Aucune société disponible dans l'univers scoré.")
+            self.statusBar().showMessage("Aucune société ne correspond aux filtres.")
+            return
+        self.statusBar().clearMessage()
+
+    def _on_filters_applied(self, filters: UniverseScreeningFilters) -> None:
+        self._current_filters = filters
+        self._load_scored_universe()
 
     def _export_csv(self) -> None:
         rows = self._screener.rows()
@@ -70,6 +79,6 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(self, "Exporter CSV", "screening.csv", "CSV (*.csv)")
         if path:
             csv_content = self._screening_service.export_universe_with_scores_csv(
-                UniverseScreeningFilters(),
+                self._current_filters,
             )
             Path(path).write_text(csv_content, encoding="utf-8-sig")
