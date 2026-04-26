@@ -1,6 +1,28 @@
 # CHANGELOG
 
+## v0.18.0 (2026-04-26)
+
+### Feature
+
+* feat: add screening snapshot browser actions ([`03b08b0`](https://github.com/MaximeFARRE/small-cap-screener/commit/03b08b06b28ad57f94285377d108c480a475812d))
+
+* feat: add screening snapshot comparison views ([`082130c`](https://github.com/MaximeFARRE/small-cap-screener/commit/082130cdd8636ec1630e92b2df0e214eca1a01f8))
+
+### Fix
+
+* fix: add company column migration at startup ([`42c1917`](https://github.com/MaximeFARRE/small-cap-screener/commit/42c1917f73db6948d49b11236b69197ec0e4c5e6))
+
+### Unknown
+
+* Merge pull request #28 from MaximeFARRE/feat/phase24-screening-snapshots-v2
+
+Feat/phase24 screening snapshots v2 ([`f972480`](https://github.com/MaximeFARRE/small-cap-screener/commit/f9724800cf04ce7f5b85ce3b3ab596f12e56c0a2))
+
 ## v0.17.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.17.0 [skip ci] ([`68efa72`](https://github.com/MaximeFARRE/small-cap-screener/commit/68efa72196fc2244b7cabe7b29be369155e7144b))
 
 ### Feature
 
