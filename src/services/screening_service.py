@@ -127,6 +127,51 @@ class SavedScreeningSnapshot:
     results: list[dict[str, object]]
 
 
+@dataclass(frozen=True)
+class ScreeningSnapshotSummary:
+    snapshot_id: int
+    name: str
+    created_at: datetime
+    company_count: int
+    filters: dict[str, object]
+    filters_summary: str
+
+
+@dataclass(frozen=True)
+class ScreeningSnapshotRow:
+    company_id: int | None
+    ticker: str | None
+    name: str
+    sector: str | None
+    total_score: float | None
+    quality_score: float | None
+    value_score: float | None
+    growth_score: float | None
+    risk_score: float | None
+    rank: int | None
+    sector_rank: int | None
+
+
+@dataclass(frozen=True)
+class ScreeningSnapshotView:
+    summary: ScreeningSnapshotSummary
+    rows: list[ScreeningSnapshotRow]
+
+
+@dataclass(frozen=True)
+class ScreeningSnapshotComparisonRow:
+    company_id: int | None
+    ticker: str | None
+    name: str
+    sector: str | None
+    snapshot_rank: int | None
+    current_rank: int | None
+    rank_change: int | None
+    snapshot_total_score: float | None
+    current_total_score: float | None
+    total_score_change: float | None
+
+
 @dataclass
 class ScreeningService:
     session_scope_factory: SessionScopeFactory = get_session
@@ -292,6 +337,40 @@ class ScreeningService:
         if snapshot is None:
             return None
         return _to_saved_screening_snapshot(snapshot)
+
+    def list_recent_screening_snapshots(self, limit: int = 20) -> list[ScreeningSnapshotSummary]:
+        with self.session_scope_factory() as session:
+            snapshots = screening_snapshot_repository.list_recent(session, limit=limit)
+        return [_to_screening_snapshot_summary(_to_saved_screening_snapshot(snapshot)) for snapshot in snapshots]
+
+    def get_screening_snapshot_view(self, snapshot_id: int) -> ScreeningSnapshotView | None:
+        snapshot = self.get_screening_snapshot(snapshot_id)
+        if snapshot is None:
+            return None
+        return ScreeningSnapshotView(
+            summary=_to_screening_snapshot_summary(snapshot),
+            rows=_to_screening_snapshot_rows(snapshot),
+        )
+
+    def compare_snapshot_to_current(
+        self,
+        snapshot_id: int,
+        current_filters: UniverseScreeningFilters,
+        *,
+        max_market_cap: float | None = None,
+        min_average_daily_volume: float | None = None,
+        country: str | None = None,
+    ) -> list[ScreeningSnapshotComparisonRow]:
+        snapshot_view = self.get_screening_snapshot_view(snapshot_id)
+        if snapshot_view is None:
+            return []
+        current_rows = self.filter_universe_with_scores(
+            current_filters,
+            max_market_cap=max_market_cap,
+            min_average_daily_volume=min_average_daily_volume,
+            country=country,
+        )
+        return _build_screening_snapshot_comparison_rows(snapshot_view.rows, current_rows)
 
     def _list_excluded_company_ids(self) -> set[int]:
         with self.session_scope_factory() as session:
@@ -596,3 +675,170 @@ def _normalize_snapshot_results(raw_results: object) -> list[dict[str, object]]:
             continue
         normalized.append({column: row.get(column, "") for column in _UNIVERSE_SCREENING_EXPORT_COLUMNS})
     return normalized
+
+
+def _to_screening_snapshot_summary(snapshot: SavedScreeningSnapshot) -> ScreeningSnapshotSummary:
+    return ScreeningSnapshotSummary(
+        snapshot_id=snapshot.snapshot_id,
+        name=snapshot.name,
+        created_at=snapshot.created_at,
+        company_count=snapshot.company_count,
+        filters=snapshot.filters,
+        filters_summary=_format_snapshot_filters_summary(snapshot.filters),
+    )
+
+
+def _to_screening_snapshot_rows(snapshot: SavedScreeningSnapshot) -> list[ScreeningSnapshotRow]:
+    rows: list[ScreeningSnapshotRow] = []
+    for index, raw_row in enumerate(snapshot.results):
+        company_id = snapshot.company_ids[index] if index < len(snapshot.company_ids) else None
+        rows.append(
+            ScreeningSnapshotRow(
+                company_id=company_id,
+                ticker=_row_text(raw_row.get("ticker")),
+                name=_row_text(raw_row.get("name")) or "",
+                sector=_row_text(raw_row.get("sector")),
+                total_score=_row_float(raw_row.get("total_score")),
+                quality_score=_row_float(raw_row.get("quality_score")),
+                value_score=_row_float(raw_row.get("value_score")),
+                growth_score=_row_float(raw_row.get("growth_score")),
+                risk_score=_row_float(raw_row.get("risk_score")),
+                rank=_row_int(raw_row.get("rank")),
+                sector_rank=_row_int(raw_row.get("sector_rank")),
+            )
+        )
+    return rows
+
+
+def _build_screening_snapshot_comparison_rows(
+    snapshot_rows: list[ScreeningSnapshotRow],
+    current_rows: list[UniverseScreeningEntry],
+) -> list[ScreeningSnapshotComparisonRow]:
+    snapshot_by_key = {_comparison_key(row.company_id, row.ticker): row for row in snapshot_rows}
+    current_by_key = {_comparison_key(row.company_id, row.ticker): row for row in current_rows}
+    keys = set(snapshot_by_key) | set(current_by_key)
+    comparisons: list[ScreeningSnapshotComparisonRow] = []
+    for key in keys:
+        snapshot_row = snapshot_by_key.get(key)
+        current_row = current_by_key.get(key)
+        company_id = current_row.company_id if current_row is not None else None
+        if company_id is None and snapshot_row is not None:
+            company_id = snapshot_row.company_id
+        ticker = current_row.ticker if current_row is not None else None
+        if ticker is None and snapshot_row is not None:
+            ticker = snapshot_row.ticker
+        name = current_row.name if current_row is not None else ""
+        if not name and snapshot_row is not None:
+            name = snapshot_row.name
+        sector = current_row.sector if current_row is not None else None
+        if sector is None and snapshot_row is not None:
+            sector = snapshot_row.sector
+        snapshot_rank = snapshot_row.rank if snapshot_row is not None else None
+        current_rank = current_row.rank if current_row is not None else None
+        snapshot_total_score = snapshot_row.total_score if snapshot_row is not None else None
+        current_total_score = current_row.total_score if current_row is not None else None
+        comparisons.append(
+            ScreeningSnapshotComparisonRow(
+                company_id=company_id,
+                ticker=ticker,
+                name=name,
+                sector=sector,
+                snapshot_rank=snapshot_rank,
+                current_rank=current_rank,
+                rank_change=_rank_change(snapshot_rank, current_rank),
+                snapshot_total_score=snapshot_total_score,
+                current_total_score=current_total_score,
+                total_score_change=_score_change(snapshot_total_score, current_total_score),
+            )
+        )
+    comparisons.sort(key=_comparison_sort_key)
+    return comparisons
+
+
+def _comparison_key(company_id: int | None, ticker: str | None) -> tuple[str, str]:
+    if company_id is not None:
+        return ("company_id", str(company_id))
+    normalized_ticker = _normalize_optional_text(ticker)
+    if normalized_ticker is not None:
+        return ("ticker", normalized_ticker)
+    return ("ticker", "")
+
+
+def _comparison_sort_key(row: ScreeningSnapshotComparisonRow) -> tuple[bool, int, bool, int, str]:
+    current_rank = row.current_rank if row.current_rank is not None else 10**9
+    snapshot_rank = row.snapshot_rank if row.snapshot_rank is not None else 10**9
+    ticker = _normalize_optional_text(row.ticker) or ""
+    return (row.current_rank is None, current_rank, row.snapshot_rank is None, snapshot_rank, ticker)
+
+
+def _rank_change(snapshot_rank: int | None, current_rank: int | None) -> int | None:
+    if snapshot_rank is None or current_rank is None:
+        return None
+    return snapshot_rank - current_rank
+
+
+def _score_change(snapshot_score: float | None, current_score: float | None) -> float | None:
+    if snapshot_score is None or current_score is None:
+        return None
+    return current_score - snapshot_score
+
+
+def _row_text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    if not normalized:
+        return None
+    return normalized
+
+
+def _row_float(value: object) -> float | None:
+    if value is None or value == "" or isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number):
+        return None
+    return number
+
+
+def _row_int(value: object) -> int | None:
+    if value is None or value == "" or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _format_snapshot_filters_summary(filters: dict[str, object]) -> str:
+    parts: list[str] = []
+    if _row_text(filters.get("sector")) is not None:
+        parts.append(f"sector={filters['sector']}")
+    if _row_float(filters.get("min_total_score")) is not None:
+        parts.append(f"min score={_row_float(filters.get('min_total_score')):.2f}")
+    if _row_float(filters.get("min_data_quality_score")) is not None:
+        parts.append(f"min quality={_row_float(filters.get('min_data_quality_score')):.2f}")
+    if filters.get("stale_only") is True:
+        parts.append("stale only")
+    if filters.get("scored_only") is True:
+        parts.append("scored only")
+    if _row_text(filters.get("watchlist_scope")) not in (None, "all"):
+        parts.append(f"watchlist={filters['watchlist_scope']}")
+    if _row_text(filters.get("watchlist_status")) is not None:
+        parts.append(f"status={filters['watchlist_status']}")
+    if _row_text(filters.get("exclusion_filter")) not in (None, "all"):
+        parts.append(f"exclusion={filters['exclusion_filter']}")
+    if filters.get("include_excluded") is True:
+        parts.append("include excluded")
+    if _row_int(filters.get("top_n")) is not None:
+        parts.append(f"top_n={_row_int(filters.get('top_n'))}")
+    sort_by = _row_text(filters.get("sort_by"))
+    if sort_by is not None:
+        order = "desc" if filters.get("descending") is True else "asc"
+        parts.append(f"sort={sort_by} {order}")
+    if not parts:
+        return "default filters"
+    return ", ".join(parts)
