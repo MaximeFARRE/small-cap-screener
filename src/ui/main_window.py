@@ -10,7 +10,7 @@ from src.services.kpi_snapshot_service import KpiSnapshotService
 from src.services.screening_service import ScreeningService, UniverseScreeningFilters
 from src.services.ticker_ingestion_service import TickerIngestionService
 from src.services.universe_discovery_service import UniverseDiscoveryService
-from src.services.watchlist_service import WatchlistService
+from src.services.watchlist_service import AnalystMemo, WatchlistService
 from src.ui.add_ticker_dialog import AddTickerDialog
 from src.ui.company_detail_widget import CompanyDetailWidget
 from src.ui.company_table_model import ScreenerRow
@@ -138,16 +138,35 @@ class MainWindow(QMainWindow):
         self._load_scored_universe(selected_company_id=company_id)
         self.statusBar().showMessage("Société retirée de la watchlist.", 5000)
 
-    def _on_save_watchlist_requested(self, company_id: int, status: str, notes: str, is_excluded: bool) -> None:
+    def _on_save_watchlist_requested(
+        self,
+        company_id: int,
+        status: str,
+        notes: str,
+        is_excluded: bool,
+        investment_thesis: str,
+        key_risks: str,
+        catalysts: str,
+        valuation_notes: str,
+        next_action: str,
+    ) -> None:
         notes_value = notes or None
+        memo = AnalystMemo(
+            investment_thesis=investment_thesis or None,
+            key_risks=key_risks or None,
+            catalysts=catalysts or None,
+            valuation_notes=valuation_notes or None,
+            next_action=next_action or None,
+        )
         try:
             notes_entry = self._watchlist_service.update_company_notes(company_id, notes_value)
             status_entry = self._watchlist_service.update_company_status(company_id, status)
             excluded_entry = self._watchlist_service.update_company_exclusion(company_id, is_excluded)
+            memo_entry = self._watchlist_service.update_company_memo(company_id, memo)
         except ValueError as exc:
             QMessageBox.warning(self, "Watchlist", str(exc))
             return
-        if notes_entry is None or status_entry is None or excluded_entry is None:
+        if notes_entry is None or status_entry is None or excluded_entry is None or memo_entry is None:
             QMessageBox.warning(self, "Watchlist", "Impossible de mettre à jour la société.")
             return
         self._load_scored_universe(selected_company_id=company_id)

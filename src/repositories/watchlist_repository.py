@@ -52,6 +52,28 @@ def update_excluded_by_company_id(session: Session, company_id: int, is_excluded
     return entry
 
 
+def update_memo_by_company_id(
+    session: Session,
+    company_id: int,
+    *,
+    investment_thesis: str | None,
+    key_risks: str | None,
+    catalysts: str | None,
+    valuation_notes: str | None,
+    next_action: str | None,
+) -> WatchlistEntry | None:
+    entry = get_by_company_id(session, company_id)
+    if entry is None:
+        return None
+    entry.investment_thesis = investment_thesis
+    entry.key_risks = key_risks
+    entry.catalysts = catalysts
+    entry.valuation_notes = valuation_notes
+    entry.next_action = next_action
+    session.flush()
+    return entry
+
+
 def remove_by_company_id(session: Session, company_id: int) -> bool:
     entry = get_by_company_id(session, company_id)
     if entry is None:

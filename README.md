@@ -22,6 +22,7 @@ This project provides one coherent workflow: ingest data, compute KPIs, score co
 * Simple sub-score weight configuration (`src/services/scoring_config.py`)
 * Global and sector ranking on the scored universe
 * Analyst workflow (watchlist, notes, status, exclusions)
+* Analyst memo workflow (investment thesis, key risks, catalysts, valuation notes, next action)
 * Historical fundamentals in company detail (multi-year table, CAGR, trend flags)
 * Screening filters/sorting + CSV and Excel exports
 * Screening snapshots to freeze filtered/ranked results at a given date

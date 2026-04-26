@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -28,7 +29,7 @@ from src.models.watchlist_entry import (
 from src.services.company_detail_service import CompanyFinancialDetail
 from src.services.scoring_service import ScoreExplanation, ScoreMetricDriver
 from src.services.screening_service import STALE_REFRESH_DAYS
-from src.services.watchlist_service import CompanyAnalystDetail
+from src.services.watchlist_service import AnalystMemo, CompanyAnalystDetail
 from src.ui.company_table_model import ScreenerRow
 
 _NA = "N/A"
@@ -51,6 +52,7 @@ _GROUPS_ORDER = [
     "Valuation ratios",
     "Quality / Growth / Risk",
     "Analyste",
+    "Analyst Memo",
     "Scoring",
 ]
 _TREND_LABELS = {
@@ -100,7 +102,7 @@ def _label(text: str) -> QLabel:
 class CompanyDetailWidget(QWidget):
     add_watchlist_requested = Signal(int, str)
     remove_watchlist_requested = Signal(int)
-    save_watchlist_requested = Signal(int, str, str, bool)
+    save_watchlist_requested = Signal(int, str, str, bool, str, str, str, str, str)
     refresh_company_requested = Signal(int)
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -156,10 +158,29 @@ class CompanyDetailWidget(QWidget):
 
         self._notes_input = QLineEdit()
         self._excluded_input = QCheckBox("Exclure du screening")
+        self._investment_thesis_input = QTextEdit()
+        self._key_risks_input = QTextEdit()
+        self._catalysts_input = QTextEdit()
+        self._valuation_notes_input = QTextEdit()
+        self._next_action_input = QTextEdit()
+
+        for widget in (
+            self._investment_thesis_input,
+            self._key_risks_input,
+            self._catalysts_input,
+            self._valuation_notes_input,
+            self._next_action_input,
+        ):
+            widget.setMaximumHeight(70)
 
         actions_form.addRow("Status", self._status_input)
         actions_form.addRow("Notes", self._notes_input)
         actions_form.addRow("", self._excluded_input)
+        actions_form.addRow("Investment thesis", self._investment_thesis_input)
+        actions_form.addRow("Key risks", self._key_risks_input)
+        actions_form.addRow("Catalysts", self._catalysts_input)
+        actions_form.addRow("Valuation notes", self._valuation_notes_input)
+        actions_form.addRow("Next action", self._next_action_input)
         actions_layout.addLayout(actions_form)
 
         buttons_layout = QHBoxLayout()
@@ -214,6 +235,7 @@ class CompanyDetailWidget(QWidget):
         sector_rank = row.sector_rank
         explanation_summary = _NA
         score_explanation: ScoreExplanation | None = None
+        analyst_memo = AnalystMemo()
 
         if analyst_detail is not None:
             self._in_watchlist = analyst_detail.watchlist_status is not None
@@ -228,11 +250,13 @@ class CompanyDetailWidget(QWidget):
             rank = analyst_detail.rank
             sector_rank = analyst_detail.sector_rank
             score_explanation = analyst_detail.score_explanation
+            analyst_memo = analyst_detail.analyst_memo
             explanation_summary = analyst_detail.score_explanation.summary
             self._set_editor_values(
                 status=analyst_detail.watchlist_status or WATCHLIST_STATUS_WATCHING,
                 notes=analyst_detail.watchlist_notes or "",
                 is_excluded=analyst_detail.watchlist_is_excluded,
+                memo=analyst_detail.analyst_memo,
             )
         else:
             self._in_watchlist = False
@@ -240,6 +264,7 @@ class CompanyDetailWidget(QWidget):
                 status=WATCHLIST_STATUS_WATCHING,
                 notes="",
                 is_excluded=False,
+                memo=AnalystMemo(),
             )
 
         self._set_field("Société", "Nom", row.name)
@@ -261,6 +286,7 @@ class CompanyDetailWidget(QWidget):
         self._set_field("Analyste", "Status watchlist", watchlist_status)
         self._set_field("Analyste", "Notes watchlist", watchlist_notes)
         self._set_field("Analyste", "Exclue", "oui" if watchlist_is_excluded else "non")
+        self._populate_analyst_memo(analyst_memo)
         self._set_field("Scoring", "Score total", _fmt(total_score))
         self._set_field("Scoring", "Quality", _fmt(quality_score))
         self._set_field("Scoring", "Value", _fmt(value_score))
@@ -429,6 +455,14 @@ class CompanyDetailWidget(QWidget):
             _fmt_ratio(detail.net_debt_to_ebitda if detail else None),
         )
 
+    def _populate_analyst_memo(self, memo: AnalystMemo) -> None:
+        self._set_field("Analyst Memo", "Investment thesis", _fmt_memo(memo.investment_thesis))
+        self._set_field("Analyst Memo", "Key risks", _fmt_memo(memo.key_risks))
+        self._set_field("Analyst Memo", "Catalysts", _fmt_memo(memo.catalysts))
+        self._set_field("Analyst Memo", "Valuation notes", _fmt_memo(memo.valuation_notes))
+        self._set_field("Analyst Memo", "Next action", _fmt_memo(memo.next_action))
+        self._set_field("Analyst Memo", "Quick scan", _fmt_memo_quick_line(memo))
+
     def _update_alerts(self, row: ScreenerRow) -> None:
         alerts: list[str] = []
         if row.snapshot_date is None:
@@ -458,13 +492,14 @@ class CompanyDetailWidget(QWidget):
             status=WATCHLIST_STATUS_WATCHING,
             notes="",
             is_excluded=False,
+            memo=AnalystMemo(),
         )
         self._set_actions_enabled(False)
         self._alert_frame.setVisible(False)
         self._scroll.setVisible(False)
         self._placeholder.setVisible(True)
 
-    def _set_editor_values(self, *, status: str, notes: str, is_excluded: bool) -> None:
+    def _set_editor_values(self, *, status: str, notes: str, is_excluded: bool, memo: AnalystMemo) -> None:
         status_index = self._status_input.findData(status)
         if status_index < 0:
             status_index = self._status_input.findData(WATCHLIST_STATUS_WATCHING)
@@ -472,11 +507,21 @@ class CompanyDetailWidget(QWidget):
             self._status_input.setCurrentIndex(status_index)
         self._notes_input.setText(notes)
         self._excluded_input.setChecked(is_excluded)
+        self._investment_thesis_input.setPlainText(memo.investment_thesis or "")
+        self._key_risks_input.setPlainText(memo.key_risks or "")
+        self._catalysts_input.setPlainText(memo.catalysts or "")
+        self._valuation_notes_input.setPlainText(memo.valuation_notes or "")
+        self._next_action_input.setPlainText(memo.next_action or "")
 
     def _set_actions_enabled(self, enabled: bool) -> None:
         self._status_input.setEnabled(enabled)
         self._notes_input.setEnabled(enabled)
         self._excluded_input.setEnabled(enabled)
+        self._investment_thesis_input.setEnabled(enabled)
+        self._key_risks_input.setEnabled(enabled)
+        self._catalysts_input.setEnabled(enabled)
+        self._valuation_notes_input.setEnabled(enabled)
+        self._next_action_input.setEnabled(enabled)
         self._add_watchlist_btn.setEnabled(enabled)
         self._remove_watchlist_btn.setEnabled(enabled)
         self._save_btn.setEnabled(enabled)
@@ -502,6 +547,11 @@ class CompanyDetailWidget(QWidget):
             status,
             notes,
             self._excluded_input.isChecked(),
+            self._investment_thesis_input.toPlainText().strip(),
+            self._key_risks_input.toPlainText().strip(),
+            self._catalysts_input.toPlainText().strip(),
+            self._valuation_notes_input.toPlainText().strip(),
+            self._next_action_input.toPlainText().strip(),
         )
 
     def _on_refresh_clicked(self) -> None:
@@ -573,6 +623,36 @@ def _fmt_quality(score: float | None) -> str:
     else:
         badge = "Faible"
     return f"{pct} ({badge})"
+
+
+def _normalize_optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not normalized:
+        return None
+    return normalized
+
+
+def _fmt_memo(value: str | None) -> str:
+    normalized = _normalize_optional_text(value)
+    if normalized is None:
+        return _NA
+    return "<pre>" + normalized + "</pre>"
+
+
+def _fmt_memo_quick_line(memo: AnalystMemo) -> str:
+    snippets = [
+        _normalize_optional_text(memo.investment_thesis),
+        _normalize_optional_text(memo.key_risks),
+        _normalize_optional_text(memo.catalysts),
+        _normalize_optional_text(memo.valuation_notes),
+        _normalize_optional_text(memo.next_action),
+    ]
+    present = [item for item in snippets if item is not None]
+    if not present:
+        return _NA
+    return " | ".join(present)
 
 
 def _fmt_score_weights(explanation: ScoreExplanation | None) -> str:

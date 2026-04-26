@@ -34,6 +34,11 @@ class WatchlistEntry(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
     notes: Mapped[str | None] = mapped_column(String(500))
+    investment_thesis: Mapped[str | None] = mapped_column(String(2000))
+    key_risks: Mapped[str | None] = mapped_column(String(2000))
+    catalysts: Mapped[str | None] = mapped_column(String(2000))
+    valuation_notes: Mapped[str | None] = mapped_column(String(2000))
+    next_action: Mapped[str | None] = mapped_column(String(500))
     status: Mapped[str] = mapped_column(
         String(20),
         default=WATCHLIST_STATUS_WATCHING,
