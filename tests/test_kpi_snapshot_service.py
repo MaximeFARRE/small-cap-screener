@@ -13,7 +13,7 @@ from src.repositories import (
     kpi_snapshot_repository,
     price_history_repository,
 )
-from src.services.kpi_snapshot_service import KpiSnapshotService
+from src.services.kpi_snapshot_service import DATA_QUALITY_SCORE_KEY, KpiSnapshotService
 from src.services.ratio_service import RatioService
 from src.services.scoring_service import (
     GROWTH_SCORE_KEY,
@@ -105,6 +105,8 @@ def test_create_snapshot_for_company(db_session):
     assert GROWTH_SCORE_KEY in latest.metrics
     assert RISK_SCORE_KEY in latest.metrics
     assert TOTAL_SCORE_KEY in latest.metrics
+    assert DATA_QUALITY_SCORE_KEY in latest.metrics
+    assert latest.metrics[DATA_QUALITY_SCORE_KEY] == 100.0
 
 
 def test_update_existing_snapshot(db_session):
@@ -240,6 +242,57 @@ def test_snapshot_uses_market_cap_fallback_when_price_history_missing(db_session
 
     assert result.success is True
     assert result.metrics["price"] == 55.0
+    assert result.metrics[DATA_QUALITY_SCORE_KEY] == 92.0
+
+
+def test_snapshot_data_quality_score_penalizes_incomplete_data(db_session):
+    company = company_repository.create(
+        db_session,
+        Company(
+            isin="FR0000101010",
+            ticker="DQLOW.PA",
+            name="Low Data Quality",
+            currency="EUR",
+            market_cap=None,
+        ),
+    )
+    financial_statement_repository.create(
+        db_session,
+        FinancialStatement(
+            company_id=company.id,
+            fiscal_year=2023,
+            period_type=PeriodType.ANNUAL,
+            revenue=None,
+            ebit=None,
+            ebitda=None,
+            net_income=None,
+            total_assets=None,
+            total_equity=None,
+            total_debt=None,
+            net_debt=None,
+            free_cash_flow=None,
+            shares_outstanding=None,
+        ),
+    )
+    price_history_repository.create(
+        db_session,
+        PriceHistory(
+            company_id=company.id,
+            date=date(2024, 1, 2),
+            open=10.0,
+            high=11.0,
+            low=9.5,
+            close=10.5,
+            adjusted_close=10.5,
+            volume=10_000,
+        ),
+    )
+    service = _make_service(db_session)
+
+    result = service.compute_and_upsert_for_company(company.id, snapshot_date=date(2024, 1, 31))
+
+    assert result.success is True
+    assert result.metrics[DATA_QUALITY_SCORE_KEY] == 20.0
 
 
 def test_snapshot_metrics_include_growth_when_previous_statement_exists(db_session):
