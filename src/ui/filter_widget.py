@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from typing import cast
+
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QDoubleValidator, QIntValidator
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -13,11 +16,24 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from src.services.screening_service import UniverseScreeningFilters
+from src.services.screening_service import UniverseScreeningFilters, UniverseScreeningSortField
 
 _SECTOR_PLACEHOLDER = "ex: energy"
 _MIN_SCORE_PLACEHOLDER = "ex: 70.0"
 _TOP_N_PLACEHOLDER = "ex: 25"
+_SORT_OPTIONS: list[tuple[str, UniverseScreeningSortField]] = [
+    ("Rang global", "rank"),
+    ("Score total", "total_score"),
+    ("Quality score", "quality_score"),
+    ("Value score", "value_score"),
+    ("Growth score", "growth_score"),
+    ("Risk score", "risk_score"),
+    ("Ticker", "ticker"),
+]
+_ORDER_OPTIONS: list[tuple[str, bool]] = [
+    ("Ascendant", False),
+    ("Descendant", True),
+]
 
 
 def _parse_float(text: str) -> float | None:
@@ -69,10 +85,20 @@ class FilterWidget(QWidget):
         self._top_n_input.setValidator(QIntValidator(1, 999_999, self))
         self._top_n_input.setPlaceholderText(_TOP_N_PLACEHOLDER)
 
+        self._sort_by_input = QComboBox()
+        for label, value in _SORT_OPTIONS:
+            self._sort_by_input.addItem(label, value)
+
+        self._sort_order_input = QComboBox()
+        for label, value in _ORDER_OPTIONS:
+            self._sort_order_input.addItem(label, value)
+
         form.addRow("Secteur", self._sector_input)
         form.addRow("Score min", self._min_score_input)
         form.addRow("", self._scored_only_input)
         form.addRow("Top N", self._top_n_input)
+        form.addRow("Tri", self._sort_by_input)
+        form.addRow("Ordre", self._sort_order_input)
 
         outer.addWidget(box)
 
@@ -91,12 +117,16 @@ class FilterWidget(QWidget):
         sector = self._sector_input.text().strip() or None
         min_total_score = _parse_float(self._min_score_input.text())
         top_n = _parse_int(self._top_n_input.text())
+        sort_by = cast(UniverseScreeningSortField, self._sort_by_input.currentData() or "rank")
+        descending = bool(self._sort_order_input.currentData())
         self.filters_applied.emit(
             UniverseScreeningFilters(
                 sector=sector,
                 min_total_score=min_total_score,
                 scored_only=self._scored_only_input.isChecked(),
                 top_n=top_n,
+                sort_by=sort_by,
+                descending=descending,
             )
         )
 
@@ -105,4 +135,6 @@ class FilterWidget(QWidget):
         self._min_score_input.clear()
         self._scored_only_input.setChecked(False)
         self._top_n_input.clear()
+        self._sort_by_input.setCurrentIndex(0)
+        self._sort_order_input.setCurrentIndex(0)
         self.filters_applied.emit(UniverseScreeningFilters())
