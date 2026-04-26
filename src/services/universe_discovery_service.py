@@ -26,6 +26,7 @@ class CompanyUniverseRefreshResult:
     statements_added: int = 0
     kpi_snapshot_id: int | None = None
     error: str | None = None
+    error_kind: str | None = None
     stage: str | None = None
     warnings: list[str] = field(default_factory=list)
 
@@ -61,6 +62,7 @@ class UniverseDiscoveryService:
                 ticker=data_result.ticker,
                 success=False,
                 error=data_result.error,
+                error_kind=data_result.error_kind,
                 stage=data_result.stage,
                 warnings=list(data_result.warnings),
             )
