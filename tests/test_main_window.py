@@ -78,6 +78,11 @@ class FakeCompanyChartsService:
         return None
 
 
+class FakePeerComparisonService:
+    def get_company_peer_comparison(self, _company_id: int):
+        return None
+
+
 class FakeFinancialDataService:
     def __init__(self, **_kwargs) -> None:
         pass
@@ -118,6 +123,7 @@ def _build_window(monkeypatch, qapp):
     monkeypatch.setattr(main_window_module, "WatchlistService", FakeWatchlistService)
     monkeypatch.setattr(main_window_module, "CompanyDetailService", FakeCompanyDetailService)
     monkeypatch.setattr(main_window_module, "CompanyChartsService", FakeCompanyChartsService)
+    monkeypatch.setattr(main_window_module, "PeerComparisonService", FakePeerComparisonService)
     monkeypatch.setattr(main_window_module, "FinancialDataService", FakeFinancialDataService)
     monkeypatch.setattr(main_window_module, "KpiSnapshotService", FakeKpiSnapshotService)
     monkeypatch.setattr(main_window_module, "TickerIngestionService", FakeTickerIngestionService)
