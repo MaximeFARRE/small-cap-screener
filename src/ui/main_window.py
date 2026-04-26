@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -149,6 +150,7 @@ class MainWindow(QMainWindow):
         catalysts: str,
         valuation_notes: str,
         next_action: str,
+        next_review_at_text: str,
     ) -> None:
         notes_value = notes or None
         memo = AnalystMemo(
@@ -159,14 +161,22 @@ class MainWindow(QMainWindow):
             next_action=next_action or None,
         )
         try:
+            next_review_at = _parse_next_review_at(next_review_at_text)
             notes_entry = self._watchlist_service.update_company_notes(company_id, notes_value)
             status_entry = self._watchlist_service.update_company_status(company_id, status)
             excluded_entry = self._watchlist_service.update_company_exclusion(company_id, is_excluded)
+            next_review_entry = self._watchlist_service.update_company_next_review(company_id, next_review_at)
             memo_entry = self._watchlist_service.update_company_memo(company_id, memo)
         except ValueError as exc:
             QMessageBox.warning(self, "Watchlist", str(exc))
             return
-        if notes_entry is None or status_entry is None or excluded_entry is None or memo_entry is None:
+        if (
+            notes_entry is None
+            or status_entry is None
+            or excluded_entry is None
+            or next_review_entry is None
+            or memo_entry is None
+        ):
             QMessageBox.warning(self, "Watchlist", "Impossible de mettre à jour la société.")
             return
         self._load_scored_universe(selected_company_id=company_id)
@@ -242,3 +252,16 @@ class MainWindow(QMainWindow):
                 self._current_filters,
             )
             Path(path).write_text(csv_content, encoding="utf-8-sig")
+
+
+def _parse_next_review_at(value: str) -> datetime | None:
+    text = value.strip()
+    if not text:
+        return None
+    try:
+        return datetime.strptime(text, "%Y-%m-%d")
+    except ValueError:
+        try:
+            return datetime.strptime(text, "%Y-%m-%d %H:%M")
+        except ValueError as exc:
+            raise ValueError("invalid next review format, expected YYYY-MM-DD or YYYY-MM-DD HH:MM") from exc
