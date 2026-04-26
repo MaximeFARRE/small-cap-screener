@@ -4,7 +4,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
-from src.repositories.database import init_db
+from src.services.app_runtime_service import initialize_application_storage
 from src.ui.main_window import MainWindow
 
 
@@ -18,7 +18,7 @@ def _configure_runtime_workdir() -> None:
 
 def run() -> None:
     _configure_runtime_workdir()
-    init_db()
+    initialize_application_storage()
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
