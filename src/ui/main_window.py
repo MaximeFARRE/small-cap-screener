@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDockWidget, QFileDialog, QMainWindow, QMessageBox, QSplitter
 
 from src.repositories.providers.yfinance_provider import YFinanceProvider
+from src.services.company_detail_service import CompanyDetailService
 from src.services.financial_data_service import FinancialDataService
 from src.services.kpi_snapshot_service import KpiSnapshotService
 from src.services.screening_service import ScreeningService, UniverseScreeningFilters
@@ -27,6 +28,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._screening_service = ScreeningService()
         self._watchlist_service = WatchlistService()
+        self._company_detail_service = CompanyDetailService()
         self._ticker_ingestion_service = TickerIngestionService(
             financial_data_service=FinancialDataService(provider=YFinanceProvider()),
             kpi_snapshot_service=KpiSnapshotService(),
@@ -98,7 +100,8 @@ class MainWindow(QMainWindow):
     def _on_row_selected(self, row: ScreenerRow) -> None:
         self._selected_company_id = row.company_id
         analyst_detail = self._watchlist_service.get_company_analyst_detail(row.company_id)
-        self._detail.load(row, analyst_detail)
+        financial_detail = self._company_detail_service.get_financial_detail(row.company_id)
+        self._detail.load(row, analyst_detail, financial_detail)
 
     def _on_selection_cleared(self) -> None:
         self._selected_company_id = None
