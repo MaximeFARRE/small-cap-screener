@@ -1,6 +1,34 @@
 # CHANGELOG
 
+## v0.22.0 (2026-04-26)
+
+### Chore
+
+* chore: rerun ci after black validation ([`e6b1446`](https://github.com/MaximeFARRE/small-cap-screener/commit/e6b14467f6885a5db59af075deb2107eec589f82))
+
+### Feature
+
+* feat: add peer comparison section in company detail ([`14e99ff`](https://github.com/MaximeFARRE/small-cap-screener/commit/14e99ff6e7b133cb1e04e39f3e1b88218726b4d7))
+
+* feat: add sector peer comparison service ([`dceddc2`](https://github.com/MaximeFARRE/small-cap-screener/commit/dceddc259df6d18f9fe16921ad0402eee13ed5bc))
+
+### Test
+
+* test: stub peer comparison service in main window tests ([`80b1e9e`](https://github.com/MaximeFARRE/small-cap-screener/commit/80b1e9ee4b6506d54a56efb632ad109f634328a5))
+
+* test: cover peer comparison selection and medians ([`3a66756`](https://github.com/MaximeFARRE/small-cap-screener/commit/3a66756a2a3f051e1d0dff5b91a02ea1e719a0eb))
+
+### Unknown
+
+* Merge pull request #32 from MaximeFARRE/feat/phase27-benchmark-relative-analysis
+
+Feat/phase27 benchmark relative analysis ([`34de5b4`](https://github.com/MaximeFARRE/small-cap-screener/commit/34de5b42eb6a3f63e9eeec5b4dfa488f35e32a01))
+
 ## v0.21.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.21.0 [skip ci] ([`bc94078`](https://github.com/MaximeFARRE/small-cap-screener/commit/bc940788f0e8e365b074bbcb84c5d42578b964b0))
 
 ### Feature
 
