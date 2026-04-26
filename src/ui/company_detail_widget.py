@@ -87,6 +87,7 @@ class CompanyDetailWidget(QWidget):
     add_watchlist_requested = Signal(int, str)
     remove_watchlist_requested = Signal(int)
     save_watchlist_requested = Signal(int, str, str, bool)
+    refresh_company_requested = Signal(int)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -141,15 +142,18 @@ class CompanyDetailWidget(QWidget):
         self._add_watchlist_btn = QPushButton("Ajouter watchlist")
         self._remove_watchlist_btn = QPushButton("Retirer watchlist")
         self._save_btn = QPushButton("Enregistrer")
+        self._refresh_btn = QPushButton("Actualiser cette société")
         buttons_layout.addWidget(self._add_watchlist_btn)
         buttons_layout.addWidget(self._remove_watchlist_btn)
         buttons_layout.addWidget(self._save_btn)
+        buttons_layout.addWidget(self._refresh_btn)
         actions_layout.addLayout(buttons_layout)
         self._content_layout.addWidget(actions_box)
 
         self._add_watchlist_btn.clicked.connect(self._on_add_watchlist_clicked)
         self._remove_watchlist_btn.clicked.connect(self._on_remove_watchlist_clicked)
         self._save_btn.clicked.connect(self._on_save_clicked)
+        self._refresh_btn.clicked.connect(self._on_refresh_clicked)
         self._set_actions_enabled(False)
 
     def _set_field(self, group: str, label: str, value: str) -> None:
@@ -385,6 +389,7 @@ class CompanyDetailWidget(QWidget):
         self._add_watchlist_btn.setEnabled(enabled)
         self._remove_watchlist_btn.setEnabled(enabled)
         self._save_btn.setEnabled(enabled)
+        self._refresh_btn.setEnabled(enabled)
 
     def _on_add_watchlist_clicked(self) -> None:
         if self._current_row is None:
@@ -407,6 +412,11 @@ class CompanyDetailWidget(QWidget):
             notes,
             self._excluded_input.isChecked(),
         )
+
+    def _on_refresh_clicked(self) -> None:
+        if self._current_row is None:
+            return
+        self.refresh_company_requested.emit(self._current_row.company_id)
 
 
 def _fmt_period(detail: CompanyFinancialDetail) -> str:
