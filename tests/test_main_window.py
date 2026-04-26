@@ -83,6 +83,11 @@ class FakePeerComparisonService:
         return None
 
 
+class FakeBacktestingService:
+    def analyze_ranking_validation(self, **_kwargs):
+        return SimpleNamespace(total_snapshots=0)
+
+
 class FakeFinancialDataService:
     def __init__(self, **_kwargs) -> None:
         pass
@@ -124,6 +129,7 @@ def _build_window(monkeypatch, qapp):
     monkeypatch.setattr(main_window_module, "CompanyDetailService", FakeCompanyDetailService)
     monkeypatch.setattr(main_window_module, "CompanyChartsService", FakeCompanyChartsService)
     monkeypatch.setattr(main_window_module, "PeerComparisonService", FakePeerComparisonService)
+    monkeypatch.setattr(main_window_module, "BacktestingService", FakeBacktestingService)
     monkeypatch.setattr(main_window_module, "FinancialDataService", FakeFinancialDataService)
     monkeypatch.setattr(main_window_module, "KpiSnapshotService", FakeKpiSnapshotService)
     monkeypatch.setattr(main_window_module, "TickerIngestionService", FakeTickerIngestionService)
