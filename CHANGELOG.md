@@ -1,6 +1,22 @@
 # CHANGELOG
 
+## v0.25.1 (2026-04-26)
+
+### Unknown
+
+* Merge pull request #36 from MaximeFARRE/fix/pre-commit-ci-alignment
+
+Fix/pre commit ci alignment ([`e1ef902`](https://github.com/MaximeFARRE/small-cap-screener/commit/e1ef9026843823ff227c329d1822c9c3633afc5f))
+
 ## v0.25.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.25.0 [skip ci] ([`40e18e6`](https://github.com/MaximeFARRE/small-cap-screener/commit/40e18e6b957598232d00af73fe379c2dac2f1adb))
+
+* chore: fix trailing whitespace and missing EOF newlines ([`827d30c`](https://github.com/MaximeFARRE/small-cap-screener/commit/827d30c349c7fdeeabd23a7f08bab2c5dc3d52f8))
+
+* chore: add .gitattributes to force LF for shell scripts ([`ea7299c`](https://github.com/MaximeFARRE/small-cap-screener/commit/ea7299c29375ac84af1b3c010f07529205307f70))
 
 ### Feature
 
@@ -45,6 +61,20 @@ layer can display clean, user-facing messages without inspecting raw
 exception text.
 
 Co-Authored-By: Claude Sonnet 4.6 &lt;noreply@anthropic.com&gt; ([`33a4771`](https://github.com/MaximeFARRE/small-cap-screener/commit/33a4771aaa5b9c1f0d1e9f087e0ba9191b0325a8))
+
+### Fix
+
+* fix: apply ruff format to test_seed_universe_repository.py ([`fb6ff6d`](https://github.com/MaximeFARRE/small-cap-screener/commit/fb6ff6debcd4c112d05537f428bae7a3cd794a82))
+
+* fix: apply ruff format to kpi_snapshot_service.py ([`f7c5b63`](https://github.com/MaximeFARRE/small-cap-screener/commit/f7c5b633e74f327d3e461c572faf796f6d74b2eb))
+
+* fix: remove black from dev dependencies ([`af6cef2`](https://github.com/MaximeFARRE/small-cap-screener/commit/af6cef29c731e759dc7e2375b43fb9601829c4c2))
+
+* fix: replace [tool.black] config with [tool.ruff.format] ([`3aa577f`](https://github.com/MaximeFARRE/small-cap-screener/commit/3aa577f52c5d66720e4a8d19e04c92682e7a1b0a))
+
+* fix: pin ruff version in CI and replace black with ruff format ([`1b1e991`](https://github.com/MaximeFARRE/small-cap-screener/commit/1b1e99111d941101704aec5db98ae80fbc9740f6))
+
+* fix: remove redundant black formatter, add main-branch protection hook ([`f039489`](https://github.com/MaximeFARRE/small-cap-screener/commit/f03948957df8070df636f934505fe863e83ccff6))
 
 ### Test
 
