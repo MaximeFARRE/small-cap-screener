@@ -1,6 +1,32 @@
 # CHANGELOG
 
+## v0.15.0 (2026-04-26)
+
+### Documentation
+
+* docs: describe score transparency and weight configuration ([`16041cd`](https://github.com/MaximeFARRE/small-cap-screener/commit/16041cd158ea70ae494a0704ac6ee5eb00a8eb49))
+
+### Feature
+
+* feat: show score transparency details in company detail widget ([`df67b69`](https://github.com/MaximeFARRE/small-cap-screener/commit/df67b69a7fdf91de39ce4b13014c4959acf94ee7))
+
+* feat: add configurable score weights and deterministic breakdown ([`a48b2b6`](https://github.com/MaximeFARRE/small-cap-screener/commit/a48b2b64d0fcd7a24ec4e8b5648eb4ef75938ad9))
+
+### Test
+
+* test: add score transparency and weight stability coverage ([`ac4b2c3`](https://github.com/MaximeFARRE/small-cap-screener/commit/ac4b2c313bf1e0128cfb9be88afe445dfc94a567))
+
+### Unknown
+
+* Merge pull request #25 from MaximeFARRE/feat/phase21-score-transparency
+
+Feat/phase21 score transparency ([`4a916ae`](https://github.com/MaximeFARRE/small-cap-screener/commit/4a916ae4f6133589354e993d55d6e20074c9d5dc))
+
 ## v0.14.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.14.0 [skip ci] ([`21646c7`](https://github.com/MaximeFARRE/small-cap-screener/commit/21646c7c191aaa22d412840eb62fe98761daa0b1))
 
 ### Documentation
 
