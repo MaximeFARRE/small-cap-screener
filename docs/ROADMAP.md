@@ -35,6 +35,7 @@ Target universe:
 * Error feedback polish (clean user-facing messages in French): delivered.
 * Database & Data Maintenance (backup, vacuum, data reset UI, schema migration strategy): delivered.
 * Performance & Scalability (QThread worker pattern for background refreshes): delivered.
+* UI Polish & Usability (improved spacing, empty states, loading cursor, data quality badges): delivered.
 * Reliability layer (retry/fallback, offline mode, data quality score): delivered.
 * Desktop packaging baseline (PyInstaller): delivered.
 * Recruiter-ready documentation and demo assets: in progress.
@@ -138,11 +139,9 @@ Target universe:
 * Background offloading for single company refresh, batch universe refresh, and watchlist refresh.
 * Active worker lifecycle management to prevent premature garbage collection.
 
-## Phase 34 — UI polish and usability
+### Phase 34 — UI polish and usability
 
-* Improve layout and spacing
-* Improve table formatting for numbers, percentages and missing values
-* Add loading states
-* Add empty states with useful actions
-* Add consistent badges for status, exclusion and data quality
-* Make the app feel like an analyst tool, not a raw dev UI
+* Table formatting improved for numbers, percentages and missing values (data quality indicators).
+* Global loading state (WaitCursor) implemented for long-running network operations.
+* Empty states visually separated with italic/muted styling for an analyst tool feel.
+* Alert panels and alerts clearly delineated with distinct warning colors.
