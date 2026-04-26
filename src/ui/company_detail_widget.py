@@ -2,7 +2,18 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCharts import (
+    QBarCategoryAxis,
+    QBarSeries,
+    QBarSet,
+    QChart,
+    QChartView,
+    QDateTimeAxis,
+    QLineSeries,
+    QValueAxis,
+)
+from PySide6.QtCore import QDateTime, Qt, Signal
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -25,6 +36,12 @@ from src.models.watchlist_entry import (
     WATCHLIST_STATUS_REJECTED,
     WATCHLIST_STATUS_REVIEW,
     WATCHLIST_STATUS_WATCHING,
+)
+from src.services.company_charts_service import (
+    CompanyChartsData,
+    DatedChartPoint,
+    ScoreBreakdownPoint,
+    YearlyChartPoint,
 )
 from src.services.company_detail_service import CompanyFinancialDetail
 from src.services.scoring_service import ScoreExplanation, ScoreMetricDriver
@@ -60,6 +77,13 @@ _TREND_LABELS = {
     "negative": "negative",
     "stable": "stable",
 }
+_CHART_HEIGHT = 200
+_PRICE_COLOR = "#1f77b4"
+_REVENUE_COLOR = "#2ca02c"
+_OPERATING_COLOR = "#ff7f0e"
+_MARGIN_COLOR = "#d62728"
+_SCORE_BAR_COLOR = "#4c78a8"
+_NO_DATA_SUFFIX = " (no data)"
 
 
 def _fmt(value: float | None, decimals: int = 2) -> str:
@@ -148,6 +172,19 @@ class CompanyDetailWidget(QWidget):
             self._groups[title] = form
             self._content_layout.addWidget(box)
 
+        charts_box = QGroupBox("Visual analysis")
+        charts_layout = QVBoxLayout(charts_box)
+        self._price_chart_view = _build_chart_view()
+        self._fundamentals_chart_view = _build_chart_view()
+        self._margin_chart_view = _build_chart_view()
+        self._score_chart_view = _build_chart_view()
+        charts_layout.addWidget(self._price_chart_view)
+        charts_layout.addWidget(self._fundamentals_chart_view)
+        charts_layout.addWidget(self._margin_chart_view)
+        charts_layout.addWidget(self._score_chart_view)
+        self._content_layout.addWidget(charts_box)
+        self._clear_charts()
+
         actions_box = QGroupBox("Actions analyste")
         actions_layout = QVBoxLayout(actions_box)
         actions_form = QFormLayout()
@@ -220,6 +257,7 @@ class CompanyDetailWidget(QWidget):
         row: ScreenerRow,
         analyst_detail: CompanyAnalystDetail | None = None,
         financial_detail: CompanyFinancialDetail | None = None,
+        chart_data: CompanyChartsData | None = None,
     ) -> None:
         self._current_row = row
         for form in self._groups.values():
@@ -286,6 +324,7 @@ class CompanyDetailWidget(QWidget):
         self._populate_historical_fundamentals(financial_detail)
         self._populate_valuation_ratios(financial_detail)
         self._populate_quality_growth_risk(financial_detail)
+        self._populate_charts(chart_data)
         self._update_alerts(row)
 
         self._set_field("Analyste", "Status watchlist", watchlist_status)
@@ -463,6 +502,53 @@ class CompanyDetailWidget(QWidget):
             _fmt_ratio(detail.net_debt_to_ebitda if detail else None),
         )
 
+    def _populate_charts(self, chart_data: CompanyChartsData | None) -> None:
+        if chart_data is None:
+            self._clear_charts()
+            return
+        self._price_chart_view.setChart(
+            _line_chart_for_dated_points(
+                title="Price history",
+                points=chart_data.price_points,
+                color=_PRICE_COLOR,
+                y_title="Price",
+            )
+        )
+        self._fundamentals_chart_view.setChart(
+            _line_chart_for_year_points(
+                title="Revenue and EBITDA / operating income",
+                main_points=chart_data.fundamentals.revenue_points,
+                main_label="Revenue",
+                main_color=_REVENUE_COLOR,
+                secondary_points=chart_data.fundamentals.operating_income_points,
+                secondary_label="EBITDA / operating income",
+                secondary_color=_OPERATING_COLOR,
+                y_title="Amount",
+            )
+        )
+        margin_points = [
+            _to_year_point(point.fiscal_year, point.value * 100.0) for point in chart_data.fundamentals.margin_points
+        ]
+        self._margin_chart_view.setChart(
+            _line_chart_for_year_points(
+                title="Operating margin history (%)",
+                main_points=margin_points,
+                main_label="Margin %",
+                main_color=_MARGIN_COLOR,
+                secondary_points=[],
+                secondary_label=None,
+                secondary_color=None,
+                y_title="Percent",
+            )
+        )
+        self._score_chart_view.setChart(_score_breakdown_chart(chart_data.score_breakdown))
+
+    def _clear_charts(self) -> None:
+        self._price_chart_view.setChart(_empty_chart("Price history"))
+        self._fundamentals_chart_view.setChart(_empty_chart("Revenue and EBITDA / operating income"))
+        self._margin_chart_view.setChart(_empty_chart("Operating margin history (%)"))
+        self._score_chart_view.setChart(_empty_chart("Score breakdown"))
+
     def _populate_analyst_memo(self, memo: AnalystMemo) -> None:
         self._set_field("Analyst Memo", "Investment thesis", _fmt_memo(memo.investment_thesis))
         self._set_field("Analyst Memo", "Key risks", _fmt_memo(memo.key_risks))
@@ -504,6 +590,7 @@ class CompanyDetailWidget(QWidget):
             memo=AnalystMemo(),
         )
         self._set_actions_enabled(False)
+        self._clear_charts()
         self._alert_frame.setVisible(False)
         self._scroll.setVisible(False)
         self._placeholder.setVisible(True)
@@ -578,6 +665,187 @@ class CompanyDetailWidget(QWidget):
         if self._current_row is None:
             return
         self.refresh_company_requested.emit(self._current_row.company_id)
+
+
+def _build_chart_view() -> QChartView:
+    chart_view = QChartView()
+    chart_view.setRenderHint(QPainter.RenderHint.Antialiasing)
+    chart_view.setMinimumHeight(_CHART_HEIGHT)
+    chart_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    return chart_view
+
+
+def _empty_chart(title: str) -> QChart:
+    chart = QChart()
+    chart.setTitle(title + _NO_DATA_SUFFIX)
+    chart.legend().hide()
+    return chart
+
+
+def _line_chart_for_dated_points(
+    *,
+    title: str,
+    points: list[DatedChartPoint],
+    color: str,
+    y_title: str,
+) -> QChart:
+    if not points:
+        return _empty_chart(title)
+    chart = QChart()
+    chart.setTitle(title)
+    chart.legend().hide()
+
+    series = QLineSeries()
+    series.setPen(_line_pen(color))
+    chart.addSeries(series)
+
+    values: list[float] = []
+    for point in points:
+        qdt = QDateTime(point.point_date.year, point.point_date.month, point.point_date.day, 0, 0)
+        series.append(float(qdt.toMSecsSinceEpoch()), point.value)
+        values.append(point.value)
+
+    axis_x = QDateTimeAxis()
+    axis_x.setFormat("yyyy-MM")
+    axis_x.setTitleText("Date")
+    start = QDateTime(points[0].point_date.year, points[0].point_date.month, points[0].point_date.day, 0, 0)
+    end = QDateTime(points[-1].point_date.year, points[-1].point_date.month, points[-1].point_date.day, 0, 0)
+    if len(points) == 1:
+        start = start.addDays(-1)
+        end = end.addDays(1)
+    axis_x.setRange(start, end)
+    chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
+    series.attachAxis(axis_x)
+
+    axis_y = QValueAxis()
+    axis_y.setLabelFormat("%.2f")
+    axis_y.setTitleText(y_title)
+    _set_value_axis_range(axis_y, min(values), max(values))
+    chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
+    series.attachAxis(axis_y)
+    return chart
+
+
+def _line_chart_for_year_points(
+    *,
+    title: str,
+    main_points: list[YearlyChartPoint],
+    main_label: str,
+    main_color: str,
+    secondary_points: list[YearlyChartPoint],
+    secondary_label: str | None,
+    secondary_color: str | None,
+    y_title: str,
+) -> QChart:
+    has_main = bool(main_points)
+    has_secondary = bool(secondary_points)
+    if not has_main and not has_secondary:
+        return _empty_chart(title)
+
+    chart = QChart()
+    chart.setTitle(title)
+    chart.legend().setVisible(has_secondary)
+
+    main_series = _year_line_series(main_label, main_points, main_color)
+    chart.addSeries(main_series)
+    all_points = list(main_points)
+
+    secondary_series: QLineSeries | None = None
+    if has_secondary and secondary_label is not None and secondary_color is not None:
+        secondary_series = _year_line_series(secondary_label, secondary_points, secondary_color)
+        chart.addSeries(secondary_series)
+        all_points.extend(secondary_points)
+
+    years = [point.fiscal_year for point in all_points]
+    values = [point.value for point in all_points]
+
+    axis_x = QValueAxis()
+    axis_x.setLabelFormat("%.0f")
+    axis_x.setTitleText("Fiscal year")
+    _set_year_axis_range(axis_x, min(years), max(years))
+    chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
+    main_series.attachAxis(axis_x)
+    if secondary_series is not None:
+        secondary_series.attachAxis(axis_x)
+
+    axis_y = QValueAxis()
+    axis_y.setLabelFormat("%.2f")
+    axis_y.setTitleText(y_title)
+    _set_value_axis_range(axis_y, min(values), max(values))
+    chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
+    main_series.attachAxis(axis_y)
+    if secondary_series is not None:
+        secondary_series.attachAxis(axis_y)
+
+    return chart
+
+
+def _score_breakdown_chart(points: list[ScoreBreakdownPoint]) -> QChart:
+    if not points:
+        return _empty_chart("Score breakdown")
+
+    chart = QChart()
+    chart.setTitle("Score breakdown")
+    chart.legend().hide()
+
+    bar_set = QBarSet("Score")
+    bar_set.setColor(QColor(_SCORE_BAR_COLOR))
+    for point in points:
+        bar_set.append(point.score)
+
+    series = QBarSeries()
+    series.append(bar_set)
+    chart.addSeries(series)
+
+    axis_x = QBarCategoryAxis()
+    axis_x.append([point.label for point in points])
+    axis_x.setTitleText("Category")
+    chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
+    series.attachAxis(axis_x)
+
+    max_score = max(100.0, max(point.score for point in points))
+    axis_y = QValueAxis()
+    axis_y.setLabelFormat("%.0f")
+    axis_y.setTitleText("Score")
+    axis_y.setRange(0.0, max_score * 1.05)
+    chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
+    series.attachAxis(axis_y)
+    return chart
+
+
+def _line_pen(color: str) -> QPen:
+    pen = QPen(QColor(color))
+    pen.setWidth(2)
+    return pen
+
+
+def _year_line_series(name: str, points: list[YearlyChartPoint], color: str) -> QLineSeries:
+    series = QLineSeries()
+    series.setName(name)
+    series.setPen(_line_pen(color))
+    for point in points:
+        series.append(float(point.fiscal_year), point.value)
+    return series
+
+
+def _set_year_axis_range(axis: QValueAxis, start_year: int, end_year: int) -> None:
+    if start_year == end_year:
+        axis.setRange(float(start_year - 1), float(end_year + 1))
+        return
+    axis.setRange(float(start_year), float(end_year))
+
+
+def _set_value_axis_range(axis: QValueAxis, min_value: float, max_value: float) -> None:
+    if min_value == max_value:
+        padding = 1.0 if min_value == 0 else abs(min_value) * 0.1
+        axis.setRange(min_value - padding, max_value + padding)
+        return
+    padding = abs(max_value - min_value) * 0.1
+    axis.setRange(min_value - padding, max_value + padding)
+
+
+def _to_year_point(fiscal_year: int, value: float) -> YearlyChartPoint:
+    return YearlyChartPoint(fiscal_year=fiscal_year, value=value)
 
 
 def _fmt_period(detail: CompanyFinancialDetail) -> str:

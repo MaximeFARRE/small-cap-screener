@@ -70,6 +70,14 @@ class FakeCompanyDetailService:
         return None
 
 
+class FakeCompanyChartsService:
+    def get_company_charts_data(self, _company_id: int):
+        return None
+
+    def build_company_charts_data(self, _company_id: int, **_kwargs):
+        return None
+
+
 class FakeFinancialDataService:
     def __init__(self, **_kwargs) -> None:
         pass
@@ -109,6 +117,7 @@ def _build_window(monkeypatch, qapp):
     monkeypatch.setattr(main_window_module, "ScreeningService", FakeScreeningService)
     monkeypatch.setattr(main_window_module, "WatchlistService", FakeWatchlistService)
     monkeypatch.setattr(main_window_module, "CompanyDetailService", FakeCompanyDetailService)
+    monkeypatch.setattr(main_window_module, "CompanyChartsService", FakeCompanyChartsService)
     monkeypatch.setattr(main_window_module, "FinancialDataService", FakeFinancialDataService)
     monkeypatch.setattr(main_window_module, "KpiSnapshotService", FakeKpiSnapshotService)
     monkeypatch.setattr(main_window_module, "TickerIngestionService", FakeTickerIngestionService)
