@@ -1,6 +1,56 @@
 # CHANGELOG
 
+## v0.5.0 (2026-04-26)
+
+### Documentation
+
+* docs: update roadmap for phase 10 delivery ([`8dd1a13`](https://github.com/MaximeFARRE/small-cap-screener/commit/8dd1a13e4700db3dddd99800804007c4e59f05b1))
+
+### Feature
+
+* feat: wire analyst workflow actions in main window ([`b2b68cf`](https://github.com/MaximeFARRE/small-cap-screener/commit/b2b68cf05fad146b0630b5de5d652872d4a23051))
+
+* feat: add analyst actions in company detail widget ([`a118377`](https://github.com/MaximeFARRE/small-cap-screener/commit/a118377ae93564fe6e352ace928db7446eb8f48a))
+
+* feat: add include excluded filter control ([`a9fdfb1`](https://github.com/MaximeFARRE/small-cap-screener/commit/a9fdfb1c7b200141e7e4342722aad772d5e25449))
+
+* feat: enrich analyst detail with scoring and ranks ([`fbe1def`](https://github.com/MaximeFARRE/small-cap-screener/commit/fbe1def5760e628d97069a621640f5662a47cc55))
+
+* feat: add screening snapshot save and read methods ([`00295ea`](https://github.com/MaximeFARRE/small-cap-screener/commit/00295eaaf43ed62299353838c461e9fddec3785a))
+
+* feat: add screening snapshot repository accessors ([`e0945ea`](https://github.com/MaximeFARRE/small-cap-screener/commit/e0945ea74dbec0b52edec3d9a080ee1036ac3763))
+
+* feat: add excel export for filtered screening ([`8c63461`](https://github.com/MaximeFARRE/small-cap-screener/commit/8c63461495b5becf492fdedaaa09ff250b3b46f4))
+
+* feat: exclude watchlist flagged companies from screening ([`fa2add8`](https://github.com/MaximeFARRE/small-cap-screener/commit/fa2add8d6d4a2ee11ffc7f164bfa5d2f963ea3dd))
+
+* feat: expose watchlist exclusion update in service ([`05c3eaa`](https://github.com/MaximeFARRE/small-cap-screener/commit/05c3eaa0c032175b1da5c6eb37412e92ff79b78e))
+
+* feat: add watchlist exclusion flag support ([`ca9b6b2`](https://github.com/MaximeFARRE/small-cap-screener/commit/ca9b6b2bbdcd20d334ab46dd1a9ab4000a9276ac))
+
+### Test
+
+* test: cover unified analyst detail scenarios ([`a14abaf`](https://github.com/MaximeFARRE/small-cap-screener/commit/a14abafc3a0257d5390bf05b4859097adc656fda))
+
+* test: add coverage for screening snapshots ([`964eb6e`](https://github.com/MaximeFARRE/small-cap-screener/commit/964eb6e4135b678d147651f21f51b4303c45e8e9))
+
+* test: add coverage for screening excel export ([`4514025`](https://github.com/MaximeFARRE/small-cap-screener/commit/4514025bba55c27c0287f2c2180600691c423f2f))
+
+* test: cover excluded companies screening behavior ([`836b09d`](https://github.com/MaximeFARRE/small-cap-screener/commit/836b09d053ecbc9fb8f2c1215f9ffb9f372e69c8))
+
+* test: add coverage for watchlist exclusion updates ([`a7ba480`](https://github.com/MaximeFARRE/small-cap-screener/commit/a7ba480d886af899cb4393c0a390c390813f8b6e))
+
+### Unknown
+
+* Merge pull request #15 from MaximeFARRE/feat/phase11-watchlist-exclusions
+
+Feat/phase11 watchlist exclusions ([`228a6fb`](https://github.com/MaximeFARRE/small-cap-screener/commit/228a6fbee8aa5b6f9763785d531c50668f3d4732))
+
 ## v0.4.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.4.0 [skip ci] ([`dec15cf`](https://github.com/MaximeFARRE/small-cap-screener/commit/dec15cf6532ff8a1e31ff8be3b7c2a4526d581a9))
 
 ### Feature
 
