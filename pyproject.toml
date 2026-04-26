@@ -30,9 +30,8 @@ ignore = []
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 
-[tool.black]
-line-length = 120
-target-version = ["py311"]
+[tool.ruff.format]
+quote-style = "double"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

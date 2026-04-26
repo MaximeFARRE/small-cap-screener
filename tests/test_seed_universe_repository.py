@@ -32,7 +32,7 @@ def test_read_seed_universe_valid_csv(tmp_path):
 def test_read_seed_universe_missing_required_column(tmp_path):
     csv_path = tmp_path / "seed_universe_missing.csv"
     csv_path.write_text(
-        ("name,ticker,isin,exchange,country,currency\n" "TotalEnergies,TTE.PA,FR0000120271,PAR,France,EUR\n"),
+        ("name,ticker,isin,exchange,country,currency\nTotalEnergies,TTE.PA,FR0000120271,PAR,France,EUR\n"),
         encoding="utf-8",
     )
 
@@ -51,7 +51,7 @@ def test_read_seed_universe_empty_file(tmp_path):
 def test_read_seed_universe_invalid_row(tmp_path):
     csv_path = tmp_path / "seed_universe_invalid_row.csv"
     csv_path.write_text(
-        ("name,ticker,isin,exchange,country,sector,currency\n" "TotalEnergies,,FR0000120271,PAR,France,Energy,EUR\n"),
+        ("name,ticker,isin,exchange,country,sector,currency\nTotalEnergies,,FR0000120271,PAR,France,Energy,EUR\n"),
         encoding="utf-8",
     )
 

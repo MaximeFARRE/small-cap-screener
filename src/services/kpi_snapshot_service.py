@@ -236,7 +236,7 @@ class KpiSnapshotService:
                 continue
 
             _LOGGER.warning(
-                ("kpi snapshot refresh failed | stage=%s company_id=%s ticker=%s " "snapshot_date=%s error=%s"),
+                ("kpi snapshot refresh failed | stage=%s company_id=%s ticker=%s snapshot_date=%s error=%s"),
                 result.stage,
                 company_id,
                 ticker,

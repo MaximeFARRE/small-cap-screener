@@ -34,7 +34,7 @@ UI → Services → Repository / DB
 
 ## Commits
 
-`feat|fix|docs|chore|test: <what and why>`  
+`feat|fix|docs|chore|test: <what and why>`
 One logical change = one commit. Never batch unrelated changes.
 
 ## Before finishing
