@@ -20,6 +20,7 @@ This project provides one coherent workflow: ingest data, compute KPIs, score co
 * Deterministic scoring V1 (quality/value/growth/risk + total score)
 * Global and sector ranking on the scored universe
 * Analyst workflow (watchlist, notes, status, exclusions)
+* Historical fundamentals in company detail (multi-year table, CAGR, trend flags)
 * Screening filters/sorting + CSV and Excel exports
 * Screening snapshots to freeze filtered/ranked results at a given date
 * Reliability features (cache, retry/fallback, offline mode, data quality score)
