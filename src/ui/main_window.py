@@ -9,6 +9,7 @@ from src.services.financial_data_service import FinancialDataService
 from src.services.kpi_snapshot_service import KpiSnapshotService
 from src.services.screening_service import ScreeningService, UniverseScreeningFilters
 from src.services.ticker_ingestion_service import TickerIngestionService
+from src.services.universe_discovery_service import UniverseDiscoveryService
 from src.services.watchlist_service import WatchlistService
 from src.ui.add_ticker_dialog import AddTickerDialog
 from src.ui.company_detail_widget import CompanyDetailWidget
@@ -29,9 +30,15 @@ class MainWindow(QMainWindow):
         self._screening_service = ScreeningService()
         self._watchlist_service = WatchlistService()
         self._company_detail_service = CompanyDetailService()
+        _financial_data_service = FinancialDataService(provider=YFinanceProvider())
+        _kpi_snapshot_service = KpiSnapshotService()
         self._ticker_ingestion_service = TickerIngestionService(
-            financial_data_service=FinancialDataService(provider=YFinanceProvider()),
-            kpi_snapshot_service=KpiSnapshotService(),
+            financial_data_service=_financial_data_service,
+            kpi_snapshot_service=_kpi_snapshot_service,
+        )
+        self._universe_discovery_service = UniverseDiscoveryService(
+            financial_data_service=_financial_data_service,
+            kpi_snapshot_service=_kpi_snapshot_service,
         )
         self._current_filters = UniverseScreeningFilters()
         self._selected_company_id: int | None = None
@@ -75,6 +82,7 @@ class MainWindow(QMainWindow):
     def _setup_menu(self) -> None:
         file_menu = self.menuBar().addMenu("Fichier")
         file_menu.addAction("Ajouter un ticker…", self._open_add_ticker_dialog)
+        file_menu.addAction("Actualiser l'univers", self._refresh_universe)
         file_menu.addSeparator()
         file_menu.addAction("Exporter CSV…", self._export_csv)
 
@@ -146,6 +154,18 @@ class MainWindow(QMainWindow):
     def _on_ticker_ingested(self, company_id: int) -> None:
         self._load_scored_universe(selected_company_id=company_id)
         self.statusBar().showMessage("Ticker importé et screener mis à jour.", 5000)
+
+    def _refresh_universe(self) -> None:
+        self.statusBar().showMessage("Actualisation de l'univers en cours…")
+        self.repaint()
+        result = self._universe_discovery_service.batch_refresh_universe()
+        self._load_scored_universe(selected_company_id=self._selected_company_id)
+        msg = (
+            f"Univers actualisé — {result.succeeded}/{result.total} sociétés rafraîchies"
+            + (f", {result.failed} échec(s)" if result.failed else "")
+            + "."
+        )
+        self.statusBar().showMessage(msg, 8000)
 
     def _export_csv(self) -> None:
         rows = self._screener.rows()
