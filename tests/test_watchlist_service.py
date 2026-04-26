@@ -224,3 +224,54 @@ def test_list_watchlist_with_scores_reuses_global_ranking(db_session):
     assert no_score_entry.total_score is None
     assert no_score_entry.rank is None
     assert no_score_entry.sector_rank is None
+
+
+def test_get_company_analyst_detail_returns_watchlist_and_score_explanation(db_session):
+    company = _make_company(db_session, isin="FR0000810100", ticker="DET.PA", name="Detail Co")
+    watchlist_repository.add(
+        db_session,
+        WatchlistEntry(company_id=company.id, notes="analyst note", status=WATCHLIST_STATUS_REVIEW),
+    )
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=company.id,
+            snapshot_date=date(2024, 10, 31),
+            metrics={
+                "quality_score": 81.0,
+                "value_score": 74.0,
+                "growth_score": 69.0,
+                "risk_score": 66.0,
+                "total_score": 74.95,
+            },
+            source="s1",
+        ),
+    )
+    service = _make_service(db_session)
+
+    detail = service.get_company_analyst_detail(company.id)
+
+    assert detail.watchlist_status == WATCHLIST_STATUS_REVIEW
+    assert detail.watchlist_notes == "analyst note"
+    assert detail.score_explanation.total_score == pytest.approx(74.95)
+    assert detail.score_explanation.quality == pytest.approx(81.0)
+    assert detail.score_explanation.value == pytest.approx(74.0)
+    assert detail.score_explanation.growth == pytest.approx(69.0)
+    assert detail.score_explanation.risk == pytest.approx(66.0)
+    assert "total 74.95/100" in detail.score_explanation.summary
+
+
+def test_get_company_analyst_detail_handles_missing_watchlist_and_snapshot(db_session):
+    company = _make_company(db_session, isin="FR0000810101", ticker="MSS.PA", name="Missing Data Co")
+    service = _make_service(db_session)
+
+    detail = service.get_company_analyst_detail(company.id)
+
+    assert detail.watchlist_status is None
+    assert detail.watchlist_notes is None
+    assert detail.score_explanation.total_score is None
+    assert detail.score_explanation.quality is None
+    assert detail.score_explanation.value is None
+    assert detail.score_explanation.growth is None
+    assert detail.score_explanation.risk is None
+    assert detail.score_explanation.summary == "score unavailable: no snapshot data."
