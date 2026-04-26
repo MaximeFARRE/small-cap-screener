@@ -1,6 +1,40 @@
 # CHANGELOG
 
+## v0.4.0 (2026-04-26)
+
+### Feature
+
+* feat: show analyst detail in company detail panel ([`d960bc5`](https://github.com/MaximeFARRE/small-cap-screener/commit/d960bc5a3f2ae6ff6d57e38f146aefad6847a54e))
+
+* feat: add analyst detail accessor in watchlist service ([`b82e1ca`](https://github.com/MaximeFARRE/small-cap-screener/commit/b82e1ca33427582a793ef0943eccbfd167a2c49b))
+
+* feat: add ui controls for screening sort options ([`72ddea4`](https://github.com/MaximeFARRE/small-cap-screener/commit/72ddea41d70f8ee804c5bcd81d576d88c7c6aefc))
+
+* feat: apply ui filters through screening service ([`912281e`](https://github.com/MaximeFARRE/small-cap-screener/commit/912281e16b5fab41fa092ee9482d6446e44d4275))
+
+* feat: add universe filter controls in filter widget ([`b6e5436`](https://github.com/MaximeFARRE/small-cap-screener/commit/b6e54368340f8c8e309c58fd17c8b87e509f0c3b))
+
+* feat: load scored universe in main window ([`21a4e24`](https://github.com/MaximeFARRE/small-cap-screener/commit/21a4e247a8939922f54b459403854a1b701c6cbd))
+
+* feat: adapt company detail panel to scoring fields ([`c2b96a8`](https://github.com/MaximeFARRE/small-cap-screener/commit/c2b96a846a824924dc6669026a37c2271c505673))
+
+* feat: show scored universe columns in screener table ([`ced4d0a`](https://github.com/MaximeFARRE/small-cap-screener/commit/ced4d0a13cddeb3945a26de5a9e1fa148fec27ce))
+
+### Test
+
+* test: cover analyst detail access in watchlist service ([`3dc9579`](https://github.com/MaximeFARRE/small-cap-screener/commit/3dc9579b7667bfcb53043da4c121f67e77060200))
+
+### Unknown
+
+* Merge pull request #14 from MaximeFARRE/feat/phase10-screener-ui
+
+Feat/phase10 screener UI ([`3ae5dea`](https://github.com/MaximeFARRE/small-cap-screener/commit/3ae5dea909d92bd6e3d299e79646e95c270a99cc))
+
 ## v0.3.0 (2026-04-25)
+
+### Chore
+
+* chore(release): 0.3.0 [skip ci] ([`2d6c595`](https://github.com/MaximeFARRE/small-cap-screener/commit/2d6c59513584d5d77a878e09148acb97e787082e))
 
 ### Feature
 
