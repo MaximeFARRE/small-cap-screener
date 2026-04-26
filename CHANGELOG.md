@@ -1,6 +1,30 @@
 # CHANGELOG
 
+## v0.13.0 (2026-04-26)
+
+### Feature
+
+* feat: show freshness dates, quality badge and alert panel in CompanyDetailWidget ([`32fbb1e`](https://github.com/MaximeFARRE/small-cap-screener/commit/32fbb1e93c0b488e4d602284816c6f74f1f90e17))
+
+* feat: add quality score and stale-only filter inputs to FilterWidget ([`0677a49`](https://github.com/MaximeFARRE/small-cap-screener/commit/0677a49d78f4d3c58f4027514d0a4694e44b3fa9))
+
+* feat: add data_quality_score, freshness fields and quality/stale filters to screening service ([`e9b5db5`](https://github.com/MaximeFARRE/small-cap-screener/commit/e9b5db536f8e102154c038c57fe01e6d717615df))
+
+### Test
+
+* test: add quality score and freshness filter tests for ScreeningService ([`33e61b6`](https://github.com/MaximeFARRE/small-cap-screener/commit/33e61b69dbfcbf696ce7e197fc52f854665bb4e0))
+
+### Unknown
+
+* Merge pull request #23 from MaximeFARRE/feat/phase19-data-freshness-quality-ui
+
+Feat/phase19 data freshness quality UI ([`9e5029a`](https://github.com/MaximeFARRE/small-cap-screener/commit/9e5029abe47117bec3c16caa12ed892f9f00163d))
+
 ## v0.12.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.12.0 [skip ci] ([`ca4a0c2`](https://github.com/MaximeFARRE/small-cap-screener/commit/ca4a0c261989ca21ba8c9b145bf5da3a4f9d070f))
 
 ### Feature
 
