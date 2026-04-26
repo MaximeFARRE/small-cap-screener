@@ -1,125 +1,74 @@
-# V1 Roadmap — French Small Cap Screener
+# Product Roadmap — French Small Cap Screener
 
-Architecture rule:
-`UI → Services → Repositories`
+Architecture rule: `UI -> Services -> Repositories`.
 
-Goal:
-Build a professional desktop screener for French listed small-cap companies with reliable financial data, KPI calculation, ranking logic, and analyst workflow.
+## Product Goal
+
+Deliver a local desktop workflow for French small-cap screening that is:
+
+* deterministic (same inputs, same ranking output),
+* auditable (explicit scoring rules and analyst decisions),
+* operational (exportable shortlist for research workflow).
 
 Target universe:
 
 * Euronext Paris
 * Euronext Growth
-* French listed companies only
+* French listed companies
 
-Out of scope V1:
+## Current Status (April 2026)
 
-* Private companies
-* Cloud deployment
-* Multi-user
-* Real-time streaming
-* AI-generated investment decisions
+* Data model and local persistence: delivered.
+* KPI computation and V1 multi-factor scoring: delivered.
+* Global and sector ranking: delivered.
+* Analyst workflow (watchlist, notes, status, exclusions): delivered.
+* Screening filters/sorting and CSV/Excel exports: delivered.
+* Reliability layer (cache, retry/fallback, offline mode, data quality score): delivered.
+* Desktop packaging baseline (PyInstaller): delivered.
+* Recruiter-ready documentation and demo assets: in progress.
 
----
+## Delivered Milestones
 
-## Phase 0 — Repo alignment
+### Phase 0 to 3 — Foundation and universe
 
-* Verify current architecture
-* Update README, ROADMAP, ARCHITECTURE, KNOWN_LIMITATIONS
-* Confirm strict layer ownership
-* Prepare clean development branch
+* Repository standards and strict layered architecture enforced.
+* Core models/repositories stabilized on SQLite/SQLAlchemy.
+* French small-cap universe ingestion and normalization in place.
 
-## Phase 1 — Data models and database
+### Phase 4 to 6 — Financial data and KPI engine
 
-* Finalize models for companies, statements, prices, KPI snapshots
-* Stabilize SQLite structure
-* Validate repositories and CRUD flows
+* Financial ingestion pipeline implemented (fetch, normalize, persist).
+* KPI snapshots generated with resilient batch behavior.
+* Missing/incomplete data handled without pipeline crash.
 
-## Phase 2 — External providers
+### Phase 7 to 9 — Scoring and screening services
 
-* Create provider layer for yfinance + seed universe source
-* Centralize API calls, retries, timeout, parsing
-* Define provider contracts and fallback logic
+* Deterministic scoring V1 with sub-scores: quality, value, growth, risk.
+* Global and sector ranking computed from scored snapshots.
+* Screening service supports list, filter, sort, and export.
 
-## Phase 3 — Small-cap universe
+### Phase 10 to 11 — Analyst desktop workflow
 
-* Build seed universe of French listed companies
-* Import and deduplicate tickers / ISIN
-* Apply market cap and liquidity filters
+* Desktop screener UI connected to service layer.
+* Analyst detail panel includes scores, explanation, notes, status, exclusion.
+* Screening snapshots and exports support recurring analyst workflow.
 
-## Phase 4 — Financial ingestion
+### Phase 12 to 13 — Reliability and release readiness
 
-* Build fetch → validate → normalize → store pipeline
-* Create FinancialDataService
-* Add logs and failure handling
+* Provider calls hardened with cache, retry, fallback, and offline mode.
+* Data quality score added to highlight low-confidence dossiers.
+* CI quality gates aligned (`pytest`, `ruff`, `black --check`) and desktop build configured.
 
-## Phase 5 — Data normalization
+## Next Priorities (Post-V1)
 
-* Standardize identifiers, currencies, units, fiscal periods
-* Centralize normalization logic
-* Guarantee one clean internal format
+1. Increase market data depth and provider redundancy for stronger coverage.
+2. Add benchmark/backtesting views to validate ranking usefulness over time.
+3. Add reproducible demo dataset and screenshots for portfolio/recruiting presentation.
+4. Prepare lightweight installer/distribution flow for non-technical users.
 
-## Phase 6 — KPI engine
+## Deliberate Non-Goals (V1)
 
-* Compute valuation, quality, growth, debt, liquidity KPIs
-* Keep RatioService as single source of truth
-* Handle missing and invalid values safely
-
-## Phase 7 — Scoring engine
-
-* Build Quality / Value / Growth / Risk scoring
-* Add deterministic ranking model
-* Generate final ranked universe
-
-## Phase 8 — Screening service
-
-* Connect KPI snapshots + filters + ranking
-* Build top picks and filtered universe queries
-* Prepare clean service API for UI
-
-## Phase 9 — Desktop UI
-
-* Main screener table
-* Company detail page
-* Filters panel
-* Score visualization
-* Data freshness display
-
-## Phase 10 — Desktop UI (part 2)
-
-- [x] Main screener table connected to `ScreeningService`
-- [x] Display scored universe (ticker, name, sector, total_score, rank, sector_rank)
-- [x] Empty state handling (safe fallback, status feedback)
-- [x] Filters panel connected to service layer
-- [x] Filters: sector, minimum score, scored only, top N
-- [x] UI sorting controls (rank, scores, ticker, asc/desc)
-- [x] CSV export aligned with active filters and sorting
-- [x] Company detail analyst panel
-- [x] Watchlist notes and status display
-- [x] Sub-scores display (quality, value, growth, risk)
-- [x] Deterministic score explanation display
-- [x] Safe handling for missing snapshot / missing watchlist data
-
-## Phase 11 — Analyst workflow
-
-- [x] Watchlist
-- [x] Personal notes
-- [x] Exclusions
-- [x] CSV / Excel export
-- [x] Screening snapshots
-
-## Phase 12 — Reliability
-
-- [x] Cache strategy
-- [x] Retry + fallback handling
-- [x] Offline mode
-- [x] Data quality score
-- [x] Clean logs
-
-## Phase 13 — Final delivery
-
-- [x] Full tests + linting
-- [ ] Packaging (desktop executable)
-- [ ] Recruiter-ready GitHub presentation
-- [ ] Demo dataset + screenshots
-- [ ] Final documentation
+* No cloud deployment.
+* No multi-user or access management.
+* No real-time streaming or execution.
+* No AI-generated investment decisions.
