@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import copy
 import datetime as dt
 import logging
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TypeVar
 
 import pandas as pd
@@ -28,7 +30,14 @@ _T = TypeVar("_T")
 _MAX_ATTEMPTS: int = 3
 _RETRY_DELAY: float = 2.0
 _SOURCE_NAME: str = "yfinance"
+_DEFAULT_CACHE_MAX_AGE: dt.timedelta = dt.timedelta(days=1)
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class _ProviderCacheEntry:
+    value: object
+    refreshed_at: dt.datetime
 
 
 def _fetched_at_now() -> dt.datetime:
@@ -278,26 +287,85 @@ def _get_splits(ticker: str) -> list[SplitData]:
 
 
 class YFinanceProvider(BaseProvider):
+    def __init__(self, cache_max_age: dt.timedelta | None = None) -> None:
+        self._cache_max_age = _DEFAULT_CACHE_MAX_AGE if cache_max_age is None else cache_max_age
+        self._cache: dict[tuple[str, str, str], _ProviderCacheEntry] = {}
+
+    def _get_cached_or_fetch(
+        self,
+        *,
+        ticker: str,
+        data_type: str,
+        variant: str,
+        fetch_fn: Callable[[], _T],
+    ) -> _T:
+        normalized_ticker = ticker.strip().upper()
+        cache_key = (normalized_ticker, data_type, variant)
+        now = _fetched_at_now()
+
+        cached = self._cache.get(cache_key)
+        if cached is not None and now - cached.refreshed_at <= self._cache_max_age:
+            return copy.deepcopy(cached.value)
+
+        value = fetch_fn()
+        self._cache[cache_key] = _ProviderCacheEntry(value=copy.deepcopy(value), refreshed_at=now)
+        return value
+
     def get_company_profile(self, ticker: str) -> CompanyProfile:
-        return _get_company_profile(ticker)
+        return self._get_cached_or_fetch(
+            ticker=ticker,
+            data_type="company_profile",
+            variant="default",
+            fetch_fn=lambda: _get_company_profile(ticker),
+        )
 
     def get_company_info(self, ticker: str) -> CompanyInfo:
-        return _get_company_info(ticker)
+        return self._get_cached_or_fetch(
+            ticker=ticker,
+            data_type="company_info",
+            variant="default",
+            fetch_fn=lambda: _get_company_info(ticker),
+        )
 
     def get_current_market_data(self, ticker: str) -> MarketData:
-        return _get_current_market_data(ticker)
+        return self._get_cached_or_fetch(
+            ticker=ticker,
+            data_type="market_data",
+            variant="default",
+            fetch_fn=lambda: _get_current_market_data(ticker),
+        )
 
     def get_price_history(self, ticker: str, period: str = "5y") -> list[PriceHistory]:
-        return _get_price_history(ticker, period)
+        return self._get_cached_or_fetch(
+            ticker=ticker,
+            data_type="price_history",
+            variant=period,
+            fetch_fn=lambda: _get_price_history(ticker, period),
+        )
 
     def get_dividends(self, ticker: str) -> list[DividendData]:
-        return _get_dividends(ticker)
+        return self._get_cached_or_fetch(
+            ticker=ticker,
+            data_type="dividends",
+            variant="default",
+            fetch_fn=lambda: _get_dividends(ticker),
+        )
 
     def get_splits(self, ticker: str) -> list[SplitData]:
-        return _get_splits(ticker)
+        return self._get_cached_or_fetch(
+            ticker=ticker,
+            data_type="splits",
+            variant="default",
+            fetch_fn=lambda: _get_splits(ticker),
+        )
 
     def get_financial_statements(self, ticker: str, years: int = 5) -> list[FinancialData]:
-        return _get_financial_statements(ticker, years)
+        return self._get_cached_or_fetch(
+            ticker=ticker,
+            data_type="financial_statements",
+            variant=str(years),
+            fetch_fn=lambda: _get_financial_statements(ticker, years),
+        )
 
     def get_current_price(self, ticker: str) -> float:
         return self.get_current_market_data(ticker).current_price
