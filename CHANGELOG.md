@@ -1,6 +1,32 @@
 # CHANGELOG
 
+## v0.11.0 (2026-04-26)
+
+### Feature
+
+* feat: add Actualiser l&#39;univers menu action wired to UniverseDiscoveryService ([`150cba7`](https://github.com/MaximeFARRE/small-cap-screener/commit/150cba7b40ca98cb89816dd4ca4523070e83729b))
+
+* feat: add UniverseDiscoveryService with refresh_company and batch_refresh_universe ([`12b63bc`](https://github.com/MaximeFARRE/small-cap-screener/commit/12b63bc608a83e22fc58dddcca4db475936334a4))
+
+* feat: set source_origin on company creation and add get_all_active repository query ([`fcc1f86`](https://github.com/MaximeFARRE/small-cap-screener/commit/fcc1f8696cbed7c1bdeea72d377054e958206bd0))
+
+* feat: add source_origin and last_universe_refresh_at to Company model ([`a15d6a4`](https://github.com/MaximeFARRE/small-cap-screener/commit/a15d6a46ca93fd964afefa6afbceec21fa84bab7))
+
+### Test
+
+* test: add unit tests for UniverseDiscoveryService and fix datetime deprecation warning ([`e3a3422`](https://github.com/MaximeFARRE/small-cap-screener/commit/e3a34220b3fdb6ab1a3de846d3a1e8da29f68204))
+
+### Unknown
+
+* Merge pull request #21 from MaximeFARRE/feat/phase17-universe-refresh
+
+Feat/phase17 universe refresh ([`4d8a92b`](https://github.com/MaximeFARRE/small-cap-screener/commit/4d8a92bcc1d059ef87da4055bc867d83fb596d6f))
+
 ## v0.10.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.10.0 [skip ci] ([`e999a14`](https://github.com/MaximeFARRE/small-cap-screener/commit/e999a1483b5b64fcdede07528c544fd083eb1b13))
 
 ### Feature
 
