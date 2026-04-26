@@ -31,6 +31,14 @@ class WatchlistEntryWithScore:
 class CompanyAnalystDetail:
     watchlist_status: str | None
     watchlist_notes: str | None
+    watchlist_is_excluded: bool
+    quality_score: float | None
+    value_score: float | None
+    growth_score: float | None
+    risk_score: float | None
+    total_score: float | None
+    rank: int | None
+    sector_rank: int | None
     score_explanation: ScoreExplanation
 
 
@@ -79,10 +87,23 @@ class WatchlistService:
         with self.session_scope_factory() as session:
             watchlist_entry = watchlist_repository.get_by_company_id(session, company_id)
             snapshot = kpi_snapshot_repository.get_latest_by_company(session, company_id)
+        if self.kpi_snapshot_service is None:
+            raise RuntimeError("kpi snapshot service is not initialized")
+        ranking = self.kpi_snapshot_service.rank_universe_by_total_score()
+        ranking_entry = next((item for item in ranking if item.company_id == company_id), None)
+        explanation = self.scoring_service.describe_snapshot_score(snapshot)
         return CompanyAnalystDetail(
             watchlist_status=watchlist_entry.status if watchlist_entry is not None else None,
             watchlist_notes=watchlist_entry.notes if watchlist_entry is not None else None,
-            score_explanation=self.scoring_service.describe_snapshot_score(snapshot),
+            watchlist_is_excluded=watchlist_entry.is_excluded if watchlist_entry is not None else False,
+            quality_score=explanation.quality,
+            value_score=explanation.value,
+            growth_score=explanation.growth,
+            risk_score=explanation.risk,
+            total_score=explanation.total_score,
+            rank=ranking_entry.rank if ranking_entry is not None else None,
+            sector_rank=ranking_entry.sector_rank if ranking_entry is not None else None,
+            score_explanation=explanation,
         )
 
     def update_company_notes(self, company_id: int, notes: str | None) -> WatchlistEntry | None:
