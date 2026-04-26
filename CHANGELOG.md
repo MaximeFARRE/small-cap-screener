@@ -1,8 +1,60 @@
 # CHANGELOG
 
+## v0.7.0 (2026-04-26)
+
+### Chore
+
+* chore: add pyinstaller desktop build configuration ([`9f6b776`](https://github.com/MaximeFARRE/small-cap-screener/commit/9f6b7769219ad0d745a9bdb7cab94f72c491c3d2))
+
+### Documentation
+
+* docs:  improve project roadmap outlining future development phases ([`0e715e4`](https://github.com/MaximeFARRE/small-cap-screener/commit/0e715e443e02abd9430c256bfa23b7c3fab9f952))
+
+* docs: add local demo dataset runbook ([`ccda902`](https://github.com/MaximeFARRE/small-cap-screener/commit/ccda902d1d90958e3908470d1c2e8f1d6f260219))
+
+* docs: update known limitations for current v1 scope ([`b4a1dd4`](https://github.com/MaximeFARRE/small-cap-screener/commit/b4a1dd494d5b131b6db3f25d20c07f1ce6f4c9d5))
+
+* docs: clarify layered architecture responsibilities ([`699ab3a`](https://github.com/MaximeFARRE/small-cap-screener/commit/699ab3ae4031f6535b719aec49c8d271ea56761c))
+
+* docs: reframe roadmap with product milestones ([`a2b2ee4`](https://github.com/MaximeFARRE/small-cap-screener/commit/a2b2ee4041fca22305d80d8c07f5cca024081551))
+
+* docs: improve readme for recruiter audience ([`0e338eb`](https://github.com/MaximeFARRE/small-cap-screener/commit/0e338eb6221d8a9e17988a90fc6203dd30c85172))
+
+* docs: add desktop packaging build instructions ([`005a15d`](https://github.com/MaximeFARRE/small-cap-screener/commit/005a15d1d3dc8c0e180b2f90b3debbecc8568d7a))
+
+* docs: align roadmap and features with current delivery ([`95a78c7`](https://github.com/MaximeFARRE/small-cap-screener/commit/95a78c71462f123900d4d3ab462f8eeef60c269e))
+
+### Feature
+
+* feat: add reproducible local demo dataset builder ([`deac4a4`](https://github.com/MaximeFARRE/small-cap-screener/commit/deac4a4a61e5772b3f468d4890821c741fd78dbb))
+
+* feat: add french small-cap demo seed csv ([`d97295e`](https://github.com/MaximeFARRE/small-cap-screener/commit/d97295ef8479b5beb0083fb75cafaae8e0083f53))
+
+* feat: move app storage initialization behind service layer ([`24033a9`](https://github.com/MaximeFARRE/small-cap-screener/commit/24033a969cba96487a53811426b210a710083b7c))
+
+### Fix
+
+* fix: keep orm objects usable after commit ([`dd8782d`](https://github.com/MaximeFARRE/small-cap-screener/commit/dd8782da6f2d61d4c3eb50dcdc6954a3a72c33a8))
+
+* fix: exclude non-pyside qt bindings from pyinstaller build ([`135c4a1`](https://github.com/MaximeFARRE/small-cap-screener/commit/135c4a1eb288bc1201a1c2b0625db30af59e4681))
+
+* fix: initialize database on desktop app startup ([`8cec14d`](https://github.com/MaximeFARRE/small-cap-screener/commit/8cec14de27c669a60e19f7e195fd4fb45b43aadf))
+
+### Test
+
+* test: add coverage for demo dataset builder ([`209c0ea`](https://github.com/MaximeFARRE/small-cap-screener/commit/209c0ea4de9cf65610fa912e30993eea4c204211))
+
+### Unknown
+
+* Merge pull request #17 from MaximeFARRE/feat/phase13-global-validation
+
+Feat/phase13 global validation ([`c60f5e8`](https://github.com/MaximeFARRE/small-cap-screener/commit/c60f5e859d0a4cb43069a811a06ee6c7083247a8))
+
 ## v0.6.0 (2026-04-26)
 
 ### Chore
+
+* chore(release): 0.6.0 [skip ci] ([`5ca50ea`](https://github.com/MaximeFARRE/small-cap-screener/commit/5ca50eabd7b8759cb0e1bdd85678cfb049f5842c))
 
 * chore: harmonize kpi snapshot reliability logging ([`aeee6e9`](https://github.com/MaximeFARRE/small-cap-screener/commit/aeee6e94edaf77e4466af3c7c69355ebd21b4d3e))
 
