@@ -14,7 +14,7 @@ from src.repositories import company_repository
 from src.repositories.database import get_session
 from src.services.financial_data_service import FinancialDataService
 from src.services.kpi_snapshot_service import KpiSnapshotService
-from src.services.ticker_resolver_service import TickerResolverService
+from src.services.ticker_resolver_service import TickerErrorKind, TickerResolutionResult, TickerResolverService
 
 SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
 _LOGGER = logging.getLogger(__name__)
@@ -22,6 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 _TICKER_PATTERN = re.compile(r"^[A-Z0-9]{1,10}(\.[A-Z]{1,5})?$")
 _ISIN_PATTERN = re.compile(r"^[A-Z]{2}[A-Z0-9]{10}$")
 _MAX_TICKER_LENGTH = 20
+_MAX_IDENTIFIER_LENGTH = 30
 
 
 @dataclass
@@ -46,6 +47,18 @@ def validate_ticker_format(ticker: str) -> str | None:
     if not _TICKER_PATTERN.match(ticker):
         return "Format de ticker invalide. Exemples valides : MC.PA, ALAMY.PA, BNP, GOOGL"
     return None
+
+
+def validate_ingestion_identifier(identifier: str) -> str | None:
+    if not identifier:
+        return "Le ticker ou l'ISIN ne peut pas être vide."
+    if len(identifier) > _MAX_IDENTIFIER_LENGTH:
+        return f"Le ticker/ISIN ne peut pas dépasser {_MAX_IDENTIFIER_LENGTH} caractères."
+    if _TICKER_PATTERN.match(identifier):
+        return None
+    if _ISIN_PATTERN.match(identifier):
+        return None
+    return "Format invalide. Exemples valides : MC.PA, ALAMY.PA, BNP, GOOGL ou ISIN comme FR0000120271."
 
 
 def _normalize_provider_isin(isin: str | None) -> str | None:
@@ -76,9 +89,11 @@ class TickerIngestionService:
         self._resolver = TickerResolverService(provider=self.financial_data_service.provider)
 
     def ingest_ticker(self, ticker: str) -> TickerIngestionResult:
-        normalized = ticker.strip().upper()
+        return self.ingest_identifier(ticker)
 
-        format_error = validate_ticker_format(normalized)
+    def ingest_identifier(self, identifier: str) -> TickerIngestionResult:
+        normalized = identifier.strip().upper()
+        format_error = validate_ingestion_identifier(normalized)
         if format_error:
             return TickerIngestionResult(
                 ticker=normalized,
@@ -87,12 +102,12 @@ class TickerIngestionService:
                 stage="validate",
             )
 
-        resolution = self._resolver.resolve(normalized)
-        if not resolution.success:
+        resolution = self._resolve_identifier(normalized)
+        if not resolution.success or resolution.resolved_ticker is None or resolution.profile is None:
             return TickerIngestionResult(
                 ticker=normalized,
                 success=False,
-                error=resolution.error,
+                error=resolution.error or "échec de résolution ticker",
                 stage="fetch",
             )
 
@@ -152,6 +167,42 @@ class TickerIngestionService:
             created=created,
             kpi_snapshot_id=kpi_result.snapshot_id,
             warnings=warnings,
+        )
+
+    def _resolve_identifier(self, normalized_identifier: str) -> TickerResolutionResult:
+        if _ISIN_PATTERN.match(normalized_identifier):
+            return self._resolve_isin(normalized_identifier)
+        return self._resolver.resolve(normalized_identifier)
+
+    def _resolve_isin(self, normalized_isin: str) -> TickerResolutionResult:
+        try:
+            profile = self.financial_data_service.provider.get_company_profile(normalized_isin)
+        except Exception as exc:  # pragma: no cover - provider wrapper is defensive
+            return TickerResolutionResult(
+                original_input=normalized_isin,
+                resolved_ticker=None,
+                suffix_added=None,
+                profile=None,
+                error=f"ISIN '{normalized_isin}' introuvable chez le fournisseur : {exc}",
+                error_kind=TickerErrorKind.NOT_FOUND,
+            )
+        resolved_ticker = profile.ticker.strip().upper() if isinstance(profile.ticker, str) else ""
+        if validate_ticker_format(resolved_ticker) is not None:
+            return TickerResolutionResult(
+                original_input=normalized_isin,
+                resolved_ticker=None,
+                suffix_added=None,
+                profile=None,
+                error=f"ISIN '{normalized_isin}' résolu sans ticker exploitable.",
+                error_kind=TickerErrorKind.DATA_INCONSISTENT,
+            )
+        return TickerResolutionResult(
+            original_input=normalized_isin,
+            resolved_ticker=resolved_ticker,
+            suffix_added=None,
+            profile=profile,
+            error=None,
+            error_kind=None,
         )
 
     def _find_or_create_company(

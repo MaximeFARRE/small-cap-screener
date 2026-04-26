@@ -13,6 +13,7 @@ from src.services.financial_data_service import CompanyDataRefreshResult
 from src.services.kpi_snapshot_service import KpiSnapshotServiceResult
 from src.services.ticker_ingestion_service import (
     TickerIngestionService,
+    validate_ingestion_identifier,
     validate_ticker_format,
 )
 
@@ -42,6 +43,22 @@ def test_validate_ticker_format_valid(ticker):
 )
 def test_validate_ticker_format_invalid(ticker):
     assert validate_ticker_format(ticker) is not None
+
+
+@pytest.mark.parametrize(
+    "identifier",
+    ["MC.PA", "ALAMY.PA", "BNP", "FR0000120271", "US0378331005"],
+)
+def test_validate_ingestion_identifier_valid(identifier):
+    assert validate_ingestion_identifier(identifier) is None
+
+
+@pytest.mark.parametrize(
+    "identifier",
+    ["", "bad ticker", "FR0000120271X", "FR00001202711", "mc-pa"],
+)
+def test_validate_ingestion_identifier_invalid(identifier):
+    assert validate_ingestion_identifier(identifier) is not None
 
 
 # ---------------------------------------------------------------------------
@@ -350,3 +367,26 @@ def test_ingest_ticker_exposes_resolved_ticker_on_success(db_session):
     result = svc.ingest_ticker("MC.PA")
     assert result.success
     assert result.resolved_ticker == "MC.PA"
+
+
+def test_ingest_identifier_accepts_isin_only(db_session):
+    profile = _make_profile("VLA.PA", isin="FR0004056851")
+    fin_svc = _make_financial_service(profile)
+    fin_svc.provider.get_company_profile.return_value = profile
+    fin_svc.refresh_company_data.return_value = CompanyDataRefreshResult(
+        company_id=1, ticker="VLA.PA", success=True, prices_added=2, statements_added=1
+    )
+    svc = TickerIngestionService(
+        financial_data_service=fin_svc,
+        kpi_snapshot_service=_make_kpi_service(),
+        session_scope_factory=_make_session_scope(db_session),
+    )
+
+    result = svc.ingest_identifier("FR0004056851")
+
+    assert result.success
+    assert result.resolved_ticker == "VLA.PA"
+    companies = company_repository.get_all(db_session)
+    assert len(companies) == 1
+    assert companies[0].ticker == "VLA.PA"
+    assert companies[0].isin == "FR0004056851"
