@@ -197,7 +197,7 @@ Recommended checks:
 ```bash
 pytest
 ruff check .
-black --check .
+ruff format --check .
 ```
 
 ---
