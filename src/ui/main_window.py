@@ -4,7 +4,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDockWidget, QFileDialog, QMainWindow, QMessageBox, QSplitter
 
 from src.services.screening_service import ScreeningService, UniverseScreeningFilters
+from src.services.watchlist_service import WatchlistService
 from src.ui.company_detail_widget import CompanyDetailWidget
+from src.ui.company_table_model import ScreenerRow
 from src.ui.filter_widget import FilterWidget
 from src.ui.screener_widget import ScreenerWidget
 
@@ -19,6 +21,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self._screening_service = ScreeningService()
+        self._watchlist_service = WatchlistService()
         self._current_filters = UniverseScreeningFilters()
         self.setWindowTitle(WINDOW_TITLE)
         self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
@@ -36,7 +39,7 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(0, _SPLITTER_RATIO[0])
         splitter.setStretchFactor(1, _SPLITTER_RATIO[1])
 
-        self._screener.row_selected.connect(self._detail.load)
+        self._screener.row_selected.connect(self._on_row_selected)
         self._screener.selection_cleared.connect(self._detail.clear)
 
         self.setCentralWidget(splitter)
@@ -70,6 +73,10 @@ class MainWindow(QMainWindow):
     def _on_filters_applied(self, filters: UniverseScreeningFilters) -> None:
         self._current_filters = filters
         self._load_scored_universe()
+
+    def _on_row_selected(self, row: ScreenerRow) -> None:
+        analyst_detail = self._watchlist_service.get_company_analyst_detail(row.company_id)
+        self._detail.load(row, analyst_detail)
 
     def _export_csv(self) -> None:
         rows = self._screener.rows()
