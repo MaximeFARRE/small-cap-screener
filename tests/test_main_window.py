@@ -26,7 +26,7 @@ def qapp():
 
 
 class FakeScreeningService:
-    def __init__(self) -> None:
+    def __init__(self, **_kwargs) -> None:
         self.filter_calls: list[UniverseScreeningFilters] = []
         self.save_calls: list[tuple[UniverseScreeningFilters, str]] = []
         self.view_calls: list[int] = []
@@ -84,6 +84,9 @@ class FakePeerComparisonService:
 
 
 class FakeBacktestingService:
+    def __init__(self, **_kwargs) -> None:
+        pass
+
     def analyze_ranking_validation(self, **_kwargs):
         return SimpleNamespace(total_snapshots=0)
 
