@@ -879,6 +879,136 @@ def test_get_screening_snapshot_returns_none_when_missing(db_session):
     assert loaded is None
 
 
+def test_list_recent_screening_snapshots_returns_summary_view(db_session):
+    _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+    first = service.save_screening_snapshot(
+        UniverseScreeningFilters(sector="Energy", sort_by="rank"),
+        name="energy screen",
+    )
+    second = service.save_screening_snapshot(
+        UniverseScreeningFilters(watchlist_scope="watchlist_only", sort_by="ticker", descending=True),
+        name="watchlist screen",
+    )
+
+    listed = service.list_recent_screening_snapshots(limit=10)
+
+    assert [snapshot.snapshot_id for snapshot in listed[:2]] == [second.snapshot_id, first.snapshot_id]
+    assert listed[0].name == "watchlist screen"
+    assert listed[0].company_count == second.company_count
+    assert "watchlist=watchlist_only" in listed[0].filters_summary
+    assert "sort=ticker desc" in listed[0].filters_summary
+
+
+def test_get_screening_snapshot_view_returns_rows_with_company_ids(db_session):
+    companies = _seed_scored_universe_for_filters(db_session)
+    service = _make_screening_service(db_session)
+    saved = service.save_screening_snapshot(
+        UniverseScreeningFilters(sort_by="ticker", descending=True),
+        name="view snapshot",
+    )
+
+    view = service.get_screening_snapshot_view(saved.snapshot_id)
+
+    assert view is not None
+    assert view.summary.snapshot_id == saved.snapshot_id
+    assert view.summary.company_count == 5
+    assert [row.company_id for row in view.rows] == [
+        companies["gamma"].id,
+        companies["epsilon"].id,
+        companies["delta"].id,
+        companies["beta"].id,
+        companies["alpha"].id,
+    ]
+    assert [row.ticker for row in view.rows] == ["GAM.PA", "EPS.PA", "DEL.PA", "BET.PA", "ALP.PA"]
+
+
+def test_compare_snapshot_to_current_returns_rank_and_score_changes(db_session):
+    alpha = _make_company(
+        db_session,
+        isin="FR0000990001",
+        ticker="ALP.PA",
+        name="Alpha",
+        sector="Energy",
+    )
+    beta = _make_company(
+        db_session,
+        isin="FR0000990002",
+        ticker="BET.PA",
+        name="Beta",
+        sector="Tech",
+    )
+    gamma = _make_company(
+        db_session,
+        isin="FR0000990003",
+        ticker="GAM.PA",
+        name="Gamma",
+        sector="Industrial",
+    )
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=alpha.id,
+            snapshot_date=date(2025, 1, 1),
+            metrics={"total_score": 70.0},
+            source="before",
+        ),
+    )
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=beta.id,
+            snapshot_date=date(2025, 1, 1),
+            metrics={"total_score": 90.0},
+            source="before",
+        ),
+    )
+    kpi_snapshot_repository.create(
+        db_session,
+        KpiSnapshot(
+            company_id=gamma.id,
+            snapshot_date=date(2025, 1, 1),
+            metrics={"total_score": 60.0},
+            source="before",
+        ),
+    )
+    service = _make_screening_service(db_session)
+    saved = service.save_screening_snapshot(
+        UniverseScreeningFilters(sort_by="rank"),
+        name="baseline snapshot",
+    )
+
+    updated_alpha = kpi_snapshot_repository.get_latest_by_company(db_session, alpha.id)
+    updated_beta = kpi_snapshot_repository.get_latest_by_company(db_session, beta.id)
+    updated_gamma = kpi_snapshot_repository.get_latest_by_company(db_session, gamma.id)
+    assert updated_alpha is not None
+    assert updated_beta is not None
+    assert updated_gamma is not None
+    updated_alpha.metrics = {"total_score": 95.0}
+    updated_beta.metrics = {"total_score": 80.0}
+    updated_gamma.metrics = {"total_score": 50.0}
+    db_session.flush()
+
+    compared = service.compare_snapshot_to_current(
+        saved.snapshot_id,
+        UniverseScreeningFilters(sort_by="rank"),
+    )
+    by_ticker = {row.ticker: row for row in compared}
+
+    assert by_ticker["ALP.PA"].snapshot_rank == 2
+    assert by_ticker["ALP.PA"].current_rank == 1
+    assert by_ticker["ALP.PA"].rank_change == 1
+    assert by_ticker["ALP.PA"].total_score_change == pytest.approx(25.0)
+    assert by_ticker["BET.PA"].snapshot_rank == 1
+    assert by_ticker["BET.PA"].current_rank == 2
+    assert by_ticker["BET.PA"].rank_change == -1
+    assert by_ticker["BET.PA"].total_score_change == pytest.approx(-10.0)
+    assert by_ticker["GAM.PA"].snapshot_rank == 3
+    assert by_ticker["GAM.PA"].current_rank == 3
+    assert by_ticker["GAM.PA"].rank_change == 0
+    assert by_ticker["GAM.PA"].total_score_change == pytest.approx(-10.0)
+
+
 # --- Phase 19: data quality and freshness filters ---
 
 
