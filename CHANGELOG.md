@@ -1,6 +1,44 @@
 # CHANGELOG
 
+## v0.31.0 (2026-04-27)
+
+### Feature
+
+* feat(services): fetch analyst_data and apply industry, website, business_summary, beta, target_price, recommendation to Company on refresh ([`71b2b48`](https://github.com/MaximeFARRE/small-cap-screener/commit/71b2b48cb890b6204fd981928283e88fa9919f26))
+
+* feat(repository): persist gross_profit, current_assets, current_liabilities, interest_expense in FinancialStatement ([`e557b2b`](https://github.com/MaximeFARRE/small-cap-screener/commit/e557b2b4cf72ebda377a832ac8abce110702a28e))
+
+* feat(normalization): pass-through gross_profit, current_assets, current_liabilities, interest_expense through normalization pipeline ([`c822083`](https://github.com/MaximeFARRE/small-cap-screener/commit/c82208311f45a3e82ae933985f0e18dd5e88256b))
+
+* feat(db): add migrations for new Company enrichment columns and FinancialStatement fields ([`e1e6c24`](https://github.com/MaximeFARRE/small-cap-screener/commit/e1e6c24bdb97f23ad7d3c097ace26f7ac4db3459))
+
+* feat(models): add industry, website, business_summary, beta, analyst_target_price, analyst_recommendation, analyst_count, forward_pe to Company ([`9bcb3fc`](https://github.com/MaximeFARRE/small-cap-screener/commit/9bcb3fcbe83404f28a64c145d2e77cc28949706a))
+
+* feat(models): add gross_profit, current_assets, current_liabilities, interest_expense to FinancialStatement ([`ca65a0a`](https://github.com/MaximeFARRE/small-cap-screener/commit/ca65a0ac84275269fa75cf86ae0c8b7dc2a42536))
+
+* feat(providers): parse gross_profit, current_assets, current_liabilities, interest_expense from Yahoo statements; add business_summary to profile; add get_analyst_data ([`6a6f3dc`](https://github.com/MaximeFARRE/small-cap-screener/commit/6a6f3dcdf76a2906b95a343e7b74c508b9277fc8))
+
+* feat(providers): enrich FinancialData DTO with gross_profit, current_assets, current_liabilities, interest_expense; add business_summary to CompanyProfile; add AnalystData DTO ([`c51a009`](https://github.com/MaximeFARRE/small-cap-screener/commit/c51a009dd1690db9cec98c6a5a203bdbd908adc7))
+
+### Fix
+
+* fix(kpi): pass gross_profit, current_assets, current_liabilities, interest_expense to compute_all; add analyst metrics to snapshot payload ([`43556dd`](https://github.com/MaximeFARRE/small-cap-screener/commit/43556ddf551eb0f8cf565f9786a0c34244cb7183))
+
+### Test
+
+* test: add tests for enriched Yahoo parsing, fixed ratios, analyst metrics; fix mock missing get_analyst_data ([`a7b90ff`](https://github.com/MaximeFARRE/small-cap-screener/commit/a7b90ff4fa71af108e322996a439e29092024dbc))
+
+### Unknown
+
+* Merge pull request #44 from MaximeFARRE/feat/phase35-yahoo-data-enrichment
+
+Feat/phase35 yahoo data enrichment ([`90a0792`](https://github.com/MaximeFARRE/small-cap-screener/commit/90a07923298bc241a5f4ede2eb02f503e4dec2e9))
+
 ## v0.30.0 (2026-04-27)
+
+### Chore
+
+* chore(release): 0.30.0 [skip ci] ([`4d1a6b5`](https://github.com/MaximeFARRE/small-cap-screener/commit/4d1a6b5df4d1554370623a5192663542f02644e4))
 
 ### Documentation
 
