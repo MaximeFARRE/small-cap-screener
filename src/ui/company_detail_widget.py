@@ -1016,8 +1016,26 @@ def _build_chart_view() -> QChartView:
 
 def _empty_chart(title: str) -> QChart:
     chart = QChart()
-    chart.setTitle(title + _NO_DATA_SUFFIX)
+    chart.setTitle(title)
     chart.legend().hide()
+    chart.setBackgroundBrush(QColor(_EMPTY_CHART_BG))
+    # Add a dummy invisible series so Qt renders the chart frame
+    placeholder = QLineSeries()
+    placeholder.setName("no_data")
+    placeholder.setPen(QPen(QColor("transparent")))
+    chart.addSeries(placeholder)
+    axis_x = QValueAxis()
+    axis_x.setLabelsVisible(False)
+    axis_x.setGridLineVisible(False)
+    axis_x.setRange(0, 1)
+    chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
+    placeholder.attachAxis(axis_x)
+    axis_y = QValueAxis()
+    axis_y.setLabelsVisible(False)
+    axis_y.setGridLineVisible(False)
+    axis_y.setRange(0, 1)
+    chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
+    placeholder.attachAxis(axis_y)
     return chart
 
 
