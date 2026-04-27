@@ -17,6 +17,7 @@ from src.repositories import (
 )
 from src.repositories.database import get_session
 from src.repositories.providers.base import (
+    AnalystData,
     BaseProvider,
     CompanyProfile,
     DividendData,
@@ -55,6 +56,7 @@ class FetchedCompanyData:
     financial_statements: list[FinancialData]
     dividends: list[DividendData]
     splits: list[SplitData]
+    analyst_data: AnalystData | None = None
 
 
 @dataclass
@@ -153,6 +155,16 @@ class FinancialDataService:
             if hasattr(self.provider, "get_splits")
             else []
         )
+        analyst_data = (
+            self._fetch_optional_provider_data(
+                ticker=normalized_ticker,
+                operation="analyst_data",
+                fallback=None,
+                fetch_fn=lambda: self.provider.get_analyst_data(normalized_ticker),
+            )
+            if hasattr(self.provider, "get_analyst_data")
+            else None
+        )
 
         return FetchedCompanyData(
             ticker=normalized_ticker,
@@ -162,6 +174,7 @@ class FinancialDataService:
             financial_statements=financial_statements,
             dividends=dividends,
             splits=splits,
+            analyst_data=analyst_data,
         )
 
     def refresh_company_data(self, company_id: int) -> CompanyDataRefreshResult:
@@ -313,10 +326,9 @@ class FinancialDataService:
                     dividends=validated_data.dividends,
                     splits=validated_data.splits,
                 )
-                _apply_company_metadata(
-                    company,
-                    _validation_data_to_fetched_data(validated_data),
-                )
+                metadata_payload = _validation_data_to_fetched_data(validated_data)
+                metadata_payload.analyst_data = fetched.analyst_data
+                _apply_company_metadata(company, metadata_payload)
                 company_repository.update(session, company)
                 _LOGGER.info(
                     (
@@ -569,15 +581,26 @@ def _apply_company_metadata(company: Company, fetched: FetchedCompanyData) -> No
     if fetched.profile is not None:
         company.country = fetched.profile.country
         company.sector = fetched.profile.sector
+        company.industry = fetched.profile.industry
+        company.website = fetched.profile.website
+        if fetched.profile.business_summary is not None:
+            company.business_summary = fetched.profile.business_summary
     if fetched.market_data is not None:
         company.market_cap = fetched.market_data.market_cap
         company.average_daily_volume = fetched.market_data.volume
         if fetched.market_data.currency is not None:
             company.currency = fetched.market_data.currency
+    if fetched.analyst_data is not None:
+        company.beta = fetched.analyst_data.beta
+        company.analyst_target_price = fetched.analyst_data.target_price_mean
+        company.analyst_recommendation = fetched.analyst_data.recommendation_key
+        company.analyst_count = fetched.analyst_data.number_of_analyst_opinions
+        company.forward_pe = fetched.analyst_data.forward_pe
 
 
 def _build_payload_from_normalized(
-    normalized: NormalizedCompanyData, fetched: FetchedCompanyData
+    normalized: NormalizedCompanyData,
+    fetched: FetchedCompanyData,
 ) -> FetchedCompanyData:
     profile = _normalized_profile(normalized, fetched.profile)
     market_data = _normalized_market_data(normalized, fetched.market_data)
@@ -613,6 +636,10 @@ def _build_payload_from_normalized(
                 net_debt=record.net_debt,
                 free_cash_flow=record.free_cash_flow,
                 shares_outstanding=record.shares_outstanding,
+                gross_profit=record.gross_profit,
+                current_assets=record.current_assets,
+                current_liabilities=record.current_liabilities,
+                interest_expense=record.interest_expense,
             )
             for record in normalized.financial_statements
         ],
@@ -636,6 +663,7 @@ def _build_payload_from_normalized(
             )
             for record in normalized.splits
         ],
+        analyst_data=fetched.analyst_data,
     )
 
 
@@ -651,6 +679,7 @@ def _normalized_profile(normalized: NormalizedCompanyData, profile: CompanyProfi
         country=profile.country,
         currency=normalized.currency if normalized.currency is not None else profile.currency,
         website=profile.website,
+        business_summary=profile.business_summary,
         source=profile.source,
         fetched_at=profile.fetched_at,
     )
