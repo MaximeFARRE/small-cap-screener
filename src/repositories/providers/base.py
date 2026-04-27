@@ -39,6 +39,7 @@ class CompanyProfile:
     country: str | None
     currency: str
     website: str | None
+    business_summary: str | None = None
     isin: str | None = None
     source: str | None = None
     fetched_at: datetime | None = None
@@ -75,6 +76,10 @@ class FinancialData:
     net_debt: float | None
     free_cash_flow: float | None
     shares_outstanding: float | None
+    gross_profit: float | None = None
+    current_assets: float | None = None
+    current_liabilities: float | None = None
+    interest_expense: float | None = None
 
 
 @dataclass
@@ -106,6 +111,21 @@ class SplitData:
     split_date: date
     ratio_from: float
     ratio_to: float
+    source: str | None = None
+    fetched_at: datetime | None = None
+
+
+@dataclass
+class AnalystData:
+    ticker: str
+    enterprise_value: float | None
+    beta: float | None
+    forward_pe: float | None
+    target_price_mean: float | None
+    target_price_high: float | None
+    target_price_low: float | None
+    recommendation_key: str | None
+    number_of_analyst_opinions: int | None
     source: str | None = None
     fetched_at: datetime | None = None
 
