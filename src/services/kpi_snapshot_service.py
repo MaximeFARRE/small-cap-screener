@@ -130,14 +130,19 @@ class KpiSnapshotService:
                 )
             context = load.context
 
+            stmt = context.latest_statement
             ratios = self.ratio_service.compute_all(
                 company_id=company_id,
-                fiscal_year=context.latest_statement.fiscal_year,
+                fiscal_year=stmt.fiscal_year,
                 price=context.price,
-                stmt=context.latest_statement,
+                stmt=stmt,
                 previous_stmt=context.previous_statement,
+                gross_profit=stmt.gross_profit,
+                current_assets=stmt.current_assets,
+                current_liabilities=stmt.current_liabilities,
+                interest_expense=stmt.interest_expense,
             )
-            metrics = _ratios_to_metrics_payload(ratios)
+            metrics = _ratios_to_metrics_payload(ratios, context.company)
             metrics[DATA_QUALITY_SCORE_KEY] = _compute_data_quality_score(
                 company=context.company,
                 latest_statement=context.latest_statement,
@@ -364,7 +369,7 @@ def _derive_company_price(
     return None, None
 
 
-def _ratios_to_metrics_payload(ratios: CompanyRatios) -> dict[str, float | int | None]:
+def _ratios_to_metrics_payload(ratios: CompanyRatios, company: Company) -> dict[str, float | int | None]:
     return {
         "fiscal_year": ratios.fiscal_year,
         "price": ratios.price,
@@ -385,6 +390,11 @@ def _ratios_to_metrics_payload(ratios: CompanyRatios) -> dict[str, float | int |
         "net_debt_to_ebitda": ratios.net_debt_to_ebitda,
         "current_ratio": ratios.current_ratio,
         "interest_coverage": ratios.interest_coverage,
+        "beta": company.beta,
+        "analyst_target_price": company.analyst_target_price,
+        "analyst_recommendation": company.analyst_recommendation,
+        "analyst_count": company.analyst_count,
+        "forward_pe": company.forward_pe,
     }
 
 
