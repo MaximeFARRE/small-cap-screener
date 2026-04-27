@@ -1,6 +1,40 @@
 # CHANGELOG
 
+## v0.30.0 (2026-04-27)
+
+### Documentation
+
+* docs: add real user audit report with diagnostic and 3-stage plan ([`0d63ccd`](https://github.com/MaximeFARRE/small-cap-screener/commit/0d63ccd236fda81a40d3fc0704855a1d42edae33))
+
+### Feature
+
+* feat(ui): display fundamental data columns in screener table ([`a8b512a`](https://github.com/MaximeFARRE/small-cap-screener/commit/a8b512a0425c831296b34912ddb23b8e1fe7f110))
+
+* feat(screening): add fundamental filters to screener (Market Cap, P/E, Growth, Margins) ([`cd05ee2`](https://github.com/MaximeFARRE/small-cap-screener/commit/cd05ee2617ab54aad6ec184a136e46ca4dbc20bc))
+
+### Fix
+
+* fix(ingestion): make financial statements optional to tolerate missing data ([`1a00b0b`](https://github.com/MaximeFARRE/small-cap-screener/commit/1a00b0b0c3813e71b89f1916fccb6263819e2ea8))
+
+* fix(ingestion): add rate-limiting pacing to batch universe refresh ([`0d95818`](https://github.com/MaximeFARRE/small-cap-screener/commit/0d95818a540d22aad26d09c5f2b6cf4db6d2323a))
+
+* fix(ingestion): resolve ISIN using Yahoo Finance search endpoint ([`a7e896f`](https://github.com/MaximeFARRE/small-cap-screener/commit/a7e896f8b432c950322be51fba3aee476da3ee7d))
+
+### Refactor
+
+* refactor(ui): convert company detail view to tabbed layout ([`fa41816`](https://github.com/MaximeFARRE/small-cap-screener/commit/fa41816d63968946ad77f09555574797dc062e34))
+
+### Unknown
+
+* Merge pull request #43 from MaximeFARRE/chore/audit
+
+Chore/audit ([`446571e`](https://github.com/MaximeFARRE/small-cap-screener/commit/446571e5af73304f58fc64d9c136a0ee69740ff5))
+
 ## v0.29.1 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.29.1 [skip ci] ([`98f0b24`](https://github.com/MaximeFARRE/small-cap-screener/commit/98f0b24808f47cc32efb8f54250217c6308951bc))
 
 ### Fix
 
