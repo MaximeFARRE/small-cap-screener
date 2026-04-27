@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
     QFrame,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -187,30 +188,32 @@ class CompanyDetailWidget(QWidget):
             self._tabs.addTab(tab, name)
             return content_layout
 
-        self._layout_synthese = _create_scroll_tab("Synthèse")
-        self._layout_finances = _create_scroll_tab("Finances")
-        self._layout_charts = _create_scroll_tab("Graphiques")
+        self._layout_dashboard = _create_scroll_tab("Dashboard Analyste")
+        self._layout_charts = _create_scroll_tab("Historique & Graphiques")
+        self._layout_secondaire = _create_scroll_tab("Données Secondaires")
+
+        self._setup_dashboard_tab()
 
         self._groups: dict[str, QFormLayout] = {}
 
         # Mapping groups to their respective tab layouts
         group_layouts = {
-            "Société": self._layout_synthese,
-            "Analyste": self._layout_synthese,
-            "Analyst Memo": self._layout_synthese,
-            "Financial overview": self._layout_finances,
-            "Historical fundamentals": self._layout_finances,
-            "Valuation ratios": self._layout_finances,
-            "Quality / Growth / Risk": self._layout_finances,
-            "Peer Comparison": self._layout_finances,
-            "Scoring": self._layout_finances,
+            "Société": self._layout_secondaire,
+            "Analyste": self._layout_secondaire,
+            "Analyst Memo": self._layout_secondaire,
+            "Financial overview": self._layout_secondaire,
+            "Historical fundamentals": self._layout_secondaire,
+            "Valuation ratios": self._layout_secondaire,
+            "Quality / Growth / Risk": self._layout_secondaire,
+            "Peer Comparison": self._layout_secondaire,
+            "Scoring": self._layout_secondaire,
         }
 
         for title in _GROUPS_ORDER:
             box = QGroupBox(title)
             form = QFormLayout(box)
             self._groups[title] = form
-            target_layout = group_layouts.get(title, self._layout_finances)
+            target_layout = group_layouts.get(title, self._layout_secondaire)
             target_layout.addWidget(box)
 
         charts_box = QGroupBox("Visual analysis")
@@ -274,7 +277,7 @@ class CompanyDetailWidget(QWidget):
         buttons_layout.addWidget(self._save_btn)
         buttons_layout.addWidget(self._refresh_btn)
         actions_layout.addLayout(buttons_layout)
-        self._layout_synthese.addWidget(actions_box)
+        self._layout_secondaire.addWidget(actions_box)
 
         self._add_watchlist_btn.clicked.connect(self._on_add_watchlist_clicked)
         self._remove_watchlist_btn.clicked.connect(self._on_remove_watchlist_clicked)
@@ -282,7 +285,105 @@ class CompanyDetailWidget(QWidget):
         self._refresh_btn.clicked.connect(self._on_refresh_clicked)
         self._set_actions_enabled(False)
 
+    def _setup_dashboard_tab(self) -> None:
+        self._hero_frame = QFrame()
+        self._hero_frame.setStyleSheet("QFrame { border: 1px solid #aaa; border-radius: 8px; margin-bottom: 12px; }")
+        hero_layout = QHBoxLayout(self._hero_frame)
+        hero_layout.setContentsMargins(16, 16, 16, 16)
+
+        self._lbl_name = QLabel()
+        self._lbl_name.setStyleSheet("font-size: 20pt; font-weight: bold;")
+        self._lbl_ticker = QLabel()
+        self._lbl_ticker.setStyleSheet(
+            "font-size: 12pt; font-weight: bold; color: #555; background-color: #eee; padding: 4px; border-radius: 4px;"
+        )
+        self._lbl_sector = QLabel()
+        self._lbl_sector.setStyleSheet("font-size: 12pt; color: #777;")
+
+        left_hero = QVBoxLayout()
+        top_left = QHBoxLayout()
+        top_left.addWidget(self._lbl_name)
+        top_left.addWidget(self._lbl_ticker)
+        top_left.addStretch()
+        left_hero.addLayout(top_left)
+        left_hero.addWidget(self._lbl_sector)
+        hero_layout.addLayout(left_hero)
+
+        hero_layout.addStretch()
+
+        right_hero = QVBoxLayout()
+        self._lbl_price = QLabel()
+        self._lbl_price.setStyleSheet("font-size: 18pt; font-weight: bold;")
+        self._lbl_mcap = QLabel()
+        self._lbl_mcap.setStyleSheet("font-size: 12pt; color: #777;")
+        self._lbl_score = QLabel()
+        self._lbl_score.setStyleSheet("font-size: 14pt; font-weight: bold; color: #1976D2;")
+
+        right_hero.addWidget(self._lbl_price, alignment=Qt.AlignmentFlag.AlignRight)
+        right_hero.addWidget(self._lbl_mcap, alignment=Qt.AlignmentFlag.AlignRight)
+        right_hero.addWidget(self._lbl_score, alignment=Qt.AlignmentFlag.AlignRight)
+        hero_layout.addLayout(right_hero)
+
+        self._layout_dashboard.addWidget(self._hero_frame)
+
+        h_container = QHBoxLayout()
+
+        snap_box = QGroupBox("Investment Snapshot")
+        snap_layout = QVBoxLayout(snap_box)
+        self._lbl_status = QLabel()
+        self._lbl_status.setStyleSheet("font-weight: bold; font-size: 11pt;")
+        self._lbl_quick_scan = QLabel()
+        self._lbl_quick_scan.setWordWrap(True)
+        snap_layout.addWidget(self._lbl_status)
+        snap_layout.addWidget(self._lbl_quick_scan)
+        snap_layout.addStretch()
+        h_container.addWidget(snap_box, 1)
+
+        risk_box = QGroupBox("Risques & Alertes")
+        risk_layout = QVBoxLayout(risk_box)
+        self._lbl_risks = QLabel()
+        self._lbl_risks.setWordWrap(True)
+        self._lbl_risks.setStyleSheet("color: #D32F2F; font-weight: bold;")
+        risk_layout.addWidget(self._lbl_risks)
+        risk_layout.addStretch()
+        h_container.addWidget(risk_box, 1)
+
+        self._layout_dashboard.addLayout(h_container)
+
+        kpi_box = QGroupBox("KPI Prioritaires")
+        kpi_layout = QGridLayout(kpi_box)
+        self._kpis = {}
+        kpi_keys = [
+            "Croissance Rev",
+            "Marge Op.",
+            "FCF Yield",
+            "ROIC",
+            "P/E",
+            "EV/EBITDA",
+            "Dette/EBITDA",
+            "Qualité Data",
+        ]
+        for i, key in enumerate(kpi_keys):
+            lbl_title = QLabel(key)
+            lbl_title.setStyleSheet("color: #666; font-size: 10pt;")
+            lbl_val = QLabel("-")
+            lbl_val.setStyleSheet("font-size: 14pt; font-weight: bold;")
+            vbox = QVBoxLayout()
+            vbox.addWidget(lbl_title)
+            vbox.addWidget(lbl_val)
+            frame = QFrame()
+            frame.setStyleSheet("QFrame { border: 1px solid #ddd; border-radius: 6px; }")
+            frame_layout = QVBoxLayout(frame)
+            frame_layout.addLayout(vbox)
+            kpi_layout.addWidget(frame, i // 4, i % 4)
+            self._kpis[key] = lbl_val
+        self._layout_dashboard.addWidget(kpi_box)
+
+        self._layout_dashboard.addStretch()
+
     def _set_field(self, group: str, label: str, value: str) -> None:
+        if value == _NA:
+            return
         form = self._groups[group]
         for i in range(form.rowCount()):
             item = form.itemAt(i, QFormLayout.ItemRole.LabelRole)
@@ -395,8 +496,67 @@ class CompanyDetailWidget(QWidget):
         self._add_watchlist_btn.setEnabled(not self._in_watchlist)
         self._remove_watchlist_btn.setEnabled(self._in_watchlist)
 
+        self._populate_dashboard(row, analyst_detail, financial_detail, score_explanation)
+
         self._placeholder.setVisible(False)
         self._tabs.setVisible(True)
+
+    def _populate_dashboard(
+        self,
+        row: ScreenerRow,
+        analyst_detail: CompanyAnalystDetail | None,
+        financial_detail: CompanyFinancialDetail | None,
+        score_explanation: ScoreExplanation | None,
+    ) -> None:
+        ccy = financial_detail.currency if financial_detail else "EUR"
+        self._lbl_name.setText(row.name)
+        self._lbl_ticker.setText(row.ticker or "-")
+        self._lbl_sector.setText(row.sector or "-")
+
+        price_text = _fmt(financial_detail.current_price if financial_detail else None, 2) + (
+            f" {ccy}" if financial_detail and financial_detail.current_price else ""
+        )
+        self._lbl_price.setText(price_text)
+        self._lbl_mcap.setText(_fmt_large(financial_detail.market_cap if financial_detail else None, ccy))
+
+        total_score = row.total_score if analyst_detail is None else analyst_detail.total_score
+        self._lbl_score.setText(f"{_fmt(total_score)} / 100")
+
+        status = (
+            analyst_detail.watchlist_status if analyst_detail and analyst_detail.watchlist_status else "hors watchlist"
+        )
+        self._lbl_status.setText(f"Statut : {status}")
+
+        memo = analyst_detail.analyst_memo if analyst_detail else AnalystMemo()
+        quick_scan = _fmt_memo_quick_line(memo)
+        self._lbl_quick_scan.setText(quick_scan if quick_scan != _NA else "Aucune note analyste.")
+
+        # Populate KPIs
+        self._kpis["Croissance Rev"].setText(_fmt_pct(financial_detail.revenue_growth if financial_detail else None))
+        self._kpis["Marge Op."].setText(_fmt_pct(financial_detail.operating_margin if financial_detail else None))
+        self._kpis["FCF Yield"].setText(_fmt_pct(financial_detail.fcf_yield if financial_detail else None))
+        self._kpis["ROIC"].setText(_fmt_pct(financial_detail.roic if financial_detail else None))
+        self._kpis["P/E"].setText(_fmt_ratio(financial_detail.pe_ratio if financial_detail else None))
+        self._kpis["EV/EBITDA"].setText(_fmt_ratio(financial_detail.ev_ebitda if financial_detail else None))
+        self._kpis["Dette/EBITDA"].setText(
+            _fmt_ratio(financial_detail.net_debt_to_ebitda if financial_detail else None)
+        )
+
+        fallback = financial_detail.data_quality_score if financial_detail else None
+        q_score = row.data_quality_score if row.data_quality_score is not None else fallback
+        self._kpis["Qualité Data"].setText(_fmt_quality(q_score))
+
+        # Risks
+        risks = []
+        if score_explanation and score_explanation.weaknesses:
+            risks.extend(score_explanation.weaknesses)
+        if analyst_detail and analyst_detail.analyst_memo and analyst_detail.analyst_memo.key_risks:
+            risks.append(analyst_detail.analyst_memo.key_risks)
+
+        if risks:
+            self._lbl_risks.setText("• " + "\n• ".join(risks))
+        else:
+            self._lbl_risks.setText("Aucun risque identifié.")
 
     def _populate_financial_overview(
         self,
@@ -490,7 +650,6 @@ class CompanyDetailWidget(QWidget):
             self._set_field("Historical fundamentals", "Revenue trend", _NA)
             self._set_field("Historical fundamentals", "Margin trend", _NA)
             self._set_field("Historical fundamentals", "Net debt trend", _NA)
-            self._set_field("Historical fundamentals", "Table", _NA)
             return
 
         trends = detail.historical_fundamentals.trends
@@ -501,7 +660,6 @@ class CompanyDetailWidget(QWidget):
         self._set_field("Historical fundamentals", "Revenue trend", _fmt_trend(trends.revenue_direction))
         self._set_field("Historical fundamentals", "Margin trend", _fmt_trend(trends.margin_direction))
         self._set_field("Historical fundamentals", "Net debt trend", _fmt_trend(trends.net_debt_direction))
-        self._set_field("Historical fundamentals", "Table", _fmt_historical_table(detail))
 
     def _populate_quality_growth_risk(self, detail: CompanyFinancialDetail | None) -> None:
         self._set_field(
@@ -597,8 +755,6 @@ class CompanyDetailWidget(QWidget):
             self._set_field("Peer Comparison", "Sector", _NA)
             self._set_field("Peer Comparison", "Relative rank", _NA)
             self._set_field("Peer Comparison", "Peer count", _NA)
-            self._set_field("Peer Comparison", "Median comparison", _NA)
-            self._set_field("Peer Comparison", "Peer table", _NA)
             return
 
         self._set_field("Peer Comparison", "Sector", comparison.sector or _NA)
@@ -608,8 +764,6 @@ class CompanyDetailWidget(QWidget):
             _fmt_relative_rank(comparison.company_sector_rank, comparison.sector_scored_count),
         )
         self._set_field("Peer Comparison", "Peer count", str(comparison.peer_count))
-        self._set_field("Peer Comparison", "Median comparison", _fmt_peer_metric_comparisons(comparison.metrics))
-        self._set_field("Peer Comparison", "Peer table", _fmt_peer_table(comparison.peer_rows))
 
     def _populate_analyst_memo(self, memo: AnalystMemo) -> None:
         self._set_field("Analyst Memo", "Investment thesis", _fmt_memo(memo.investment_thesis))
