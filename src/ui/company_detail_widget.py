@@ -23,11 +23,14 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QTableWidget,
+    QTableWidgetItem,
     QTabWidget,
     QTextEdit,
     QVBoxLayout,
@@ -215,6 +218,23 @@ class CompanyDetailWidget(QWidget):
             self._groups[title] = form
             target_layout = group_layouts.get(title, self._layout_secondaire)
             target_layout.addWidget(box)
+
+        table_box = QGroupBox("Historical Financials")
+        table_layout = QVBoxLayout(table_box)
+        self._financial_table = QTableWidget()
+        self._financial_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._financial_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self._financial_table.setAlternatingRowColors(True)
+        self._financial_table.verticalHeader().setVisible(False)
+        self._financial_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._financial_table.setStyleSheet(
+            "QTableWidget { font-size: 11pt; border: 1px solid #ddd; border-radius: 4px; }\n"
+            "QHeaderView::section { font-weight: bold; background-color: #f5f5f5; border: none; "
+            "padding: 4px; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd; }\n"
+            "QTableWidget::item { padding: 4px; }"
+        )
+        table_layout.addWidget(self._financial_table)
+        self._layout_charts.addWidget(table_box)
 
         charts_box = QGroupBox("Visual analysis")
         charts_layout = QVBoxLayout(charts_box)
@@ -650,6 +670,7 @@ class CompanyDetailWidget(QWidget):
             self._set_field("Historical fundamentals", "Revenue trend", _NA)
             self._set_field("Historical fundamentals", "Margin trend", _NA)
             self._set_field("Historical fundamentals", "Net debt trend", _NA)
+            self._populate_financial_table(None)
             return
 
         trends = detail.historical_fundamentals.trends
@@ -660,6 +681,99 @@ class CompanyDetailWidget(QWidget):
         self._set_field("Historical fundamentals", "Revenue trend", _fmt_trend(trends.revenue_direction))
         self._set_field("Historical fundamentals", "Margin trend", _fmt_trend(trends.margin_direction))
         self._set_field("Historical fundamentals", "Net debt trend", _fmt_trend(trends.net_debt_direction))
+
+        self._populate_financial_table(detail)
+
+    def _populate_financial_table(self, detail: CompanyFinancialDetail | None) -> None:
+        self._financial_table.clear()
+        self._financial_table.setRowCount(0)
+        self._financial_table.setColumnCount(0)
+        if not detail or not getattr(detail, "historical_fundamentals", None):
+            return
+
+        hf = detail.historical_fundamentals
+        periods = [
+            ("Revenue", hf.revenue_history, _fmt_large),
+            ("EBITDA", getattr(hf, "ebitda_history", []), _fmt_large),
+            ("EBIT", getattr(hf, "ebit_history", []), _fmt_large),
+            ("Net Income", hf.net_income_history, _fmt_large),
+            ("FCF", hf.free_cash_flow_history, _fmt_large),
+            ("Net Debt", hf.net_debt_history, _fmt_large),
+            ("EPS", getattr(hf, "eps_history", []), _fmt),
+            ("Shares Outstanding", getattr(hf, "shares_outstanding_history", []), _fmt_large),
+        ]
+
+        years_set = set()
+        for _, history, _ in periods:
+            for point in history:
+                years_set.add(point.fiscal_year)
+
+        years = sorted(list(years_set), reverse=True)
+        if not years:
+            return
+
+        headers = ["Metric"] + [str(y) for y in years] + ["CAGR / Trend"]
+        self._financial_table.setColumnCount(len(headers))
+        self._financial_table.setHorizontalHeaderLabels(headers)
+        self._financial_table.setRowCount(len(periods))
+
+        cagr_map = {
+            "Revenue": (hf.trends.revenue_cagr, hf.trends.revenue_direction),
+            "EBITDA": (hf.trends.operating_income_cagr, None),
+            "EBIT": (hf.trends.operating_income_cagr, None),
+            "Net Income": (hf.trends.net_income_cagr, None),
+            "FCF": (hf.trends.free_cash_flow_cagr, None),
+            "Net Debt": (None, hf.trends.net_debt_direction),
+        }
+
+        for row_idx, (label, history, fmt_func) in enumerate(periods):
+            item = QTableWidgetItem(label)
+            font = item.font()
+            font.setBold(True)
+            item.setFont(font)
+            self._financial_table.setItem(row_idx, 0, item)
+
+            history_dict = {p.fiscal_year: p for p in history}
+
+            for col_idx, year in enumerate(years):
+                point = history_dict.get(year)
+                if point is not None:
+                    if fmt_func == _fmt_large:
+                        val_str = fmt_func(point.value, detail.currency)
+                    else:
+                        val_str = fmt_func(point.value, 2)
+                    cell_item = QTableWidgetItem(val_str)
+                    cell_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    self._financial_table.setItem(row_idx, col_idx + 1, cell_item)
+                else:
+                    cell_item = QTableWidgetItem(_NA)
+                    cell_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
+                    cell_item.setForeground(QColor("#999999"))
+                    self._financial_table.setItem(row_idx, col_idx + 1, cell_item)
+
+            cagr, direction = cagr_map.get(label, (None, None))
+            trend_text = []
+            if cagr is not None:
+                trend_text.append(_fmt_pct(cagr))
+            if direction is not None:
+                trend_text.append(_fmt_trend(direction))
+
+            trend_str = " | ".join(trend_text) if trend_text else "-"
+            trend_item = QTableWidgetItem(trend_str)
+            trend_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+            if direction == "positive" or (cagr is not None and cagr > 0):
+                if label == "Net Debt":
+                    trend_item.setForeground(QColor("#c62828"))
+                else:
+                    trend_item.setForeground(QColor("#2e7d32"))
+            elif direction == "negative" or (cagr is not None and cagr < 0):
+                if label == "Net Debt":
+                    trend_item.setForeground(QColor("#2e7d32"))
+                else:
+                    trend_item.setForeground(QColor("#c62828"))
+
+            self._financial_table.setItem(row_idx, len(headers) - 1, trend_item)
 
     def _populate_quality_growth_risk(self, detail: CompanyFinancialDetail | None) -> None:
         self._set_field(

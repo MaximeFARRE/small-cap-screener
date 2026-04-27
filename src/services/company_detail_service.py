@@ -53,10 +53,14 @@ class HistoricalFundamentalsTrends:
 @dataclass(frozen=True)
 class HistoricalFundamentals:
     revenue_history: list[HistoricalMetricPoint]
+    ebitda_history: list[HistoricalMetricPoint]
+    ebit_history: list[HistoricalMetricPoint]
     operating_income_history: list[HistoricalMetricPoint]
     net_income_history: list[HistoricalMetricPoint]
     free_cash_flow_history: list[HistoricalMetricPoint]
     net_debt_history: list[HistoricalMetricPoint]
+    eps_history: list[HistoricalMetricPoint]
+    shares_outstanding_history: list[HistoricalMetricPoint]
     trends: HistoricalFundamentalsTrends
 
 
@@ -200,6 +204,10 @@ def _operating_income(statement: FinancialStatement) -> float | None:
     return statement.ebit
 
 
+def _eps(statement: FinancialStatement) -> float | None:
+    return _ratio(statement.net_income, statement.shares_outstanding)
+
+
 def _build_metric_history(
     statements: list[FinancialStatement],
     extractor: Callable[[FinancialStatement], float | None],
@@ -279,10 +287,14 @@ def _net_debt_direction(net_debt_history: list[HistoricalMetricPoint]) -> str | 
 
 def _build_historical_fundamentals(statements: list[FinancialStatement]) -> HistoricalFundamentals:
     revenue_history = _build_metric_history(statements, lambda s: s.revenue)
+    ebitda_history = _build_metric_history(statements, lambda s: s.ebitda)
+    ebit_history = _build_metric_history(statements, lambda s: s.ebit)
     operating_income_history = _build_metric_history(statements, _operating_income)
     net_income_history = _build_metric_history(statements, lambda s: s.net_income)
     free_cash_flow_history = _build_metric_history(statements, lambda s: s.free_cash_flow)
     net_debt_history = _build_metric_history(statements, lambda s: s.net_debt)
+    eps_history = _build_metric_history(statements, _eps)
+    shares_outstanding_history = _build_metric_history(statements, lambda s: s.shares_outstanding)
     margin_history = _margin_history(statements)
 
     trends = HistoricalFundamentalsTrends(
@@ -297,10 +309,14 @@ def _build_historical_fundamentals(statements: list[FinancialStatement]) -> Hist
 
     return HistoricalFundamentals(
         revenue_history=revenue_history,
+        ebitda_history=ebitda_history,
+        ebit_history=ebit_history,
         operating_income_history=operating_income_history,
         net_income_history=net_income_history,
         free_cash_flow_history=free_cash_flow_history,
         net_debt_history=net_debt_history,
+        eps_history=eps_history,
+        shares_outstanding_history=shares_outstanding_history,
         trends=trends,
     )
 
