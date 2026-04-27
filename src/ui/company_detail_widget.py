@@ -51,7 +51,7 @@ from src.services.company_charts_service import (
     YearlyChartPoint,
 )
 from src.services.company_detail_service import CompanyFinancialDetail
-from src.services.peer_comparison_service import PeerCompanyRow, PeerComparisonData, PeerMetricComparison
+from src.services.peer_comparison_service import PeerComparisonData, PeerMetricComparison
 from src.services.scoring_service import ScoreExplanation, ScoreMetricDriver
 from src.services.screening_service import STALE_REFRESH_DAYS
 from src.services.watchlist_service import AnalystMemo, CompanyAnalystDetail
@@ -258,6 +258,27 @@ class CompanyDetailWidget(QWidget):
         charts_layout.addWidget(self._debt_chart_view)
         charts_layout.addWidget(self._score_chart_view)
         self._layout_charts.addWidget(charts_box)
+
+        peer_box = QGroupBox("Comparaison sectorielle")
+        peer_box_layout = QVBoxLayout(peer_box)
+        self._peer_table = QTableWidget()
+        self._peer_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._peer_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self._peer_table.setAlternatingRowColors(True)
+        self._peer_table.verticalHeader().setVisible(False)
+        self._peer_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._peer_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._peer_table.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
+        self._peer_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self._peer_table.setStyleSheet(
+            "QTableWidget { font-size: 11pt; border: 1px solid #ddd; border-radius: 4px; }\n"
+            "QHeaderView::section { font-weight: bold; background-color: #f5f5f5; "
+            "border: none; padding: 4px; border-right: 1px solid #ddd; "
+            "border-bottom: 1px solid #ddd; }\n"
+            "QTableWidget::item { padding: 4px; }"
+        )
+        peer_box_layout.addWidget(self._peer_table)
+        self._layout_charts.addWidget(peer_box)
         self._clear_charts()
 
         actions_box = QGroupBox("Actions analyste")
@@ -897,10 +918,14 @@ class CompanyDetailWidget(QWidget):
         self._score_chart_view.setChart(_empty_chart("Score breakdown"))
 
     def _populate_peer_comparison(self, comparison: PeerComparisonData | None) -> None:
+        # Lightweight text fields in secondary tab
         if comparison is None:
             self._set_field("Peer Comparison", "Sector", _NA)
             self._set_field("Peer Comparison", "Relative rank", _NA)
             self._set_field("Peer Comparison", "Peer count", _NA)
+            self._peer_table.clear()
+            self._peer_table.setRowCount(0)
+            self._peer_table.setColumnCount(0)
             return
 
         self._set_field("Peer Comparison", "Sector", comparison.sector or _NA)
@@ -910,6 +935,9 @@ class CompanyDetailWidget(QWidget):
             _fmt_relative_rank(comparison.company_sector_rank, comparison.sector_scored_count),
         )
         self._set_field("Peer Comparison", "Peer count", str(comparison.peer_count))
+
+        # Peer visual table
+        _populate_peer_table(self._peer_table, comparison)
 
     def _populate_analyst_memo(self, memo: AnalystMemo) -> None:
         self._set_field("Analyst Memo", "Investment thesis", _fmt_memo(memo.investment_thesis))
@@ -1384,25 +1412,67 @@ def _fmt_peer_metric_comparisons(metrics: list[PeerMetricComparison]) -> str:
     return "<pre>" + "\n".join(lines) + "</pre>"
 
 
-def _fmt_peer_table(rows: list[PeerCompanyRow]) -> str:
-    if not rows:
-        return _NA
-    lines = ["Ticker | Rank | Score | EV/EBITDA | P/E | Op. margin | Rev. growth"]
-    for row in rows:
-        lines.append(
-            " | ".join(
-                [
-                    row.ticker or _NA,
-                    str(row.sector_rank) if row.sector_rank is not None else _NA,
-                    _fmt_peer_metric_value("total_score", row.total_score),
-                    _fmt_peer_metric_value("ev_ebitda", row.ev_ebitda),
-                    _fmt_peer_metric_value("pe_ratio", row.pe_ratio),
-                    _fmt_peer_metric_value("operating_margin", row.operating_margin),
-                    _fmt_peer_metric_value("revenue_growth", row.revenue_growth),
-                ]
-            )
-        )
-    return "<pre>" + "\n".join(lines) + "</pre>"
+def _populate_peer_table(table: QTableWidget, comparison: PeerComparisonData) -> None:
+    table.clear()
+    table.setRowCount(0)
+    table.setColumnCount(0)
+
+    if not comparison.peers:
+        return
+
+    headers = ["Ticker", "Rank", "Score", "EV/EBITDA", "P/E", "Op. margin", "Rev. growth"]
+    table.setColumnCount(len(headers))
+    table.setHorizontalHeaderLabels(headers)
+
+    rows = sorted(comparison.peers, key=lambda r: r.sector_rank if r.sector_rank is not None else 9999)
+    table.setRowCount(len(rows))
+
+    for row_idx, row in enumerate(rows):
+        # Ticker
+        item = QTableWidgetItem(row.ticker or _NA)
+        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
+        if row.company_id == comparison.company_id:
+            font = item.font()
+            font.setBold(True)
+            item.setFont(font)
+        table.setItem(row_idx, 0, item)
+
+        # Rank
+        item = QTableWidgetItem(str(row.sector_rank) if row.sector_rank is not None else _NA)
+        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
+        table.setItem(row_idx, 1, item)
+
+        # Score
+        item = QTableWidgetItem(_fmt_peer_metric_value("total_score", row.total_score))
+        item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        table.setItem(row_idx, 2, item)
+
+        # EV/EBITDA
+        item = QTableWidgetItem(_fmt_peer_metric_value("ev_ebitda", row.ev_ebitda))
+        item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        table.setItem(row_idx, 3, item)
+
+        # P/E
+        item = QTableWidgetItem(_fmt_peer_metric_value("pe_ratio", row.pe_ratio))
+        item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        table.setItem(row_idx, 4, item)
+
+        # Op. margin
+        item = QTableWidgetItem(_fmt_peer_metric_value("operating_margin", row.operating_margin))
+        item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        table.setItem(row_idx, 5, item)
+
+        # Rev. growth
+        item = QTableWidgetItem(_fmt_peer_metric_value("revenue_growth", row.revenue_growth))
+        item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        table.setItem(row_idx, 6, item)
+
+        # Highlight current company row
+        if row.company_id == comparison.company_id:
+            for col_idx in range(len(headers)):
+                cell = table.item(row_idx, col_idx)
+                if cell:
+                    cell.setBackground(QColor("#E3F2FD"))
 
 
 def _fmt_peer_metric_value(metric_key: str, value: float | None) -> str:
