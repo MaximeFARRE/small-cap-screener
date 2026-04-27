@@ -745,8 +745,8 @@ class CompanyDetailWidget(QWidget):
         # Memo text edits
         if analyst_detail:
             self.input_status.setCurrentText(analyst_detail.watchlist_status or WATCHLIST_STATUS_WATCHING)
-            self.input_excluded.setChecked(analyst_detail.is_excluded)
-            self.input_notes.setText(analyst_detail.notes or "")
+            self.input_excluded.setChecked(analyst_detail.watchlist_is_excluded)
+            self.input_notes.setText(analyst_detail.watchlist_notes or "")
 
             review_at_str = ""
             if analyst_detail.next_review_at:
