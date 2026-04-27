@@ -114,6 +114,26 @@ class FilterWidget(QWidget):
         self._min_quality_input.setValidator(quality_validator)
         self._min_quality_input.setPlaceholderText(_MIN_QUALITY_PLACEHOLDER)
 
+        self._max_pe_input = QLineEdit()
+        self._max_pe_input.setValidator(QDoubleValidator(0.0, 999.0, 2, self))
+        self._max_pe_input.setPlaceholderText("ex: 20.0")
+
+        self._min_growth_input = QLineEdit()
+        self._min_growth_input.setValidator(QDoubleValidator(-100.0, 999.0, 2, self))
+        self._min_growth_input.setPlaceholderText("ex: 10.0 (%)")
+
+        self._min_margin_input = QLineEdit()
+        self._min_margin_input.setValidator(QDoubleValidator(-100.0, 100.0, 2, self))
+        self._min_margin_input.setPlaceholderText("ex: 15.0 (%)")
+
+        self._min_market_cap_input = QLineEdit()
+        self._min_market_cap_input.setValidator(QDoubleValidator(0.0, 999999999999.0, 0, self))
+        self._min_market_cap_input.setPlaceholderText("Min (M€)")
+
+        self._max_market_cap_input = QLineEdit()
+        self._max_market_cap_input.setValidator(QDoubleValidator(0.0, 999999999999.0, 0, self))
+        self._max_market_cap_input.setPlaceholderText("Max (M€)")
+
         self._stale_only_input = QCheckBox("Données obsolètes uniquement (>30j)")
         self._scored_only_input = QCheckBox("Sociétés scorées uniquement")
 
@@ -144,6 +164,13 @@ class FilterWidget(QWidget):
         form.addRow("Secteur", self._sector_input)
         form.addRow("Score min", self._min_score_input)
         form.addRow("Qualité min", self._min_quality_input)
+        form.addRow("P/E max", self._max_pe_input)
+        form.addRow("Croissance min", self._min_growth_input)
+        form.addRow("Marge min", self._min_margin_input)
+        mc_layout = QHBoxLayout()
+        mc_layout.addWidget(self._min_market_cap_input)
+        mc_layout.addWidget(self._max_market_cap_input)
+        form.addRow("Market Cap", mc_layout)
         form.addRow("", self._stale_only_input)
         form.addRow("", self._scored_only_input)
         form.addRow("Scope watchlist", self._watchlist_scope_input)
@@ -170,6 +197,17 @@ class FilterWidget(QWidget):
         sector = self._sector_input.text().strip() or None
         min_total_score = _parse_float(self._min_score_input.text())
         min_data_quality_score = _parse_float(self._min_quality_input.text())
+        max_pe = _parse_float(self._max_pe_input.text())
+        min_growth = _parse_float(self._min_growth_input.text())
+        min_margin = _parse_float(self._min_margin_input.text())
+        min_market_cap = _parse_float(self._min_market_cap_input.text())
+        max_market_cap = _parse_float(self._max_market_cap_input.text())
+
+        if min_market_cap is not None:
+            min_market_cap *= 1_000_000.0  # Convert to actual currency from M
+        if max_market_cap is not None:
+            max_market_cap *= 1_000_000.0  # Convert to actual currency from M
+
         top_n = _parse_int(self._top_n_input.text())
         watchlist_scope = cast(WatchlistScopeFilter, self._watchlist_scope_input.currentData() or "all")
         watchlist_status = self._watchlist_status_input.currentData()
@@ -184,6 +222,11 @@ class FilterWidget(QWidget):
                 sector=sector,
                 min_total_score=min_total_score,
                 min_data_quality_score=min_data_quality_score,
+                max_pe=max_pe,
+                min_growth=min_growth,
+                min_margin=min_margin,
+                min_market_cap=min_market_cap,
+                max_market_cap=max_market_cap,
                 stale_only=self._stale_only_input.isChecked(),
                 scored_only=self._scored_only_input.isChecked(),
                 watchlist_scope=watchlist_scope,
@@ -200,6 +243,11 @@ class FilterWidget(QWidget):
         self._sector_input.clear()
         self._min_score_input.clear()
         self._min_quality_input.clear()
+        self._max_pe_input.clear()
+        self._min_growth_input.clear()
+        self._min_margin_input.clear()
+        self._min_market_cap_input.clear()
+        self._max_market_cap_input.clear()
         self._stale_only_input.setChecked(False)
         self._scored_only_input.setChecked(False)
         self._watchlist_scope_input.setCurrentIndex(0)

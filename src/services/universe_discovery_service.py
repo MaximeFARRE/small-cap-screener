@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
@@ -93,7 +94,7 @@ class UniverseDiscoveryService:
             warnings=warnings,
         )
 
-    def batch_refresh_universe(self) -> UniverseRefreshResult:
+    def batch_refresh_universe(self, pacing_seconds: float = 2.0) -> UniverseRefreshResult:
         """Refresh all active companies, one by one, tolerating individual failures."""
         with self.session_scope_factory() as session:
             companies = company_repository.get_all_active(session)
@@ -104,7 +105,9 @@ class UniverseDiscoveryService:
 
         results: list[CompanyUniverseRefreshResult] = []
         skipped = 0
-        for company_id, ticker in company_ids:
+        for i, (company_id, ticker) in enumerate(company_ids):
+            if i > 0 and pacing_seconds > 0:
+                time.sleep(pacing_seconds)
             try:
                 result = self.refresh_company(company_id)
                 results.append(result)
@@ -143,7 +146,7 @@ class UniverseDiscoveryService:
             results=results,
         )
 
-    def refresh_watchlist(self) -> UniverseRefreshResult:
+    def refresh_watchlist(self, pacing_seconds: float = 2.0) -> UniverseRefreshResult:
         """Refresh only companies currently in the watchlist, preserving analyst data."""
         with self.session_scope_factory() as session:
             entries = watchlist_repository.list_all(session)
@@ -154,7 +157,9 @@ class UniverseDiscoveryService:
 
         results: list[CompanyUniverseRefreshResult] = []
         skipped = 0
-        for company_id, _ in company_ids:
+        for i, (company_id, _) in enumerate(company_ids):
+            if i > 0 and pacing_seconds > 0:
+                time.sleep(pacing_seconds)
             try:
                 result = self.refresh_company(company_id)
                 results.append(result)

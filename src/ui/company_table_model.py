@@ -8,6 +8,10 @@ _HEADERS: list[str] = [
     "Ticker",
     "Nom",
     "Secteur",
+    "Market Cap",
+    "P/E",
+    "Croissance",
+    "Marge op.",
     "Score total",
     "Rang global",
     "Rang secteur",
@@ -34,6 +38,24 @@ def _fmt_quality(value: float | None) -> str:
     if value >= 0.5:
         return f"{value * 100:.0f}% (Moyenne)"
     return f"{value * 100:.0f}% (Faible)"
+
+
+def _fmt_market_cap(value: float | None) -> str:
+    if value is None:
+        return _NA
+    return f"{value / 1_000_000:.0f} M€"
+
+
+def _fmt_pe(value: float | None) -> str:
+    if value is None:
+        return _NA
+    return f"{value:.1f}"
+
+
+def _fmt_percent(value: float | None) -> str:
+    if value is None:
+        return _NA
+    return f"{value:.1f}%"
 
 
 class CompanyTableModel(QAbstractTableModel):
@@ -75,7 +97,7 @@ class CompanyTableModel(QAbstractTableModel):
         col = index.column()
 
         if role == Qt.ItemDataRole.ForegroundRole:
-            if col == 6 and row.data_quality_score is not None:
+            if col == 10 and row.data_quality_score is not None:
                 from PySide6.QtGui import QColor
 
                 if row.data_quality_score < 0.5:
@@ -100,11 +122,19 @@ class CompanyTableModel(QAbstractTableModel):
             case 2:
                 return row.sector or _NA
             case 3:
-                return _fmt_score(row.total_score)
+                return _fmt_market_cap(row.market_cap)
             case 4:
-                return str(row.rank) if row.rank is not None else _NA
+                return _fmt_pe(row.pe_ratio)
             case 5:
-                return str(row.sector_rank) if row.sector_rank is not None else _NA
+                return _fmt_percent(row.revenue_growth)
             case 6:
+                return _fmt_percent(row.operating_margin)
+            case 7:
+                return _fmt_score(row.total_score)
+            case 8:
+                return str(row.rank) if row.rank is not None else _NA
+            case 9:
+                return str(row.sector_rank) if row.sector_rank is not None else _NA
+            case 10:
                 return _fmt_quality(row.data_quality_score)
         return None

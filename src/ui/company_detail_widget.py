@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -161,23 +162,50 @@ class CompanyDetailWidget(QWidget):
         self._alert_frame.setVisible(False)
         outer_layout.addWidget(self._alert_frame)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setVisible(False)
-        self._scroll = scroll
-        outer_layout.addWidget(scroll)
+        self._tabs = QTabWidget()
+        self._tabs.setVisible(False)
+        outer_layout.addWidget(self._tabs)
 
-        content = QWidget()
-        self._content_layout = QVBoxLayout(content)
-        self._content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        scroll.setWidget(content)
+        def _create_scroll_tab(name: str) -> QVBoxLayout:
+            tab = QWidget()
+            layout = QVBoxLayout(tab)
+            layout.setContentsMargins(0, 0, 0, 0)
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.Shape.NoFrame)
+            content = QWidget()
+            content_layout = QVBoxLayout(content)
+            content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+            scroll.setWidget(content)
+            layout.addWidget(scroll)
+            self._tabs.addTab(tab, name)
+            return content_layout
+
+        self._layout_synthese = _create_scroll_tab("Synthèse")
+        self._layout_finances = _create_scroll_tab("Finances")
+        self._layout_charts = _create_scroll_tab("Graphiques")
 
         self._groups: dict[str, QFormLayout] = {}
+
+        # Mapping groups to their respective tab layouts
+        group_layouts = {
+            "Société": self._layout_synthese,
+            "Analyste": self._layout_synthese,
+            "Analyst Memo": self._layout_synthese,
+            "Financial overview": self._layout_finances,
+            "Historical fundamentals": self._layout_finances,
+            "Valuation ratios": self._layout_finances,
+            "Quality / Growth / Risk": self._layout_finances,
+            "Peer Comparison": self._layout_finances,
+            "Scoring": self._layout_finances,
+        }
+
         for title in _GROUPS_ORDER:
             box = QGroupBox(title)
             form = QFormLayout(box)
             self._groups[title] = form
-            self._content_layout.addWidget(box)
+            target_layout = group_layouts.get(title, self._layout_finances)
+            target_layout.addWidget(box)
 
         charts_box = QGroupBox("Visual analysis")
         charts_layout = QVBoxLayout(charts_box)
@@ -189,7 +217,7 @@ class CompanyDetailWidget(QWidget):
         charts_layout.addWidget(self._fundamentals_chart_view)
         charts_layout.addWidget(self._margin_chart_view)
         charts_layout.addWidget(self._score_chart_view)
-        self._content_layout.addWidget(charts_box)
+        self._layout_charts.addWidget(charts_box)
         self._clear_charts()
 
         actions_box = QGroupBox("Actions analyste")
@@ -240,7 +268,7 @@ class CompanyDetailWidget(QWidget):
         buttons_layout.addWidget(self._save_btn)
         buttons_layout.addWidget(self._refresh_btn)
         actions_layout.addLayout(buttons_layout)
-        self._content_layout.addWidget(actions_box)
+        self._layout_synthese.addWidget(actions_box)
 
         self._add_watchlist_btn.clicked.connect(self._on_add_watchlist_clicked)
         self._remove_watchlist_btn.clicked.connect(self._on_remove_watchlist_clicked)
@@ -362,7 +390,7 @@ class CompanyDetailWidget(QWidget):
         self._remove_watchlist_btn.setEnabled(self._in_watchlist)
 
         self._placeholder.setVisible(False)
-        self._scroll.setVisible(True)
+        self._tabs.setVisible(True)
 
     def _populate_financial_overview(
         self,
@@ -620,7 +648,7 @@ class CompanyDetailWidget(QWidget):
         self._set_actions_enabled(False)
         self._clear_charts()
         self._alert_frame.setVisible(False)
-        self._scroll.setVisible(False)
+        self._tabs.setVisible(False)
         self._placeholder.setVisible(True)
 
     def _set_editor_values(

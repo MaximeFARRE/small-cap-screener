@@ -133,3 +133,7 @@ class BaseProvider(ABC):
 
     @abstractmethod
     def get_current_price(self, ticker: str) -> float: ...
+
+    def search_by_isin(self, isin: str) -> str | None:
+        """Find the ticker corresponding to an ISIN, or None if not found or not supported."""
+        return None
