@@ -15,6 +15,7 @@ import yfinance as yf
 
 from src.models.financial_statement import PeriodType
 from src.repositories.providers.base import (
+    AnalystData,
     BaseProvider,
     CompanyInfo,
     CompanyProfile,
@@ -118,6 +119,7 @@ def _get_company_profile(ticker: str) -> CompanyProfile:
         country=info.get("country"),
         currency=info.get("currency", "EUR"),
         website=info.get("website"),
+        business_summary=info.get("longBusinessSummary") or None,
         isin=info.get("isin") or None,
         source=_SOURCE_NAME,
         fetched_at=fetched_at,
@@ -171,6 +173,8 @@ def _parse_statement(
     cash = _df_float(balance, "Cash And Cash Equivalents", col) if balance is not None else None
     net_debt = (total_debt - cash) if total_debt is not None and cash is not None else None
     equity = _df_float(balance, "Stockholders Equity", col) if balance is not None else None
+    current_assets = _df_float(balance, "Current Assets", col) if balance is not None else None
+    current_liabilities = _df_float(balance, "Current Liabilities", col) if balance is not None else None
     return FinancialData(
         fiscal_year=col.year,
         period_type=PeriodType.ANNUAL,
@@ -184,6 +188,10 @@ def _parse_statement(
         net_debt=net_debt,
         free_cash_flow=(_df_float(cashflow, "Free Cash Flow", col) if cashflow is not None else None),
         shares_outstanding=shares,
+        gross_profit=_df_float(income, "Gross Profit", col),
+        current_assets=current_assets,
+        current_liabilities=current_liabilities,
+        interest_expense=_df_float(income, "Interest Expense", col),
     )
 
 
@@ -289,6 +297,25 @@ def _get_splits(ticker: str) -> list[SplitData]:
     return records
 
 
+def _get_analyst_data(ticker: str) -> AnalystData:
+    info = _get_ticker_info(ticker)
+    fetched_at = _fetched_at_now()
+    raw_opinions = info.get("numberOfAnalystOpinions")
+    return AnalystData(
+        ticker=ticker,
+        enterprise_value=_to_float(info.get("enterpriseValue")),
+        beta=_to_float(info.get("beta")),
+        forward_pe=_to_float(info.get("forwardPE")),
+        target_price_mean=_to_float(info.get("targetMeanPrice")),
+        target_price_high=_to_float(info.get("targetHighPrice")),
+        target_price_low=_to_float(info.get("targetLowPrice")),
+        recommendation_key=info.get("recommendationKey") or None,
+        number_of_analyst_opinions=(_to_int(raw_opinions) if raw_opinions is not None else None),
+        source=_SOURCE_NAME,
+        fetched_at=fetched_at,
+    )
+
+
 def _search_by_isin(isin: str) -> str | None:
     url = f"https://query2.finance.yahoo.com/v1/finance/search?q={isin}"
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -382,6 +409,14 @@ class YFinanceProvider(BaseProvider):
             data_type="financial_statements",
             variant=str(years),
             fetch_fn=lambda: _get_financial_statements(ticker, years),
+        )
+
+    def get_analyst_data(self, ticker: str) -> AnalystData:
+        return self._get_cached_or_fetch(
+            ticker=ticker,
+            data_type="analyst_data",
+            variant="default",
+            fetch_fn=lambda: _get_analyst_data(ticker),
         )
 
     def get_current_price(self, ticker: str) -> float:

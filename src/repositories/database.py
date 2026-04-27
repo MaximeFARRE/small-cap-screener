@@ -40,6 +40,8 @@ def init_db() -> None:
     _ensure_company_columns()
     _ensure_company_isin_nullable()
     _ensure_watchlist_memo_columns()
+    _ensure_company_enrichment_columns()
+    _ensure_financial_statement_columns()
 
 
 @contextmanager
@@ -89,6 +91,46 @@ def _ensure_company_columns() -> None:
             if column_name in existing_columns:
                 continue
             connection.exec_driver_sql(f"ALTER TABLE companies ADD COLUMN {column_name} {column_sql_type}")
+
+
+def _ensure_company_enrichment_columns() -> None:
+    company_columns: dict[str, str] = {
+        "industry": "VARCHAR(200)",
+        "website": "VARCHAR(500)",
+        "business_summary": "VARCHAR(4000)",
+        "beta": "FLOAT",
+        "analyst_target_price": "FLOAT",
+        "analyst_recommendation": "VARCHAR(20)",
+        "analyst_count": "INTEGER",
+        "forward_pe": "FLOAT",
+    }
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        if "companies" not in inspector.get_table_names():
+            return
+        existing_columns = {column["name"] for column in inspector.get_columns("companies")}
+        for column_name, column_sql_type in company_columns.items():
+            if column_name in existing_columns:
+                continue
+            connection.exec_driver_sql(f"ALTER TABLE companies ADD COLUMN {column_name} {column_sql_type}")
+
+
+def _ensure_financial_statement_columns() -> None:
+    stmt_columns: dict[str, str] = {
+        "gross_profit": "FLOAT",
+        "current_assets": "FLOAT",
+        "current_liabilities": "FLOAT",
+        "interest_expense": "FLOAT",
+    }
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        if "financial_statements" not in inspector.get_table_names():
+            return
+        existing_columns = {column["name"] for column in inspector.get_columns("financial_statements")}
+        for column_name, column_sql_type in stmt_columns.items():
+            if column_name in existing_columns:
+                continue
+            connection.exec_driver_sql(f"ALTER TABLE financial_statements ADD COLUMN {column_name} {column_sql_type}")
 
 
 def _ensure_company_isin_nullable() -> None:

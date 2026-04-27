@@ -348,3 +348,161 @@ def test_price_history_cache_miss_for_stale_data(mock_ticker_cls, mock_now):
     provider.get_price_history(TICKER, period="1mo")
 
     assert mock_ticker_cls.call_count == 2
+
+
+# --- business_summary in profile ---
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_company_profile_includes_business_summary(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={
+            "longName": "Vetoquinol SA",
+            "currency": "EUR",
+            "longBusinessSummary": "Vetoquinol is a global veterinary pharmaceutical company.",
+        }
+    )
+    profile = YFinanceProvider().get_company_profile(TICKER)
+    assert profile.business_summary == "Vetoquinol is a global veterinary pharmaceutical company."
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_company_profile_business_summary_none_when_missing(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(info={"longName": "Vetoquinol SA", "currency": "EUR"})
+    profile = YFinanceProvider().get_company_profile(TICKER)
+    assert profile.business_summary is None
+
+
+# --- new financial statement fields ---
+
+
+def _make_enriched_financials_df() -> pd.DataFrame:
+    col = pd.Timestamp("2023-12-31")
+    return pd.DataFrame(
+        {
+            col: {
+                "Total Revenue": 200_000_000.0,
+                "Gross Profit": 80_000_000.0,
+                "EBIT": 20_000_000.0,
+                "EBITDA": 30_000_000.0,
+                "Net Income": 15_000_000.0,
+                "Interest Expense": 2_000_000.0,
+            }
+        }
+    )
+
+
+def _make_enriched_balance_df() -> pd.DataFrame:
+    col = pd.Timestamp("2023-12-31")
+    return pd.DataFrame(
+        {
+            col: {
+                "Total Assets": 500_000_000.0,
+                "Stockholders Equity": 150_000_000.0,
+                "Total Debt": 80_000_000.0,
+                "Cash And Cash Equivalents": 30_000_000.0,
+                "Current Assets": 120_000_000.0,
+                "Current Liabilities": 60_000_000.0,
+            }
+        }
+    )
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_financial_statements_parses_gross_profit(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"sharesOutstanding": 1_000_000},
+        financials=_make_enriched_financials_df(),
+        balance_sheet=_make_enriched_balance_df(),
+        cashflow=_make_cashflow_df(),
+    )
+    stmts = YFinanceProvider().get_financial_statements(TICKER, years=1)
+    assert stmts[0].gross_profit == pytest.approx(80_000_000.0)
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_financial_statements_parses_current_assets_and_liabilities(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"sharesOutstanding": 1_000_000},
+        financials=_make_enriched_financials_df(),
+        balance_sheet=_make_enriched_balance_df(),
+        cashflow=_make_cashflow_df(),
+    )
+    stmts = YFinanceProvider().get_financial_statements(TICKER, years=1)
+    assert stmts[0].current_assets == pytest.approx(120_000_000.0)
+    assert stmts[0].current_liabilities == pytest.approx(60_000_000.0)
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_financial_statements_parses_interest_expense(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"sharesOutstanding": 1_000_000},
+        financials=_make_enriched_financials_df(),
+        balance_sheet=_make_enriched_balance_df(),
+        cashflow=_make_cashflow_df(),
+    )
+    stmts = YFinanceProvider().get_financial_statements(TICKER, years=1)
+    assert stmts[0].interest_expense == pytest.approx(2_000_000.0)
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_financial_statements_new_fields_none_when_absent(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"sharesOutstanding": 1_000_000},
+        financials=_make_financials_df(),
+        balance_sheet=_make_balance_df(),
+        cashflow=_make_cashflow_df(),
+    )
+    stmts = YFinanceProvider().get_financial_statements(TICKER, years=1)
+    assert stmts[0].gross_profit is None
+    assert stmts[0].current_assets is None
+    assert stmts[0].current_liabilities is None
+    assert stmts[0].interest_expense is None
+
+
+# --- get_analyst_data ---
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_analyst_data_returns_parsed_fields(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={
+            "enterpriseValue": 500_000_000.0,
+            "beta": 1.15,
+            "forwardPE": 18.5,
+            "targetMeanPrice": 65.0,
+            "targetHighPrice": 80.0,
+            "targetLowPrice": 50.0,
+            "recommendationKey": "buy",
+            "numberOfAnalystOpinions": 8,
+        }
+    )
+    data = YFinanceProvider().get_analyst_data(TICKER)
+    assert data.enterprise_value == pytest.approx(500_000_000.0)
+    assert data.beta == pytest.approx(1.15)
+    assert data.forward_pe == pytest.approx(18.5)
+    assert data.target_price_mean == pytest.approx(65.0)
+    assert data.target_price_high == pytest.approx(80.0)
+    assert data.target_price_low == pytest.approx(50.0)
+    assert data.recommendation_key == "buy"
+    assert data.number_of_analyst_opinions == 8
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_analyst_data_returns_none_fields_when_absent(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(info={})
+    data = YFinanceProvider().get_analyst_data(TICKER)
+    assert data.enterprise_value is None
+    assert data.beta is None
+    assert data.forward_pe is None
+    assert data.target_price_mean is None
+    assert data.recommendation_key is None
+    assert data.number_of_analyst_opinions is None
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_analyst_data_ticker_stored_correctly(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(info={"beta": 0.9})
+    data = YFinanceProvider().get_analyst_data(TICKER)
+    assert data.ticker == TICKER
+    assert data.source == "yfinance"
