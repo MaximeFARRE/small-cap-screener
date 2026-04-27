@@ -12,8 +12,10 @@ from src.services.screening_service import (
     ScreeningSnapshotRow,
     ScreeningSnapshotSummary,
     ScreeningSnapshotView,
+    UniverseScreeningEntry,
     UniverseScreeningFilters,
 )
+from src.ui.main_window import _STACK_DETAIL_INDEX, _STACK_SCREENER_INDEX
 
 
 @pytest.fixture
@@ -222,3 +224,56 @@ def test_open_recent_screening_snapshots_loads_view_and_comparison(monkeypatch, 
     assert compared_filters == window._current_filters
     assert FakeSnapshotDialog.last_instance is not None
     assert FakeSnapshotDialog.last_instance.exec_called is True
+
+
+def _make_screener_row(company_id: int = 1) -> UniverseScreeningEntry:
+    return UniverseScreeningEntry(
+        company_id=company_id,
+        ticker="TST.PA",
+        name="Test Corp",
+        sector="Tech",
+        total_score=75.0,
+        quality_score=70.0,
+        value_score=72.0,
+        growth_score=68.0,
+        risk_score=65.0,
+        rank=1,
+        sector_rank=1,
+    )
+
+
+def test_row_selected_navigates_to_detail_page(monkeypatch, qapp):
+    window = _build_window(monkeypatch, qapp)
+    assert window._stack.currentIndex() == _STACK_SCREENER_INDEX
+
+    window._on_row_selected(_make_screener_row())
+
+    assert window._stack.currentIndex() == _STACK_DETAIL_INDEX
+
+
+def test_back_requested_returns_to_screener(monkeypatch, qapp):
+    window = _build_window(monkeypatch, qapp)
+    window._on_row_selected(_make_screener_row())
+    assert window._stack.currentIndex() == _STACK_DETAIL_INDEX
+
+    window._on_back_requested()
+
+    assert window._stack.currentIndex() == _STACK_SCREENER_INDEX
+
+
+def test_load_scored_universe_with_no_rows_shows_screener(monkeypatch, qapp):
+    window = _build_window(monkeypatch, qapp)
+    window._stack.setCurrentIndex(_STACK_DETAIL_INDEX)
+
+    window._load_scored_universe()
+
+    assert window._stack.currentIndex() == _STACK_SCREENER_INDEX
+
+
+def test_detail_widget_loads_with_none_data_without_crash(monkeypatch, qapp):
+    window = _build_window(monkeypatch, qapp)
+    row = _make_screener_row()
+
+    window._detail.load(row, analyst_detail=None, financial_detail=None, chart_data=None, peer_comparison=None)
+
+    assert window._detail._current_row is not None

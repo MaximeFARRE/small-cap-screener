@@ -3,7 +3,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QDockWidget, QFileDialog, QInputDialog, QMainWindow, QMessageBox, QSplitter
+from PySide6.QtWidgets import QDockWidget, QFileDialog, QInputDialog, QMainWindow, QMessageBox, QStackedWidget
 
 from src.repositories.providers.yfinance_provider import YFinanceProvider
 from src.services.backtesting_service import BacktestingService
@@ -33,8 +33,9 @@ from src.ui.worker import Worker
 WINDOW_TITLE = "Small Cap Screener"
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 800
-_SPLITTER_RATIO = (2, 1)
 _FILTER_DOCK_WIDTH = 220
+_STACK_SCREENER_INDEX = 0
+_STACK_DETAIL_INDEX = 1
 
 
 class MainWindow(QMainWindow):
@@ -69,24 +70,24 @@ class MainWindow(QMainWindow):
         self._load_scored_universe()
 
     def _setup_ui(self) -> None:
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._stack = QStackedWidget()
 
         self._screener = ScreenerWidget()
         self._detail = CompanyDetailWidget()
 
-        splitter.addWidget(self._screener)
-        splitter.addWidget(self._detail)
-        splitter.setStretchFactor(0, _SPLITTER_RATIO[0])
-        splitter.setStretchFactor(1, _SPLITTER_RATIO[1])
+        self._stack.addWidget(self._screener)
+        self._stack.addWidget(self._detail)
+        self._stack.setCurrentIndex(_STACK_SCREENER_INDEX)
 
         self._screener.row_selected.connect(self._on_row_selected)
         self._screener.selection_cleared.connect(self._on_selection_cleared)
+        self._detail.back_requested.connect(self._on_back_requested)
         self._detail.add_watchlist_requested.connect(self._on_add_watchlist_requested)
         self._detail.remove_watchlist_requested.connect(self._on_remove_watchlist_requested)
         self._detail.save_watchlist_requested.connect(self._on_save_watchlist_requested)
         self._detail.refresh_company_requested.connect(self._on_refresh_company_requested)
 
-        self.setCentralWidget(splitter)
+        self.setCentralWidget(self._stack)
         self._setup_filter_dock()
         self._setup_menu()
 
@@ -135,6 +136,7 @@ class MainWindow(QMainWindow):
         if not rows:
             self._selected_company_id = None
             self._detail.clear()
+            self._stack.setCurrentIndex(_STACK_SCREENER_INDEX)
             self.statusBar().showMessage("Aucune société ne correspond aux filtres.")
             return
         if selected_company_id is not None and self._screener.select_company(selected_company_id):
@@ -142,6 +144,7 @@ class MainWindow(QMainWindow):
             return
         self._selected_company_id = None
         self._detail.clear()
+        self._stack.setCurrentIndex(_STACK_SCREENER_INDEX)
         self.statusBar().clearMessage()
 
     def _on_filters_applied(self, filters: UniverseScreeningFilters) -> None:
@@ -160,6 +163,10 @@ class MainWindow(QMainWindow):
         )
         peer_comparison = self._peer_comparison_service.get_company_peer_comparison(row.company_id)
         self._detail.load(row, analyst_detail, financial_detail, chart_data, peer_comparison)
+        self._stack.setCurrentIndex(_STACK_DETAIL_INDEX)
+
+    def _on_back_requested(self) -> None:
+        self._stack.setCurrentIndex(_STACK_SCREENER_INDEX)
 
     def _on_selection_cleared(self) -> None:
         self._selected_company_id = None

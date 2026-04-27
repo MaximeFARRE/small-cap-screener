@@ -135,6 +135,7 @@ class CompanyDetailWidget(QWidget):
     remove_watchlist_requested = Signal(int)
     save_watchlist_requested = Signal(int, str, str, bool, str, str, str, str, str, str)
     refresh_company_requested = Signal(int)
+    back_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -146,6 +147,11 @@ class CompanyDetailWidget(QWidget):
     def _setup_ui(self) -> None:
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(8, 8, 8, 8)
+
+        self._back_btn = QPushButton("← Retour au screener")
+        self._back_btn.setMaximumWidth(200)
+        self._back_btn.clicked.connect(self.back_requested)
+        outer_layout.addWidget(self._back_btn)
 
         self._placeholder = QLabel(_PLACEHOLDER)
         self._placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
