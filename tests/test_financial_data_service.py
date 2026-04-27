@@ -145,6 +145,7 @@ def _make_provider(
     provider.get_financial_statements.side_effect = _financial_statements
     provider.get_dividends.return_value = []
     provider.get_splits.return_value = []
+    provider.get_analyst_data.return_value = None
     return provider
 
 
