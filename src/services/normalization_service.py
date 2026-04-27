@@ -31,6 +31,10 @@ class NormalizedFinancialStatement:
     net_debt: float | None
     free_cash_flow: float | None
     shares_outstanding: float | None
+    gross_profit: float | None = None
+    current_assets: float | None = None
+    current_liabilities: float | None = None
+    interest_expense: float | None = None
 
 
 @dataclass
@@ -268,6 +272,18 @@ def _normalize_financial_statements(
                 ),
                 shares_outstanding=_normalize_nullable_float(
                     record.shares_outstanding, f"financial_statements[{index}].shares_outstanding", errors
+                ),
+                gross_profit=_normalize_nullable_float(
+                    record.gross_profit, f"financial_statements[{index}].gross_profit", errors
+                ),
+                current_assets=_normalize_nullable_float(
+                    record.current_assets, f"financial_statements[{index}].current_assets", errors
+                ),
+                current_liabilities=_normalize_nullable_float(
+                    record.current_liabilities, f"financial_statements[{index}].current_liabilities", errors
+                ),
+                interest_expense=_normalize_nullable_float(
+                    record.interest_expense, f"financial_statements[{index}].interest_expense", errors
                 ),
             )
         )
