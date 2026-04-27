@@ -89,13 +89,17 @@ _TREND_LABELS = {
     "negative": "negative",
     "stable": "stable",
 }
-_CHART_HEIGHT = 200
-_PRICE_COLOR = "#1f77b4"
-_REVENUE_COLOR = "#2ca02c"
-_OPERATING_COLOR = "#ff7f0e"
-_MARGIN_COLOR = "#d62728"
+_CHART_HEIGHT = 280
+_PRICE_COLOR = "#1565C0"
+_REVENUE_COLOR = "#2E7D32"
+_OPERATING_COLOR = "#F57C00"
+_NET_INCOME_COLOR = "#6A1B9A"
+_MARGIN_COLOR = "#C62828"
+_DEBT_COLOR = "#E53935"
 _SCORE_BAR_COLOR = "#4c78a8"
+_FCF_COLOR = "#00838F"
 _NO_DATA_SUFFIX = " (no data)"
+_EMPTY_CHART_BG = "#FAFAFA"
 
 
 def _fmt(value: float | None, decimals: int = 2) -> str:
