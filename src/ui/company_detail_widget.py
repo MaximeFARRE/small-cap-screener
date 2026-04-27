@@ -250,10 +250,12 @@ class CompanyDetailWidget(QWidget):
         self._price_chart_view = _build_chart_view()
         self._fundamentals_chart_view = _build_chart_view()
         self._margin_chart_view = _build_chart_view()
+        self._debt_chart_view = _build_chart_view()
         self._score_chart_view = _build_chart_view()
         charts_layout.addWidget(self._price_chart_view)
         charts_layout.addWidget(self._fundamentals_chart_view)
         charts_layout.addWidget(self._margin_chart_view)
+        charts_layout.addWidget(self._debt_chart_view)
         charts_layout.addWidget(self._score_chart_view)
         self._layout_charts.addWidget(charts_box)
         self._clear_charts()
@@ -832,22 +834,27 @@ class CompanyDetailWidget(QWidget):
             return
         self._price_chart_view.setChart(
             _line_chart_for_dated_points(
-                title="Price history",
+                title="Historique de cours (base 100)",
                 points=chart_data.price_points,
                 color=_PRICE_COLOR,
-                y_title="Price",
+                y_title="Base 100",
             )
         )
+        # Scale revenue/EBITDA to M units
+        currency = "EUR"
+        rev_m = _scale_yearly_points(chart_data.fundamentals.revenue_points)
+        op_m = _scale_yearly_points(chart_data.fundamentals.operating_income_points)
         self._fundamentals_chart_view.setChart(
             _line_chart_for_year_points(
-                title="Revenue and EBITDA / operating income",
-                main_points=chart_data.fundamentals.revenue_points,
-                main_label="Revenue",
+                title=f"Revenus & EBITDA (M{currency})",
+                main_points=rev_m,
+                main_label="Revenus",
                 main_color=_REVENUE_COLOR,
-                secondary_points=chart_data.fundamentals.operating_income_points,
-                secondary_label="EBITDA / operating income",
+                secondary_points=op_m,
+                secondary_label="EBITDA / Résultat opérationnel",
                 secondary_color=_OPERATING_COLOR,
-                y_title="Amount",
+                y_title=f"M{currency}",
+                y_label_format="%.0f",
             )
         )
         margin_points = [
@@ -855,22 +862,38 @@ class CompanyDetailWidget(QWidget):
         ]
         self._margin_chart_view.setChart(
             _line_chart_for_year_points(
-                title="Operating margin history (%)",
+                title="Marge opérationnelle (%)",
                 main_points=margin_points,
-                main_label="Margin %",
+                main_label="Marge %",
                 main_color=_MARGIN_COLOR,
                 secondary_points=[],
                 secondary_label=None,
                 secondary_color=None,
-                y_title="Percent",
+                y_title="%",
+                y_label_format="%.1f",
+            )
+        )
+        debt_m = _scale_yearly_points(chart_data.fundamentals.debt_points)
+        self._debt_chart_view.setChart(
+            _line_chart_for_year_points(
+                title="Évolution de la dette nette (M€)",
+                main_points=debt_m,
+                main_label="Dette nette",
+                main_color=_DEBT_COLOR,
+                secondary_points=[],
+                secondary_label=None,
+                secondary_color=None,
+                y_title="M€",
+                y_label_format="%.0f",
             )
         )
         self._score_chart_view.setChart(_score_breakdown_chart(chart_data.score_breakdown))
 
     def _clear_charts(self) -> None:
-        self._price_chart_view.setChart(_empty_chart("Price history"))
-        self._fundamentals_chart_view.setChart(_empty_chart("Revenue and EBITDA / operating income"))
-        self._margin_chart_view.setChart(_empty_chart("Operating margin history (%)"))
+        self._price_chart_view.setChart(_empty_chart("Historique de cours (base 100)"))
+        self._fundamentals_chart_view.setChart(_empty_chart("Revenus & EBITDA"))
+        self._margin_chart_view.setChart(_empty_chart("Marge opérationnelle (%)"))
+        self._debt_chart_view.setChart(_empty_chart("Évolution de la dette nette"))
         self._score_chart_view.setChart(_empty_chart("Score breakdown"))
 
     def _populate_peer_comparison(self, comparison: PeerComparisonData | None) -> None:
@@ -1039,6 +1062,11 @@ def _empty_chart(title: str) -> QChart:
     return chart
 
 
+def _scale_yearly_points(points: list[YearlyChartPoint], divisor: float = 1_000_000.0) -> list[YearlyChartPoint]:
+    """Scale yearly points by a divisor (default: to millions)."""
+    return [YearlyChartPoint(fiscal_year=p.fiscal_year, value=p.value / divisor) for p in points]
+
+
 def _line_chart_for_dated_points(
     *,
     title: str,
@@ -1048,23 +1076,33 @@ def _line_chart_for_dated_points(
 ) -> QChart:
     if not points:
         return _empty_chart(title)
+
+    # Normalize to base-100 from first data point
+    base = points[0].value
+    if abs(base) < 1e-9:
+        base = 1.0
+
     chart = QChart()
     chart.setTitle(title)
     chart.legend().hide()
+    chart.setAnimationOptions(QChart.AnimationOption.SeriesAnimations)
 
     series = QLineSeries()
+    series.setName("Price")
     series.setPen(_line_pen(color))
     chart.addSeries(series)
 
     values: list[float] = []
     for point in points:
         qdt = QDateTime(point.point_date.year, point.point_date.month, point.point_date.day, 0, 0, 0)
-        series.append(float(qdt.toMSecsSinceEpoch()), point.value)
-        values.append(point.value)
+        normalized = (point.value / base) * 100.0
+        series.append(float(qdt.toMSecsSinceEpoch()), normalized)
+        values.append(normalized)
 
     axis_x = QDateTimeAxis()
-    axis_x.setFormat("yyyy-MM")
-    axis_x.setTitleText("Date")
+    axis_x.setFormat("MMM yyyy")
+    axis_x.setTitleText("")
+    axis_x.setTickCount(min(6, len(points)))
     start = QDateTime(points[0].point_date.year, points[0].point_date.month, points[0].point_date.day, 0, 0, 0)
     end = QDateTime(points[-1].point_date.year, points[-1].point_date.month, points[-1].point_date.day, 0, 0, 0)
     if len(points) == 1:
@@ -1075,7 +1113,7 @@ def _line_chart_for_dated_points(
     series.attachAxis(axis_x)
 
     axis_y = QValueAxis()
-    axis_y.setLabelFormat("%.2f")
+    axis_y.setLabelFormat("%.0f")
     axis_y.setTitleText(y_title)
     _set_value_axis_range(axis_y, min(values), max(values))
     chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
@@ -1093,6 +1131,7 @@ def _line_chart_for_year_points(
     secondary_label: str | None,
     secondary_color: str | None,
     y_title: str,
+    y_label_format: str = "%.2f",
 ) -> QChart:
     has_main = bool(main_points)
     has_secondary = bool(secondary_points)
@@ -1101,7 +1140,8 @@ def _line_chart_for_year_points(
 
     chart = QChart()
     chart.setTitle(title)
-    chart.legend().setVisible(has_secondary)
+    chart.setAnimationOptions(QChart.AnimationOption.SeriesAnimations)
+    chart.legend().setVisible(has_main and has_secondary)
 
     main_series = _year_line_series(main_label, main_points, main_color)
     chart.addSeries(main_series)
@@ -1118,7 +1158,8 @@ def _line_chart_for_year_points(
 
     axis_x = QValueAxis()
     axis_x.setLabelFormat("%.0f")
-    axis_x.setTitleText("Fiscal year")
+    axis_x.setTitleText("")
+    axis_x.setTickCount(min(len(years), 6))
     _set_year_axis_range(axis_x, min(years), max(years))
     chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
     main_series.attachAxis(axis_x)
@@ -1126,7 +1167,7 @@ def _line_chart_for_year_points(
         secondary_series.attachAxis(axis_x)
 
     axis_y = QValueAxis()
-    axis_y.setLabelFormat("%.2f")
+    axis_y.setLabelFormat(y_label_format)
     axis_y.setTitleText(y_title)
     _set_value_axis_range(axis_y, min(values), max(values))
     chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
@@ -1142,13 +1183,22 @@ def _score_breakdown_chart(points: list[ScoreBreakdownPoint]) -> QChart:
         return _empty_chart("Score breakdown")
 
     chart = QChart()
-    chart.setTitle("Score breakdown")
+    chart.setTitle("Décomposition du score")
     chart.legend().hide()
+    chart.setAnimationOptions(QChart.AnimationOption.SeriesAnimations)
+
+    _SCORE_COLORS = {
+        "quality": "#1565C0",
+        "value": "#2E7D32",
+        "growth": "#F57C00",
+        "risk": "#C62828",
+    }
 
     bar_set = QBarSet("Score")
-    bar_set.setColor(QColor(_SCORE_BAR_COLOR))
     for point in points:
         bar_set.append(point.score)
+        color = _SCORE_COLORS.get(point.key, _SCORE_BAR_COLOR)
+        bar_set.setColor(QColor(color))
 
     series = QBarSeries()
     series.append(bar_set)
