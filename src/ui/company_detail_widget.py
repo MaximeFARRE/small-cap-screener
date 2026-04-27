@@ -16,6 +16,7 @@ from PySide6.QtCharts import (
 from PySide6.QtCore import QDateTime, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
+    QAbstractScrollArea,
     QCheckBox,
     QComboBox,
     QFormLayout,
@@ -227,6 +228,10 @@ class CompanyDetailWidget(QWidget):
         self._financial_table.setAlternatingRowColors(True)
         self._financial_table.verticalHeader().setVisible(False)
         self._financial_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._financial_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._financial_table.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
+        self._financial_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self._financial_table.setMinimumHeight(350)
         self._financial_table.setStyleSheet(
             "QTableWidget { font-size: 11pt; border: 1px solid #ddd; border-radius: 4px; }\n"
             "QHeaderView::section { font-weight: bold; background-color: #f5f5f5; border: none; "
