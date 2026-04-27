@@ -112,6 +112,10 @@ def _store_statement_records(session: Session, company: Company, statements: lis
                 net_debt=data.net_debt,
                 free_cash_flow=data.free_cash_flow,
                 shares_outstanding=data.shares_outstanding,
+                gross_profit=data.gross_profit,
+                current_assets=data.current_assets,
+                current_liabilities=data.current_liabilities,
+                interest_expense=data.interest_expense,
             ),
         )
         added += 1
