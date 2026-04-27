@@ -1,7 +1,17 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtCharts import (
+    QBarCategoryAxis,
+    QBarSeries,
+    QBarSet,
+    QChart,
+    QChartView,
+    QDateTimeAxis,
+    QLineSeries,
+    QValueAxis,
+)
+from PySide6.QtCore import QDateTime, Qt, Signal
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -13,6 +23,8 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -137,6 +149,35 @@ QHeaderView::section {{
 QTableWidget::item {{
     padding: 6px;
     border-bottom: 1px solid {C_BORDER};
+}}
+QTabWidget::pane {{
+    border: 1px solid {C_BORDER};
+    border-radius: 6px;
+    background-color: {C_BG_MAIN};
+    top: -1px;
+}}
+QTabBar::tab {{
+    background-color: {C_BG_SEC};
+    color: {C_TEXT_SEC};
+    padding: 8px 16px;
+    border: 1px solid {C_BORDER};
+    border-bottom: none;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    font-weight: bold;
+    font-size: 12px;
+}}
+QTabBar::tab:selected {{
+    background-color: {C_BG_CARD};
+    color: {C_ACC_PRI};
+}}
+QTextEdit {{
+    background-color: {C_BG_SEC};
+    color: {C_TEXT_MAIN};
+    border: 1px solid {C_BORDER};
+    border-radius: 4px;
+    padding: 6px;
+    font-size: 12px;
 }}
 """
 
@@ -268,25 +309,46 @@ class CompanyDetailWidget(QWidget):
 
         self.main_layout.addWidget(top_bar)
 
-        # Scroll Area
-        self.scroll = QScrollArea()
-        self.scroll.setWidgetResizable(True)
-        self.content = QWidget()
-        self.content_layout = QVBoxLayout(self.content)
-        self.content_layout.setContentsMargins(24, 24, 24, 24)
-        self.content_layout.setSpacing(24)
-        self.content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-
         self._build_hero()
-        self._build_kpis()
-        self._build_financials()
+        self.main_layout.addWidget(self.hero_frame)
 
-        self.scroll.setWidget(self.content)
-        self.main_layout.addWidget(self.scroll)
+        self.tabs = QTabWidget()
+        self.main_layout.addWidget(self.tabs)
+
+        self._tab_snapshot = self._create_scroll_tab("Snapshot")
+        self._tab_financials = self._create_scroll_tab("Financials")
+        self._tab_charts = self._create_scroll_tab("Charts")
+        self._tab_ownership = self._create_scroll_tab("Ownership")
+        self._tab_memo = self._create_scroll_tab("Memo / Thesis")
+        self._tab_quality = self._create_scroll_tab("Data Quality")
+
+        self._build_kpis(self._tab_snapshot)
+        self._build_financials(self._tab_financials)
+        self._build_charts(self._tab_charts)
+        self._build_ownership(self._tab_ownership)
+        self._build_memo(self._tab_memo)
+        self._build_quality(self._tab_quality)
+
+    def _create_scroll_tab(self, name: str) -> QVBoxLayout:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        content_layout.setContentsMargins(24, 24, 24, 24)
+        content_layout.setSpacing(24)
+        scroll.setWidget(content)
+        layout.addWidget(scroll)
+        self.tabs.addTab(tab, name)
+        return content_layout
 
     def _build_hero(self) -> None:
         self.hero_frame = QFrame()
-        self.hero_frame.setObjectName("Card")
+        self.hero_frame.setStyleSheet(f"background-color: {C_BG_MAIN}; border-bottom: 1px solid {C_BORDER};")
         hero_layout = QHBoxLayout(self.hero_frame)
         hero_layout.setContentsMargins(20, 20, 20, 20)
 
@@ -345,9 +407,8 @@ class CompanyDetailWidget(QWidget):
         right_layout.addLayout(badges_bot)
 
         hero_layout.addLayout(right_layout, stretch=1)
-        self.content_layout.addWidget(self.hero_frame)
 
-    def _build_kpis(self) -> None:
+    def _build_kpis(self, parent_layout: QVBoxLayout) -> None:
         self.kpi_grid = QGridLayout()
         self.kpi_grid.setSpacing(16)
 
@@ -390,9 +451,9 @@ class CompanyDetailWidget(QWidget):
             self.kpi_widgets[key] = (lbl_val, lbl_signal)
             self.kpi_grid.addWidget(card, i // 3, i % 3)
 
-        self.content_layout.addLayout(self.kpi_grid)
+        parent_layout.addLayout(self.kpi_grid)
 
-    def _build_financials(self) -> None:
+    def _build_financials(self, parent_layout: QVBoxLayout) -> None:
         fin_frame = QFrame()
         fin_frame.setObjectName("Card")
         fin_layout = QVBoxLayout(fin_frame)
@@ -410,10 +471,120 @@ class CompanyDetailWidget(QWidget):
         self.fin_table.verticalHeader().setVisible(False)
         self.fin_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.fin_table.setFrameShape(QFrame.Shape.NoFrame)
-        self.fin_table.setFixedHeight(250)
+        self.fin_table.setFixedHeight(350)
         fin_layout.addWidget(self.fin_table)
 
-        self.content_layout.addWidget(fin_frame)
+        parent_layout.addWidget(fin_frame)
+
+    def _build_charts(self, parent_layout: QVBoxLayout) -> None:
+        # We will dynamically recreate QChartViews later in populate to avoid memory leaks
+        self.chart_container = QVBoxLayout()
+        self.chart_container.setSpacing(24)
+        parent_layout.addLayout(self.chart_container)
+
+    def _build_ownership(self, parent_layout: QVBoxLayout) -> None:
+        frame = QFrame()
+        frame.setObjectName("Card")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        lbl = QLabel("No ownership data available")
+        lbl.setStyleSheet(f"color: {C_TEXT_SEC}; font-size: 16px; font-weight: 500;")
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(lbl)
+
+        parent_layout.addWidget(frame)
+
+    def _build_memo(self, parent_layout: QVBoxLayout) -> None:
+        # Strengths & Weaknesses
+        sw_layout = QHBoxLayout()
+
+        self.str_frame = QFrame()
+        self.str_frame.setObjectName("Card")
+        str_layout = QVBoxLayout(self.str_frame)
+        self.lbl_strengths = QLabel("Strengths")
+        self.lbl_strengths.setStyleSheet(f"color: {C_POS}; font-weight: bold; font-size: 14px;")
+        self.txt_strengths = QLabel("-")
+        self.txt_strengths.setWordWrap(True)
+        self.txt_strengths.setStyleSheet(f"color: {C_TEXT_MAIN}; line-height: 1.5;")
+        str_layout.addWidget(self.lbl_strengths)
+        str_layout.addWidget(self.txt_strengths)
+        str_layout.addStretch()
+        sw_layout.addWidget(self.str_frame)
+
+        self.weak_frame = QFrame()
+        self.weak_frame.setObjectName("Card")
+        weak_layout = QVBoxLayout(self.weak_frame)
+        self.lbl_weaknesses = QLabel("Weaknesses")
+        self.lbl_weaknesses.setStyleSheet(f"color: {C_WARN}; font-weight: bold; font-size: 14px;")
+        self.txt_weaknesses = QLabel("-")
+        self.txt_weaknesses.setWordWrap(True)
+        self.txt_weaknesses.setStyleSheet(f"color: {C_TEXT_MAIN}; line-height: 1.5;")
+        weak_layout.addWidget(self.lbl_weaknesses)
+        weak_layout.addWidget(self.txt_weaknesses)
+        weak_layout.addStretch()
+        sw_layout.addWidget(self.weak_frame)
+
+        self.red_frame = QFrame()
+        self.red_frame.setObjectName("Card")
+        red_layout = QVBoxLayout(self.red_frame)
+        self.lbl_red = QLabel("Red Flags")
+        self.lbl_red.setStyleSheet(f"color: {C_NEG}; font-weight: bold; font-size: 14px;")
+        self.txt_red = QLabel("-")
+        self.txt_red.setWordWrap(True)
+        self.txt_red.setStyleSheet(f"color: {C_TEXT_MAIN}; line-height: 1.5;")
+        red_layout.addWidget(self.lbl_red)
+        red_layout.addWidget(self.txt_red)
+        red_layout.addStretch()
+        sw_layout.addWidget(self.red_frame)
+
+        parent_layout.addLayout(sw_layout)
+
+        # Analyst Memo inputs (read-only style for now, or editable if they click edit)
+        memo_frame = QFrame()
+        memo_frame.setObjectName("Card")
+        memo_layout = QVBoxLayout(memo_frame)
+        memo_header = QLabel("Analyst Memo")
+        memo_header.setStyleSheet("font-size: 14px; font-weight: bold; padding-bottom: 8px;")
+        memo_layout.addWidget(memo_header)
+
+        self.input_thesis = QTextEdit()
+        self.input_thesis.setPlaceholderText("Investment Thesis...")
+        self.input_thesis.setMaximumHeight(80)
+        memo_layout.addWidget(QLabel("Investment Thesis"))
+        memo_layout.addWidget(self.input_thesis)
+
+        self.input_val = QTextEdit()
+        self.input_val.setPlaceholderText("Valuation Notes...")
+        self.input_val.setMaximumHeight(80)
+        memo_layout.addWidget(QLabel("Valuation Notes"))
+        memo_layout.addWidget(self.input_val)
+
+        btn_save_memo = QPushButton("Save Memo")
+        btn_save_memo.setObjectName("PrimaryBtn")
+        btn_save_memo.setCursor(Qt.CursorShape.PointingHandCursor)
+        # Note: hook this up in the future
+        memo_layout.addWidget(btn_save_memo, alignment=Qt.AlignmentFlag.AlignRight)
+
+        parent_layout.addWidget(memo_frame)
+
+    def _build_quality(self, parent_layout: QVBoxLayout) -> None:
+        frame = QFrame()
+        frame.setObjectName("Card")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(40, 40, 40, 40)
+
+        self.lbl_q_score = QLabel("Data Quality: -")
+        self.lbl_q_score.setStyleSheet("font-size: 18px; font-weight: bold;")
+        layout.addWidget(self.lbl_q_score)
+
+        self.lbl_q_desc = QLabel("Detailed data quality analysis will be available here.")
+        self.lbl_q_desc.setStyleSheet(f"color: {C_TEXT_SEC};")
+        layout.addWidget(self.lbl_q_desc)
+
+        layout.addStretch()
+        parent_layout.addWidget(frame)
 
     def load(
         self,
@@ -479,6 +650,7 @@ class CompanyDetailWidget(QWidget):
         self.badge_quality.setStyleSheet(
             f"color: {q_color}; background-color: {q_color}20; border: 1px solid {q_color};"
         )
+        self.lbl_q_score.setText(f"Data Quality Score: {_fmt_pct(q_score)}")
 
         wl_status = analyst_detail.watchlist_status if analyst_detail else _NOT_IN_WATCHLIST
         wl_color = C_ACC_SEC if wl_status != _NOT_IN_WATCHLIST else C_TEXT_SEC
@@ -501,6 +673,226 @@ class CompanyDetailWidget(QWidget):
         self._update_kpi("P/E", financial_detail.pe_ratio if financial_detail else None, _fmt_ratio)
 
         self._populate_fin_table(financial_detail)
+        self._populate_charts(chart_data)
+        self._populate_memo(analyst_detail)
+
+    def _populate_memo(self, analyst_detail: CompanyAnalystDetail | None) -> None:
+        score_explanation = analyst_detail.score_explanation if analyst_detail else None
+
+        # Strengths
+        strengths = score_explanation.strengths if score_explanation and score_explanation.strengths else []
+        if strengths:
+            self.txt_strengths.setText("• " + "\n• ".join(strengths))
+        else:
+            self.txt_strengths.setText("No major strengths identified.")
+
+        # Weaknesses
+        weaknesses = score_explanation.weaknesses if score_explanation and score_explanation.weaknesses else []
+        if weaknesses:
+            self.txt_weaknesses.setText("• " + "\n• ".join(weaknesses))
+        else:
+            self.txt_weaknesses.setText("No major weaknesses identified.")
+
+        # Red flags (from memo.key_risks or extremely bad drivers)
+        red_flags = []
+        if analyst_detail and analyst_detail.analyst_memo and analyst_detail.analyst_memo.key_risks:
+            red_flags.append(analyst_detail.analyst_memo.key_risks)
+
+        if red_flags:
+            self.txt_red.setText("• " + "\n• ".join(red_flags))
+        else:
+            self.txt_red.setText("No red flags identified.")
+
+        # Memo text edits
+        if analyst_detail and analyst_detail.analyst_memo:
+            self.input_thesis.setPlainText(analyst_detail.analyst_memo.investment_thesis or "")
+            self.input_val.setPlainText(analyst_detail.analyst_memo.valuation_notes or "")
+        else:
+            self.input_thesis.clear()
+            self.input_val.clear()
+
+    def _populate_charts(self, chart_data: CompanyChartsData | None) -> None:
+        # Clear existing charts
+        while self.chart_container.count():
+            item = self.chart_container.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if not chart_data:
+            return
+
+        def _add_chart(chart: QChart):
+            cv = QChartView(chart)
+            cv.setRenderHint(QPainter.RenderHint.Antialiasing)
+            cv.setMinimumHeight(280)
+            cv.setStyleSheet(f"background-color: {C_BG_CARD}; border: 1px solid {C_BORDER}; border-radius: 6px;")
+            self.chart_container.addWidget(cv)
+
+        # 1. Price
+        chart_price = QChart()
+        chart_price.setTitle("Price History (Base 100)")
+        chart_price.legend().hide()
+        chart_price.setBackgroundBrush(QColor(C_BG_CARD))
+        chart_price.setTitleBrush(QColor(C_TEXT_MAIN))
+
+        series_price = QLineSeries()
+        pen = QPen(QColor(C_ACC_PRI))
+        pen.setWidth(2)
+        series_price.setPen(pen)
+
+        if chart_data.price_points:
+            base = chart_data.price_points[0].value
+            if base == 0:
+                base = 1
+            vals = []
+            for p in chart_data.price_points:
+                dt = QDateTime(p.point_date.year, p.point_date.month, p.point_date.day, 0, 0, 0)
+                norm = (p.value / base) * 100
+                series_price.append(float(dt.toMSecsSinceEpoch()), norm)
+                vals.append(norm)
+
+            chart_price.addSeries(series_price)
+            ax = QDateTimeAxis()
+            ax.setFormat("MMM yyyy")
+            ax.setLabelsBrush(QColor(C_TEXT_SEC))
+            chart_price.addAxis(ax, Qt.AlignmentFlag.AlignBottom)
+            series_price.attachAxis(ax)
+
+            ay = QValueAxis()
+            ay.setLabelFormat("%.0f")
+            ay.setLabelsBrush(QColor(C_TEXT_SEC))
+            ay.setRange(min(vals) * 0.9, max(vals) * 1.1)
+            chart_price.addAxis(ay, Qt.AlignmentFlag.AlignLeft)
+            series_price.attachAxis(ay)
+
+        _add_chart(chart_price)
+
+        # 2. Revenue & EBITDA
+        chart_rev = QChart()
+        chart_rev.setTitle("Revenue & EBITDA (M)")
+        chart_rev.setBackgroundBrush(QColor(C_BG_CARD))
+        chart_rev.setTitleBrush(QColor(C_TEXT_MAIN))
+        chart_rev.legend().setLabelBrush(QColor(C_TEXT_SEC))
+
+        s_rev = QLineSeries()
+        s_rev.setName("Revenue")
+        p_rev = QPen(QColor(C_ACC_PRI))
+        p_rev.setWidth(2)
+        s_rev.setPen(p_rev)
+
+        s_ebitda = QLineSeries()
+        s_ebitda.setName("EBITDA")
+        p_ebitda = QPen(QColor(C_POS))
+        p_ebitda.setWidth(2)
+        s_ebitda.setPen(p_ebitda)
+
+        if chart_data.fundamentals.revenue_points:
+            years = []
+            vals = []
+            for p in chart_data.fundamentals.revenue_points:
+                s_rev.append(float(p.fiscal_year), p.value / 1_000_000)
+                years.append(p.fiscal_year)
+                vals.append(p.value / 1_000_000)
+
+            for p in chart_data.fundamentals.operating_income_points:
+                s_ebitda.append(float(p.fiscal_year), p.value / 1_000_000)
+                vals.append(p.value / 1_000_000)
+
+            chart_rev.addSeries(s_rev)
+            chart_rev.addSeries(s_ebitda)
+
+            ax = QValueAxis()
+            ax.setLabelFormat("%.0f")
+            ax.setLabelsBrush(QColor(C_TEXT_SEC))
+            ax.setRange(min(years) - 0.5, max(years) + 0.5)
+            chart_rev.addAxis(ax, Qt.AlignmentFlag.AlignBottom)
+            s_rev.attachAxis(ax)
+            s_ebitda.attachAxis(ax)
+
+            ay = QValueAxis()
+            ay.setLabelFormat("%.0f")
+            ay.setLabelsBrush(QColor(C_TEXT_SEC))
+            ay.setRange(min(vals) * 0.9 if min(vals) < 0 else 0, max(vals) * 1.1)
+            chart_rev.addAxis(ay, Qt.AlignmentFlag.AlignLeft)
+            s_rev.attachAxis(ay)
+            s_ebitda.attachAxis(ay)
+
+        _add_chart(chart_rev)
+
+        # 3. Margin Evolution
+        chart_margin = QChart()
+        chart_margin.setTitle("Margin Evolution (%)")
+        chart_margin.setBackgroundBrush(QColor(C_BG_CARD))
+        chart_margin.setTitleBrush(QColor(C_TEXT_MAIN))
+        chart_margin.legend().setLabelBrush(QColor(C_TEXT_SEC))
+
+        s_margin = QLineSeries()
+        s_margin.setName("Op. Margin")
+        p_margin = QPen(QColor(C_ACC_SEC))
+        p_margin.setWidth(2)
+        s_margin.setPen(p_margin)
+
+        if chart_data.fundamentals.margin_points:
+            years = []
+            vals = []
+            for p in chart_data.fundamentals.margin_points:
+                s_margin.append(float(p.fiscal_year), p.value * 100)
+                years.append(p.fiscal_year)
+                vals.append(p.value * 100)
+
+            chart_margin.addSeries(s_margin)
+
+            ax = QValueAxis()
+            ax.setLabelFormat("%.0f")
+            ax.setLabelsBrush(QColor(C_TEXT_SEC))
+            ax.setRange(min(years) - 0.5, max(years) + 0.5)
+            chart_margin.addAxis(ax, Qt.AlignmentFlag.AlignBottom)
+            s_margin.attachAxis(ax)
+
+            ay = QValueAxis()
+            ay.setLabelFormat("%.1f")
+            ay.setLabelsBrush(QColor(C_TEXT_SEC))
+            ay.setRange(min(vals) * 0.9 if min(vals) < 0 else 0, max(vals) * 1.1)
+            chart_margin.addAxis(ay, Qt.AlignmentFlag.AlignLeft)
+            s_margin.attachAxis(ay)
+
+        _add_chart(chart_margin)
+
+        # 4. Score Breakdown
+        chart_score = QChart()
+        chart_score.setTitle("Score Breakdown")
+        chart_score.legend().hide()
+        chart_score.setBackgroundBrush(QColor(C_BG_CARD))
+        chart_score.setTitleBrush(QColor(C_TEXT_MAIN))
+
+        if chart_data.score_breakdown:
+            bar_set = QBarSet("Score")
+            cats = []
+            max_score = 0
+            for p in chart_data.score_breakdown:
+                bar_set.append(p.score)
+                cats.append(p.label)
+                max_score = max(max_score, p.score)
+
+            bar_set.setColor(QColor(C_ACC_PRI))
+            s_score = QBarSeries()
+            s_score.append(bar_set)
+            chart_score.addSeries(s_score)
+
+            ax = QBarCategoryAxis()
+            ax.append(cats)
+            ax.setLabelsBrush(QColor(C_TEXT_SEC))
+            chart_score.addAxis(ax, Qt.AlignmentFlag.AlignBottom)
+            s_score.attachAxis(ax)
+
+            ay = QValueAxis()
+            ay.setLabelFormat("%.0f")
+            ay.setLabelsBrush(QColor(C_TEXT_SEC))
+            ay.setRange(0, max(100.0, max_score * 1.1))
+            chart_score.addAxis(ay, Qt.AlignmentFlag.AlignLeft)
+            s_score.attachAxis(ay)
+
+        _add_chart(chart_score)
 
     def _update_kpi(self, key: str, value: float | None, fmt_func) -> None:
         lbl_val, lbl_sig = self.kpi_widgets[key]
@@ -594,3 +986,8 @@ class CompanyDetailWidget(QWidget):
         self.fin_table.clear()
         self.fin_table.setRowCount(0)
         self.fin_table.setColumnCount(0)
+
+        while self.chart_container.count():
+            item = self.chart_container.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
