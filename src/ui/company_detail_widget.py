@@ -13,11 +13,15 @@ from PySide6.QtCharts import (
 from PySide6.QtCore import QDateTime, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QFormLayout,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -29,6 +33,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.models.watchlist_entry import (
+    WATCHLIST_STATUS_CONVICTION,
+    WATCHLIST_STATUS_REJECTED,
+    WATCHLIST_STATUS_REVIEW,
+    WATCHLIST_STATUS_WATCHING,
+)
 from src.services.company_charts_service import (
     CompanyChartsData,
 )
@@ -549,22 +559,51 @@ class CompanyDetailWidget(QWidget):
         memo_header.setStyleSheet("font-size: 14px; font-weight: bold; padding-bottom: 8px;")
         memo_layout.addWidget(memo_header)
 
+        form_layout = QFormLayout()
+
+        self.input_status = QComboBox()
+        self.input_status.addItem("watching", WATCHLIST_STATUS_WATCHING)
+        self.input_status.addItem("review", WATCHLIST_STATUS_REVIEW)
+        self.input_status.addItem("rejected", WATCHLIST_STATUS_REJECTED)
+        self.input_status.addItem("conviction", WATCHLIST_STATUS_CONVICTION)
+        form_layout.addRow("Status", self.input_status)
+
+        self.input_excluded = QCheckBox("Exclude from screening")
+        form_layout.addRow("", self.input_excluded)
+
+        self.input_notes = QLineEdit()
+        form_layout.addRow("Notes", self.input_notes)
+
+        self.input_review_at = QLineEdit()
+        self.input_review_at.setPlaceholderText("YYYY-MM-DD or YYYY-MM-DD HH:MM")
+        form_layout.addRow("Next review at", self.input_review_at)
+
         self.input_thesis = QTextEdit()
-        self.input_thesis.setPlaceholderText("Investment Thesis...")
-        self.input_thesis.setMaximumHeight(80)
-        memo_layout.addWidget(QLabel("Investment Thesis"))
-        memo_layout.addWidget(self.input_thesis)
+        self.input_thesis.setMaximumHeight(60)
+        form_layout.addRow("Investment Thesis", self.input_thesis)
+
+        self.input_risks = QTextEdit()
+        self.input_risks.setMaximumHeight(60)
+        form_layout.addRow("Key Risks", self.input_risks)
+
+        self.input_catalysts = QTextEdit()
+        self.input_catalysts.setMaximumHeight(60)
+        form_layout.addRow("Catalysts", self.input_catalysts)
 
         self.input_val = QTextEdit()
-        self.input_val.setPlaceholderText("Valuation Notes...")
-        self.input_val.setMaximumHeight(80)
-        memo_layout.addWidget(QLabel("Valuation Notes"))
-        memo_layout.addWidget(self.input_val)
+        self.input_val.setMaximumHeight(60)
+        form_layout.addRow("Valuation Notes", self.input_val)
 
-        btn_save_memo = QPushButton("Save Memo")
+        self.input_action = QTextEdit()
+        self.input_action.setMaximumHeight(60)
+        form_layout.addRow("Next Action", self.input_action)
+
+        memo_layout.addLayout(form_layout)
+
+        btn_save_memo = QPushButton("Save Analyst Data")
         btn_save_memo.setObjectName("PrimaryBtn")
         btn_save_memo.setCursor(Qt.CursorShape.PointingHandCursor)
-        # Note: hook this up in the future
+        btn_save_memo.clicked.connect(self._on_save_clicked)
         memo_layout.addWidget(btn_save_memo, alignment=Qt.AlignmentFlag.AlignRight)
 
         parent_layout.addWidget(memo_frame)
@@ -704,12 +743,39 @@ class CompanyDetailWidget(QWidget):
             self.txt_red.setText("No red flags identified.")
 
         # Memo text edits
-        if analyst_detail and analyst_detail.analyst_memo:
-            self.input_thesis.setPlainText(analyst_detail.analyst_memo.investment_thesis or "")
-            self.input_val.setPlainText(analyst_detail.analyst_memo.valuation_notes or "")
+        if analyst_detail:
+            self.input_status.setCurrentText(analyst_detail.watchlist_status or WATCHLIST_STATUS_WATCHING)
+            self.input_excluded.setChecked(analyst_detail.is_excluded)
+            self.input_notes.setText(analyst_detail.notes or "")
+
+            review_at_str = ""
+            if analyst_detail.next_review_at:
+                review_at_str = analyst_detail.next_review_at.strftime("%Y-%m-%d")
+            self.input_review_at.setText(review_at_str)
+
+            memo = analyst_detail.analyst_memo
+            if memo:
+                self.input_thesis.setPlainText(memo.investment_thesis or "")
+                self.input_risks.setPlainText(memo.key_risks or "")
+                self.input_catalysts.setPlainText(memo.catalysts or "")
+                self.input_val.setPlainText(memo.valuation_notes or "")
+                self.input_action.setPlainText(memo.next_action or "")
+            else:
+                self.input_thesis.clear()
+                self.input_risks.clear()
+                self.input_catalysts.clear()
+                self.input_val.clear()
+                self.input_action.clear()
         else:
+            self.input_status.setCurrentText(WATCHLIST_STATUS_WATCHING)
+            self.input_excluded.setChecked(False)
+            self.input_notes.clear()
+            self.input_review_at.clear()
             self.input_thesis.clear()
+            self.input_risks.clear()
+            self.input_catalysts.clear()
             self.input_val.clear()
+            self.input_action.clear()
 
     def _populate_charts(self, chart_data: CompanyChartsData | None) -> None:
         # Clear existing charts
@@ -967,6 +1033,33 @@ class CompanyDetailWidget(QWidget):
             return
         self.refresh_company_requested.emit(self._current_row.company_id)
 
+    def _on_save_clicked(self) -> None:
+        if self._current_row is None:
+            return
+
+        status = self.input_status.currentData()
+        notes = self.input_notes.text().strip()
+        is_excluded = self.input_excluded.isChecked()
+        thesis = self.input_thesis.toPlainText().strip()
+        risks = self.input_risks.toPlainText().strip()
+        catalysts = self.input_catalysts.toPlainText().strip()
+        val_notes = self.input_val.toPlainText().strip()
+        next_action = self.input_action.toPlainText().strip()
+        review_at = self.input_review_at.text().strip()
+
+        self.save_watchlist_requested.emit(
+            self._current_row.company_id,
+            status,
+            notes,
+            is_excluded,
+            thesis,
+            risks,
+            catalysts,
+            val_notes,
+            next_action,
+            review_at,
+        )
+
     def clear(self) -> None:
         self._current_row = None
         self._in_watchlist = False
@@ -986,6 +1079,16 @@ class CompanyDetailWidget(QWidget):
         self.fin_table.clear()
         self.fin_table.setRowCount(0)
         self.fin_table.setColumnCount(0)
+
+        self.input_status.setCurrentIndex(0)
+        self.input_excluded.setChecked(False)
+        self.input_notes.clear()
+        self.input_review_at.clear()
+        self.input_thesis.clear()
+        self.input_risks.clear()
+        self.input_catalysts.clear()
+        self.input_val.clear()
+        self.input_action.clear()
 
         while self.chart_container.count():
             item = self.chart_container.takeAt(0)
