@@ -602,6 +602,25 @@ def _apply_company_metadata(company: Company, fetched: FetchedCompanyData) -> No
         company.analyst_recommendation = fetched.analyst_data.recommendation_key
         company.analyst_count = fetched.analyst_data.number_of_analyst_opinions
         company.forward_pe = fetched.analyst_data.forward_pe
+        # Fundamental metrics
+        company.gross_margins = fetched.analyst_data.gross_margins
+        company.operating_margins = fetched.analyst_data.operating_margins
+        company.profit_margins = fetched.analyst_data.profit_margins
+        company.roe = fetched.analyst_data.roe
+        company.roa = fetched.analyst_data.roa
+        company.current_ratio = fetched.analyst_data.current_ratio
+        company.quick_ratio = fetched.analyst_data.quick_ratio
+        company.payout_ratio = fetched.analyst_data.payout_ratio
+        # Shares and volume
+        company.shares_outstanding = fetched.analyst_data.shares_outstanding
+        company.float_shares = fetched.analyst_data.float_shares
+        if fetched.analyst_data.average_volume is not None:
+            company.average_daily_volume = fetched.analyst_data.average_volume
+        # Dividend info
+        company.dividend_rate = fetched.analyst_data.dividend_rate
+        company.dividend_yield = fetched.analyst_data.dividend_yield
+        company.ex_dividend_date = fetched.analyst_data.ex_dividend_date
+        company.five_year_avg_dividend_yield = fetched.analyst_data.five_year_avg_dividend_yield
 
 
 def _build_payload_from_normalized(

@@ -78,6 +78,22 @@ class CompanyFinancialDetail:
     full_time_employees: int | None
     city: str | None
     phone: str | None
+    # Fundamental Metrics (Latest from provider)
+    latest_gross_margins: float | None
+    latest_operating_margins: float | None
+    latest_profit_margins: float | None
+    latest_roe: float | None
+    latest_roa: float | None
+    latest_current_ratio: float | None
+    latest_quick_ratio: float | None
+    latest_payout_ratio: float | None
+    # Shares and Volume
+    float_shares: float | None
+    # Dividend Info
+    latest_dividend_rate: float | None
+    latest_dividend_yield: float | None
+    ex_dividend_date: date | None
+    latest_five_year_avg_dividend_yield: float | None
     # Market data
     current_price: float | None
     market_cap: float | None
@@ -360,6 +376,19 @@ def _build_detail(
         full_time_employees=company.full_time_employees,
         city=company.city,
         phone=company.phone,
+        latest_gross_margins=company.gross_margins,
+        latest_operating_margins=company.operating_margins,
+        latest_profit_margins=company.profit_margins,
+        latest_roe=company.roe,
+        latest_roa=company.roa,
+        latest_current_ratio=company.current_ratio,
+        latest_quick_ratio=company.quick_ratio,
+        latest_payout_ratio=company.payout_ratio,
+        float_shares=company.float_shares,
+        latest_dividend_rate=company.dividend_rate,
+        latest_dividend_yield=company.dividend_yield,
+        ex_dividend_date=company.ex_dividend_date.date() if company.ex_dividend_date else None,
+        latest_five_year_avg_dividend_yield=company.five_year_avg_dividend_yield,
         current_price=current_price,
         market_cap=market_cap,
         enterprise_value=enterprise_value,

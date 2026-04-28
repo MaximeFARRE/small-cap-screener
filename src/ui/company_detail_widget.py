@@ -463,6 +463,7 @@ class CompanyDetailWidget(QWidget):
 
         parent_layout.addLayout(self.kpi_grid)
         self._build_profile_card(parent_layout)
+        self._build_metrics_card(parent_layout)
 
     def _build_profile_card(self, parent_layout: QVBoxLayout) -> None:
         frame = QFrame()
@@ -534,6 +535,90 @@ class CompanyDetailWidget(QWidget):
         )
         layout.addWidget(self._txt_business_summary)
 
+        parent_layout.addWidget(frame)
+
+    def _build_metrics_card(self, parent_layout: QVBoxLayout) -> None:
+        frame = QFrame()
+        frame.setObjectName("Card")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(16, 12, 16, 16)
+        layout.setSpacing(10)
+
+        header = QLabel("Key Metrics & Dividends")
+        header.setStyleSheet(
+            f"font-size: 13px; font-weight: bold; color: {C_TEXT_SEC};"
+            f" text-transform: uppercase; padding-bottom: 4px;"
+            f" border-bottom: 1px solid {C_BORDER};"
+        )
+        layout.addWidget(header)
+
+        metrics_layout = QGridLayout()
+        metrics_layout.setSpacing(12)
+
+        def _meta_label(text: str, bold: bool = False, color: str = C_TEXT_MAIN) -> QLabel:
+            lbl = QLabel(text)
+            style = f"color: {C_TEXT_SEC}; font-size: 11px;"
+            if bold:
+                style += f" font-weight: 600; color: {color};"
+            lbl.setStyleSheet(style)
+            return lbl
+
+        # Left Column: Margins & Returns
+        metrics_layout.addWidget(_meta_label("Gross Margin"), 0, 0)
+        self._lbl_gross_margin = _meta_label("-", bold=True)
+        metrics_layout.addWidget(self._lbl_gross_margin, 0, 1)
+
+        metrics_layout.addWidget(_meta_label("Op. Margin"), 1, 0)
+        self._lbl_op_margin = _meta_label("-", bold=True)
+        metrics_layout.addWidget(self._lbl_op_margin, 1, 1)
+
+        metrics_layout.addWidget(_meta_label("Profit Margin"), 2, 0)
+        self._lbl_profit_margin = _meta_label("-", bold=True)
+        metrics_layout.addWidget(self._lbl_profit_margin, 2, 1)
+
+        metrics_layout.addWidget(_meta_label("ROE"), 3, 0)
+        self._lbl_roe = _meta_label("-", bold=True)
+        metrics_layout.addWidget(self._lbl_roe, 3, 1)
+
+        metrics_layout.addWidget(_meta_label("ROA"), 4, 0)
+        self._lbl_roa = _meta_label("-", bold=True)
+        metrics_layout.addWidget(self._lbl_roa, 4, 1)
+
+        # Middle Column: Ratios & Shares
+        metrics_layout.addWidget(_meta_label("Current Ratio"), 0, 2)
+        self._lbl_current_ratio = _meta_label("-", bold=True)
+        metrics_layout.addWidget(self._lbl_current_ratio, 0, 3)
+
+        metrics_layout.addWidget(_meta_label("Quick Ratio"), 1, 2)
+        self._lbl_quick_ratio = _meta_label("-", bold=True)
+        metrics_layout.addWidget(self._lbl_quick_ratio, 1, 3)
+
+        metrics_layout.addWidget(_meta_label("Float Shares"), 2, 2)
+        self._lbl_float_shares = _meta_label("-", bold=True)
+        metrics_layout.addWidget(self._lbl_float_shares, 2, 3)
+
+        metrics_layout.addWidget(_meta_label("Payout Ratio"), 3, 2)
+        self._lbl_payout_ratio = _meta_label("-", bold=True)
+        metrics_layout.addWidget(self._lbl_payout_ratio, 3, 3)
+
+        # Right Column: Dividends
+        metrics_layout.addWidget(_meta_label("Div. Yield"), 0, 4)
+        self._lbl_div_yield = _meta_label("-", bold=True, color=C_POS)
+        metrics_layout.addWidget(self._lbl_div_yield, 0, 5)
+
+        metrics_layout.addWidget(_meta_label("Div. Rate"), 1, 4)
+        self._lbl_div_rate = _meta_label("-", bold=True)
+        metrics_layout.addWidget(self._lbl_div_rate, 1, 5)
+
+        metrics_layout.addWidget(_meta_label("Ex-Div Date"), 2, 4)
+        self._lbl_ex_div_date = _meta_label("-", bold=True)
+        metrics_layout.addWidget(self._lbl_ex_div_date, 2, 5)
+
+        metrics_layout.addWidget(_meta_label("5Y Avg Yield"), 3, 4)
+        self._lbl_5y_div_yield = _meta_label("-", bold=True)
+        metrics_layout.addWidget(self._lbl_5y_div_yield, 3, 5)
+
+        layout.addLayout(metrics_layout)
         parent_layout.addWidget(frame)
 
     def _build_financials(self, parent_layout: QVBoxLayout) -> None:
@@ -827,6 +912,53 @@ class CompanyDetailWidget(QWidget):
         self._lbl_profile_phone.setText(detail.phone or "-")
 
         self._txt_business_summary.setPlainText(detail.business_summary or "")
+        self._populate_metrics_card(detail)
+
+    def _populate_metrics_card(self, detail: CompanyFinancialDetail | None) -> None:
+        if not detail:
+            self._lbl_gross_margin.setText("-")
+            self._lbl_op_margin.setText("-")
+            self._lbl_profit_margin.setText("-")
+            self._lbl_roe.setText("-")
+            self._lbl_roa.setText("-")
+            self._lbl_current_ratio.setText("-")
+            self._lbl_quick_ratio.setText("-")
+            self._lbl_float_shares.setText("-")
+            self._lbl_payout_ratio.setText("-")
+            self._lbl_div_yield.setText("-")
+            self._lbl_div_rate.setText("-")
+            self._lbl_ex_div_date.setText("-")
+            self._lbl_5y_div_yield.setText("-")
+            return
+
+        def _fmt_pct(val: float | None) -> str:
+            return f"{val * 100:.2f}%" if val is not None else "-"
+
+        def _fmt_val(val: float | None) -> str:
+            return f"{val:.2f}" if val is not None else "-"
+
+        self._lbl_gross_margin.setText(_fmt_pct(detail.latest_gross_margins))
+        self._lbl_op_margin.setText(_fmt_pct(detail.latest_operating_margins))
+        self._lbl_profit_margin.setText(_fmt_pct(detail.latest_profit_margins))
+        self._lbl_roe.setText(_fmt_pct(detail.latest_roe))
+        self._lbl_roa.setText(_fmt_pct(detail.latest_roa))
+
+        self._lbl_current_ratio.setText(_fmt_val(detail.latest_current_ratio))
+        self._lbl_quick_ratio.setText(_fmt_val(detail.latest_quick_ratio))
+        self._lbl_float_shares.setText(_fmt_large(detail.float_shares))
+        self._lbl_payout_ratio.setText(_fmt_pct(detail.latest_payout_ratio))
+
+        self._lbl_div_yield.setText(_fmt_pct(detail.latest_dividend_yield))
+        self._lbl_div_rate.setText(
+            f"{detail.latest_dividend_rate:.2f} {detail.currency}" if detail.latest_dividend_rate else "-"
+        )
+        self._lbl_ex_div_date.setText(detail.ex_dividend_date.strftime("%Y-%m-%d") if detail.ex_dividend_date else "-")
+
+        # 5yAvg yield from yf is usually in % (e.g. 2.5), while current yield is 0.025.
+        if detail.latest_five_year_avg_dividend_yield:
+            self._lbl_5y_div_yield.setText(f"{detail.latest_five_year_avg_dividend_yield:.2f}%")
+        else:
+            self._lbl_5y_div_yield.setText("-")
 
     def _populate_memo(self, analyst_detail: CompanyAnalystDetail | None) -> None:
         score_explanation = analyst_detail.score_explanation if analyst_detail else None
@@ -1210,6 +1342,7 @@ class CompanyDetailWidget(QWidget):
         self._lbl_profile_website.setText("-")
         self._lbl_profile_phone.setText("-")
         self._txt_business_summary.clear()
+        self._populate_metrics_card(None)
 
         while self.chart_container.count():
             item = self.chart_container.takeAt(0)
