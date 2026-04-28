@@ -41,6 +41,9 @@ class CompanyProfile:
     website: str | None
     business_summary: str | None = None
     isin: str | None = None
+    full_time_employees: int | None = None
+    city: str | None = None
+    phone: str | None = None
     source: str | None = None
     fetched_at: datetime | None = None
 
