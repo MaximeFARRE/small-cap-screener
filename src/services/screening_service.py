@@ -94,6 +94,7 @@ class UniverseScreeningEntry:
     ticker: str | None
     name: str
     sector: str | None
+    country: str | None
     total_score: float | None
     quality_score: float | None
     value_score: float | None
@@ -517,6 +518,7 @@ def _build_universe_screening_entries(
                 ticker=company.ticker,
                 name=company.name,
                 sector=company.sector,
+                country=company.country,
                 total_score=_snapshot_metric_as_float(snapshot, TOTAL_SCORE_KEY),
                 quality_score=_snapshot_metric_as_float(snapshot, QUALITY_SCORE_KEY),
                 value_score=_snapshot_metric_as_float(snapshot, VALUE_SCORE_KEY),

@@ -70,6 +70,7 @@ class CompanyFinancialDetail:
     ticker: str | None
     name: str
     sector: str | None
+    country: str | None
     currency: str
     # Company profile
     industry: str | None
@@ -369,6 +370,7 @@ def _build_detail(
         ticker=company.ticker,
         name=company.name,
         sector=company.sector,
+        country=company.country,
         currency=company.currency,
         industry=company.industry,
         website=company.website,
