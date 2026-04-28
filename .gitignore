@@ -59,13 +59,7 @@ out/
 release/
 target/
 
-# Local screenshots or exports
-screenshots/*.png
-screenshots/*.jpg
-screenshots/*.jpeg
-
 # Keep placeholder files
-!screenshots/.gitkeep
 !assets/.gitkeep
 !tests/.gitkeep
 !data/.gitkeep
