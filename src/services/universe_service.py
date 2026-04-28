@@ -21,6 +21,14 @@ class CompanyUniverseSummary:
     exclusions: dict[str, int]
 
 
+@dataclass(frozen=True)
+class EuronextUniverseImportResult:
+    discovered_count: int
+    upserted_count: int
+    discovered_tickers: list[str]
+    upserted_company_ids: list[int]
+
+
 @dataclass
 class UniverseService:
     session_scope_factory: SessionScopeFactory = get_session
@@ -37,6 +45,18 @@ class UniverseService:
         entries = euronext_discovery_repository.discover_french_listed_companies()
         with self.session_scope_factory() as session:
             return company_repository.bulk_upsert_from_seed(session, entries)
+
+    def import_euronext_france_universe(self) -> EuronextUniverseImportResult:
+        entries = euronext_discovery_repository.discover_french_listed_companies()
+        discovered_tickers = [entry.ticker for entry in entries if entry.ticker.strip()]
+        with self.session_scope_factory() as session:
+            upserted = company_repository.bulk_upsert_from_seed(session, entries)
+        return EuronextUniverseImportResult(
+            discovered_count=len(entries),
+            upserted_count=len(upserted),
+            discovered_tickers=discovered_tickers,
+            upserted_company_ids=[company.id for company in upserted],
+        )
 
     def refresh_investable_universe(
         self,

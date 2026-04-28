@@ -15,6 +15,7 @@ from src.services.financial_data_service import CompanyDataRefreshResult, Financ
 from src.services.kpi_snapshot_service import KpiSnapshotService
 
 SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
+ProgressCallback = Callable[[dict], None]
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -39,6 +40,7 @@ class UniverseRefreshResult:
     failed: int
     skipped: int
     results: list[CompanyUniverseRefreshResult] = field(default_factory=list)
+    skipped_tickers: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -102,37 +104,165 @@ class UniverseDiscoveryService:
 
         total = len(company_ids)
         _LOGGER.info("universe batch refresh started | total_companies=%s", total)
+        company_id_list = [company_id for company_id, _ in company_ids]
+        return self.refresh_companies_by_ids(company_id_list=company_id_list, pacing_seconds=pacing_seconds)
+
+    def refresh_companies_by_ids(
+        self,
+        *,
+        company_id_list: list[int],
+        pacing_seconds: float = 2.0,
+        batch_size: int = 25,
+        skip_recently_refreshed: bool = False,
+        progress_callback: ProgressCallback | None = None,
+    ) -> UniverseRefreshResult:
+        if batch_size <= 0:
+            raise ValueError("batch_size must be > 0")
+
+        ordered_unique_ids = list(dict.fromkeys(company_id_list))
+        with self.session_scope_factory() as session:
+            company_by_id: dict[int, tuple[int, str, datetime | None]] = {}
+            for company_id in ordered_unique_ids:
+                company = company_repository.get_by_id(session, company_id)
+                if company is None:
+                    continue
+                company_by_id[company.id] = (
+                    company.id,
+                    company.ticker or "",
+                    company.last_universe_refresh_at,
+                )
+
+        companies = [company_by_id[company_id] for company_id in ordered_unique_ids if company_id in company_by_id]
+        total = len(companies)
+        total_batches = (total + batch_size - 1) // batch_size if total > 0 else 0
 
         results: list[CompanyUniverseRefreshResult] = []
+        skipped_tickers: list[str] = []
         skipped = 0
-        for i, (company_id, ticker) in enumerate(company_ids):
-            if i > 0 and pacing_seconds > 0:
-                time.sleep(pacing_seconds)
-            try:
-                result = self.refresh_company(company_id)
-                results.append(result)
-            except Exception as exc:  # noqa: BLE001
-                _LOGGER.error(
-                    "universe batch refresh unexpected error | company_id=%s ticker=%s error=%s",
-                    company_id,
-                    ticker,
-                    exc,
+        processed = 0
+
+        for batch_number, batch_start in enumerate(range(0, total, batch_size), start=1):
+            batch_companies = companies[batch_start : batch_start + batch_size]
+            _emit_progress(
+                progress_callback,
+                {
+                    "phase": "batch_start",
+                    "batch_number": batch_number,
+                    "total_batches": total_batches,
+                    "batch_size": len(batch_companies),
+                    "processed": processed,
+                    "total": total,
+                },
+            )
+            for local_index, (company_id, ticker, last_refreshed_at) in enumerate(batch_companies):
+                if processed > 0 and pacing_seconds > 0:
+                    time.sleep(pacing_seconds)
+                processed += 1
+                if skip_recently_refreshed and _is_same_day_utc(last_refreshed_at, datetime.now(UTC)):
+                    skipped += 1
+                    skipped_tickers.append(ticker)
+                    _emit_progress(
+                        progress_callback,
+                        {
+                            "phase": "company_result",
+                            "status": "skipped",
+                            "company_id": company_id,
+                            "ticker": ticker,
+                            "processed": processed,
+                            "total": total,
+                            "batch_number": batch_number,
+                            "total_batches": total_batches,
+                            "batch_position": local_index + 1,
+                            "batch_size": len(batch_companies),
+                            "message": "already refreshed today",
+                        },
+                    )
+                    continue
+
+                _emit_progress(
+                    progress_callback,
+                    {
+                        "phase": "company_start",
+                        "company_id": company_id,
+                        "ticker": ticker,
+                        "processed": processed - 1,
+                        "total": total,
+                        "batch_number": batch_number,
+                        "total_batches": total_batches,
+                        "batch_position": local_index + 1,
+                        "batch_size": len(batch_companies),
+                    },
                 )
-                results.append(
-                    CompanyUniverseRefreshResult(
+
+                try:
+                    result = self.refresh_company(company_id)
+                    results.append(result)
+                    _emit_progress(
+                        progress_callback,
+                        {
+                            "phase": "company_result",
+                            "status": "success" if result.success else "failed",
+                            "company_id": company_id,
+                            "ticker": result.ticker or ticker,
+                            "processed": processed,
+                            "total": total,
+                            "batch_number": batch_number,
+                            "total_batches": total_batches,
+                            "batch_position": local_index + 1,
+                            "batch_size": len(batch_companies),
+                            "error": result.error,
+                            "error_kind": result.error_kind,
+                            "stage": result.stage,
+                            "warnings": list(result.warnings),
+                        },
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    _LOGGER.error(
+                        "universe refresh unexpected error | company_id=%s ticker=%s error=%s",
+                        company_id,
+                        ticker,
+                        exc,
+                    )
+                    failed_result = CompanyUniverseRefreshResult(
                         company_id=company_id,
                         ticker=ticker,
                         success=False,
                         error=str(exc),
                         stage="unexpected",
                     )
-                )
+                    results.append(failed_result)
+                    _emit_progress(
+                        progress_callback,
+                        {
+                            "phase": "company_result",
+                            "status": "failed",
+                            "company_id": company_id,
+                            "ticker": ticker,
+                            "processed": processed,
+                            "total": total,
+                            "batch_number": batch_number,
+                            "total_batches": total_batches,
+                            "batch_position": local_index + 1,
+                            "batch_size": len(batch_companies),
+                            "error": str(exc),
+                            "stage": "unexpected",
+                        },
+                    )
 
-        succeeded = sum(1 for r in results if r.success)
+        succeeded = sum(1 for result in results if result.success)
         failed = len(results) - succeeded
-
+        _emit_progress(
+            progress_callback,
+            {
+                "phase": "completed",
+                "total": total,
+                "succeeded": succeeded,
+                "failed": failed,
+                "skipped": skipped,
+            },
+        )
         _LOGGER.info(
-            "universe batch refresh completed | total=%s succeeded=%s failed=%s skipped=%s",
+            "universe refresh completed | total=%s succeeded=%s failed=%s skipped=%s",
             total,
             succeeded,
             failed,
@@ -144,57 +274,15 @@ class UniverseDiscoveryService:
             failed=failed,
             skipped=skipped,
             results=results,
+            skipped_tickers=skipped_tickers,
         )
 
     def refresh_watchlist(self, pacing_seconds: float = 2.0) -> UniverseRefreshResult:
         """Refresh only companies currently in the watchlist, preserving analyst data."""
         with self.session_scope_factory() as session:
             entries = watchlist_repository.list_all(session)
-            company_ids = [(e.company_id, "") for e in entries]
-
-        total = len(company_ids)
-        _LOGGER.info("watchlist refresh started | total_companies=%s", total)
-
-        results: list[CompanyUniverseRefreshResult] = []
-        skipped = 0
-        for i, (company_id, _) in enumerate(company_ids):
-            if i > 0 and pacing_seconds > 0:
-                time.sleep(pacing_seconds)
-            try:
-                result = self.refresh_company(company_id)
-                results.append(result)
-            except Exception as exc:  # noqa: BLE001
-                _LOGGER.error(
-                    "watchlist refresh unexpected error | company_id=%s error=%s",
-                    company_id,
-                    exc,
-                )
-                results.append(
-                    CompanyUniverseRefreshResult(
-                        company_id=company_id,
-                        ticker="",
-                        success=False,
-                        error=str(exc),
-                        stage="unexpected",
-                    )
-                )
-
-        succeeded = sum(1 for r in results if r.success)
-        failed = len(results) - succeeded
-        _LOGGER.info(
-            "watchlist refresh completed | total=%s succeeded=%s failed=%s skipped=%s",
-            total,
-            succeeded,
-            failed,
-            skipped,
-        )
-        return UniverseRefreshResult(
-            total=total,
-            succeeded=succeeded,
-            failed=failed,
-            skipped=skipped,
-            results=results,
-        )
+            company_ids = [entry.company_id for entry in entries]
+        return self.refresh_companies_by_ids(company_id_list=company_ids, pacing_seconds=pacing_seconds)
 
     def _stamp_refresh_timestamp(self, company_id: int) -> None:
         with self.session_scope_factory() as session:
@@ -202,3 +290,20 @@ class UniverseDiscoveryService:
             if company is not None:
                 company.last_universe_refresh_at = datetime.now(UTC)
                 company_repository.update(session, company)
+
+
+def _emit_progress(progress_callback: ProgressCallback | None, payload: dict) -> None:
+    if progress_callback is None:
+        return
+    progress_callback(payload)
+
+
+def _is_same_day_utc(left: datetime | None, right: datetime) -> bool:
+    if left is None:
+        return False
+    if left.tzinfo is None:
+        left_date = left.date()
+    else:
+        left_date = left.astimezone(UTC).date()
+    right_date = right.astimezone(UTC).date()
+    return left_date == right_date
