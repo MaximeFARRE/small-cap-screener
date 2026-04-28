@@ -1,6 +1,34 @@
 # CHANGELOG
 
+## v0.34.0 (2026-04-28)
+
+### Feature
+
+* feat: add peer comparison tab in company detail view ([`f867b8a`](https://github.com/MaximeFARRE/small-cap-screener/commit/f867b8a7986c3798eabd88deeb20711707965f34))
+
+* feat: extend peer comparison analytics and peer set selection ([`62b2668`](https://github.com/MaximeFARRE/small-cap-screener/commit/62b2668798397392b441b3ccc5c8aa2ac46e341d))
+
+* feat: add euronext import progress support ([`88f3aff`](https://github.com/MaximeFARRE/small-cap-screener/commit/88f3aff34b5ea0c8b33e80055102c1f2a6dc5cb0))
+
+* feat: add euronext france universe import ([`69d0453`](https://github.com/MaximeFARRE/small-cap-screener/commit/69d0453c79878b7dc0ed6bad9b7e70841715f82d))
+
+### Fix
+
+* fix: avoid resolving frozen executable path for sqlite default ([`c2bea67`](https://github.com/MaximeFARRE/small-cap-screener/commit/c2bea672f5044832b71ae21fbd0e0bf155b8e859))
+
+### Unknown
+
+* Merge pull request #47 from MaximeFARRE/feat/euronext-discovery-provider
+
+Feat/euronext discovery provider ([`d5aaaab`](https://github.com/MaximeFARRE/small-cap-screener/commit/d5aaaab2a3da04194dbd7d0040f02ecff5aa46f3))
+
+* release: v1 ([`6967ea2`](https://github.com/MaximeFARRE/small-cap-screener/commit/6967ea2fe88e87314ef0d60fc8803f8d53d17178))
+
 ## v0.33.0 (2026-04-28)
+
+### Chore
+
+* chore(release): 0.33.0 [skip ci] ([`993d05a`](https://github.com/MaximeFARRE/small-cap-screener/commit/993d05a6448483500e67af9ceea4f04ad851dc1b))
 
 ### Feature
 
