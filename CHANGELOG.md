@@ -1,12 +1,50 @@
 # CHANGELOG
 
+## v0.33.0 (2026-04-28)
+
+### Feature
+
+* feat: add yahoo ownership data to company details ([`ce5dfd7`](https://github.com/MaximeFARRE/small-cap-screener/commit/ce5dfd7608caa9205c268a13e65d5a06c944747f))
+
+### Fix
+
+* fix: resolve AttributeError by adding country to detail and screening DTOs ([`4f42481`](https://github.com/MaximeFARRE/small-cap-screener/commit/4f424816f01c258dd88da3c8434a885d735b930c))
+
+### Unknown
+
+* Merge pull request #46 from MaximeFARRE/feat/phase37-company-profile-enrichment
+
+Feat/phase37 company profile enrichment ([`11ea2e1`](https://github.com/MaximeFARRE/small-cap-screener/commit/11ea2e1c5e6818c644b8e6bd125fe4aab5b04f1c))
+
 ## v0.32.0 (2026-04-28)
 
 ### Chore
 
+* chore(release): 0.32.0 [skip ci] ([`eb6a2b8`](https://github.com/MaximeFARRE/small-cap-screener/commit/eb6a2b8a4f0ac2a4e9c719abf68fc555d41bf46c))
+
 * chore: update chart color palette and increase default chart height ([`651f42e`](https://github.com/MaximeFARRE/small-cap-screener/commit/651f42e6f4359a067670075308058741f7d491dd))
 
 ### Feature
+
+* feat: improve financial statement parsing with multi-label support and fallbacks ([`d7ec4a6`](https://github.com/MaximeFARRE/small-cap-screener/commit/d7ec4a6da5befc2488a16375a442795caf74619f))
+
+* feat: persist, expose and display new fundamental and dividend metrics in UI ([`557d01c`](https://github.com/MaximeFARRE/small-cap-screener/commit/557d01cec7ac5d63c4d3419f36b636abce545e8b))
+
+* feat: add fundamental and dividend columns to Company model and DB migration ([`2da3996`](https://github.com/MaximeFARRE/small-cap-screener/commit/2da3996569e9c4ff4021f4a3e0e21424a27ea072))
+
+* feat: fetch extended fundamental and dividend metrics from yfinance ticker.info ([`66680b1`](https://github.com/MaximeFARRE/small-cap-screener/commit/66680b19c424cdc6221720488a141473d61ea50c))
+
+* feat: add Company Profile card to UI and populate with enriched Yahoo data ([`bfe982e`](https://github.com/MaximeFARRE/small-cap-screener/commit/bfe982e729b2cb5feaaa1199ee1f14e08a9821b4))
+
+* feat: expose industry, website, business_summary, full_time_employees, city, phone in CompanyFinancialDetail ([`5b3a264`](https://github.com/MaximeFARRE/small-cap-screener/commit/5b3a2642ddf70c3bc2d0f6986cdc4ac4521c222a))
+
+* feat: persist full_time_employees, city, phone in _apply_company_metadata and normalize pipeline ([`cd2c832`](https://github.com/MaximeFARRE/small-cap-screener/commit/cd2c832fd7fde5910f3d8aab59aff1dfc44984a7))
+
+* feat: add full_time_employees, city, phone to Company model and DB migration ([`ac173c9`](https://github.com/MaximeFARRE/small-cap-screener/commit/ac173c9d8ebd0c0ca4f7c5c4e8a86d4bda4d388f))
+
+* feat: fetch fullTimeEmployees, city, phone from yfinance ticker.info ([`4a50d65`](https://github.com/MaximeFARRE/small-cap-screener/commit/4a50d6565e69d4b9c9ab3880cef43d13c4041ee3))
+
+* feat: add full_time_employees, city, phone to CompanyProfile dataclass ([`d01cecd`](https://github.com/MaximeFARRE/small-cap-screener/commit/d01cecd83ec981913a31e9b5e4f84a2b3ee633a7))
 
 * feat: restore and wire up full analyst memo actions in company detail UI ([`546fe7e`](https://github.com/MaximeFARRE/small-cap-screener/commit/546fe7e41a4172abf1f45874b654ccaa1b3187c1))
 
