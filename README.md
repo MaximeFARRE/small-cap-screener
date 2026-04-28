@@ -2,8 +2,7 @@
 
 # Small Cap Screener
 
-Local-first desktop application to screen French listed small-cap companies with a deterministic and auditable workflow.
-
+**Local-first desktop research platform for French listed small and mid-cap equities**
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![PySide6](https://img.shields.io/badge/UI-PySide6-41CD52?style=flat-square&logo=qt&logoColor=white)](https://doc.qt.io/qtforpython/)
@@ -18,11 +17,6 @@ Local-first desktop application to screen French listed small-cap companies with
 [![Version](https://img.shields.io/badge/Version-0.25.1-blue?style=flat-square)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20Desktop-0078D4?style=flat-square&logo=windows&logoColor=white)]()
 [![Domain](https://img.shields.io/badge/Domain-Buy--Side%20Research-1A1A2E?style=flat-square)]()
-
-## Problem Solved
-
-Analysts often lose time between scattered data pulls, ad-hoc spreadsheets, and non-reproducible scoring logic.
-This project provides one coherent workflow: ingest data, compute KPIs, score companies, rank the universe, and keep analyst decisions traceable.
 
 </div>
 
