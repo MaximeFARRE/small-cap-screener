@@ -100,37 +100,23 @@ This tool collapses that into one coherent workflow: **ingest → compute → sc
 
 ## Screenshots
 
-> Screenshots will be added after the stable V1 UI pass. Placeholders are positioned below.
+### Screener — Ranked Universe
 
-### Main Screener
+Full universe ranked by total score, with sector, market cap, key ratios, global/sector rank, and data quality indicator per company.
 
-```
-screenshots/screener_main.png
-```
+![Screener — Ranked Universe](screenshots/all_db.png)
 
-### Company Detail Dashboard
+### Company Detail — KPI Snapshot
 
-```
-screenshots/company_detail.png
-```
+Institutional-style company dashboard: score tier, global rank, data quality badge, and color-coded KPI cards (margins, returns, leverage, valuation).
 
-### Peer Comparison
+![Company Detail — KPI Snapshot](screenshots/snapshot_screen.png)
 
-```
-screenshots/peer_comparison.png
-```
+### Company Detail — Historical Financials
 
-### Ownership & Shareholder Structure
+Multi-year financial table (Revenue, EBITDA, Net Income, FCF, Net Debt) with up to 4 years of history directly on the detail panel.
 
-```
-screenshots/ownership.png
-```
-
-### Analyst Memo / Investment Thesis
-
-```
-screenshots/memo_thesis.png
-```
+![Company Detail — Historical Financials](screenshots/historical_data.png)
 
 ---
 
