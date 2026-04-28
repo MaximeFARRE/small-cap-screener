@@ -129,6 +129,24 @@ class AnalystData:
     target_price_low: float | None
     recommendation_key: str | None
     number_of_analyst_opinions: int | None
+    # New fundamental metrics
+    gross_margins: float | None = None
+    operating_margins: float | None = None
+    profit_margins: float | None = None
+    roe: float | None = None
+    roa: float | None = None
+    current_ratio: float | None = None
+    quick_ratio: float | None = None
+    payout_ratio: float | None = None
+    # Shares and volume
+    shares_outstanding: float | None = None
+    float_shares: float | None = None
+    average_volume: float | None = None
+    # Dividends
+    dividend_rate: float | None = None
+    dividend_yield: float | None = None
+    ex_dividend_date: datetime | None = None
+    five_year_avg_dividend_yield: float | None = None
     source: str | None = None
     fetched_at: datetime | None = None
 

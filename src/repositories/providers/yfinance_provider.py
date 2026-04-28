@@ -96,6 +96,15 @@ def _to_int(value: object) -> int | None:
     return int(value)
 
 
+def _parse_info_date(val: object) -> dt.datetime | None:
+    if val is None or pd.isna(val):
+        return None
+    try:
+        return dt.datetime.fromtimestamp(int(val), dt.UTC)
+    except (ValueError, TypeError, OverflowError):
+        return None
+
+
 def _get_ticker_info(ticker: str) -> dict:
     return _with_retry(lambda: yf.Ticker(ticker).info, operation=f"ticker_info:{ticker}")
 
@@ -315,6 +324,24 @@ def _get_analyst_data(ticker: str) -> AnalystData:
         target_price_low=_to_float(info.get("targetLowPrice")),
         recommendation_key=info.get("recommendationKey") or None,
         number_of_analyst_opinions=(_to_int(raw_opinions) if raw_opinions is not None else None),
+        # Fundamentals
+        gross_margins=_to_float(info.get("grossMargins")),
+        operating_margins=_to_float(info.get("operatingMargins")),
+        profit_margins=_to_float(info.get("profitMargins")),
+        roe=_to_float(info.get("returnOnEquity")),
+        roa=_to_float(info.get("returnOnAssets")),
+        current_ratio=_to_float(info.get("currentRatio")),
+        quick_ratio=_to_float(info.get("quickRatio")),
+        payout_ratio=_to_float(info.get("payoutRatio")),
+        # Shares & Volume
+        shares_outstanding=_to_float(info.get("sharesOutstanding")),
+        float_shares=_to_float(info.get("floatShares")),
+        average_volume=_to_float(info.get("averageVolume")),
+        # Dividends
+        dividend_rate=_to_float(info.get("dividendRate")),
+        dividend_yield=_to_float(info.get("dividendYield")),
+        ex_dividend_date=_parse_info_date(info.get("exDividendDate")),
+        five_year_avg_dividend_yield=_to_float(info.get("fiveYearAvgDividendYield")),
         source=_SOURCE_NAME,
         fetched_at=fetched_at,
     )
