@@ -385,6 +385,7 @@ def _ratios_to_metrics_payload(ratios: CompanyRatios, company: Company) -> dict[
         "roce": ratios.roce,
         "gross_margin": ratios.gross_margin,
         "operating_margin": ratios.operating_margin,
+        "ebitda_margin": ratios.ebitda_margin,
         "revenue_growth": ratios.revenue_growth,
         "ebitda_growth": ratios.ebitda_growth,
         "net_debt_to_ebitda": ratios.net_debt_to_ebitda,

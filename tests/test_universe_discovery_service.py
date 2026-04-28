@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import date
+from datetime import UTC, date, datetime
 from unittest.mock import MagicMock
 
 from src.models.company import SOURCE_MANUAL, SOURCE_SEED, Company
@@ -375,3 +375,36 @@ def test_refresh_watchlist_tolerates_unexpected_exception(db_session):
     assert result.total == 1
     assert result.failed == 1
     assert "boom" in result.results[0].error
+
+
+def test_refresh_companies_by_ids_supports_skip_and_progress(db_session):
+    c1 = _add_company(db_session, ticker="MC.PA")
+    c2 = _add_company(db_session, ticker="BNP.PA")
+    c1.last_universe_refresh_at = datetime.now(UTC)
+    db_session.flush()
+
+    fin_svc = MagicMock()
+    kpi_svc = MagicMock()
+    fin_svc.refresh_company_data.return_value = _make_data_result(c2.id, "BNP.PA")
+    kpi_svc.compute_and_upsert_for_company.return_value = _make_kpi_result(c2.id)
+
+    svc = UniverseDiscoveryService(
+        financial_data_service=fin_svc,
+        kpi_snapshot_service=kpi_svc,
+        session_scope_factory=_make_session_scope(db_session),
+    )
+    progress_events: list[dict] = []
+    result = svc.refresh_companies_by_ids(
+        company_id_list=[c1.id, c2.id],
+        pacing_seconds=0.0,
+        batch_size=1,
+        skip_recently_refreshed=True,
+        progress_callback=progress_events.append,
+    )
+
+    assert result.total == 2
+    assert result.succeeded == 1
+    assert result.failed == 0
+    assert result.skipped == 1
+    assert result.skipped_tickers == ["MC.PA"]
+    assert any(event.get("phase") == "company_start" and event.get("ticker") == "BNP.PA" for event in progress_events)

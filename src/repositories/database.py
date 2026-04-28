@@ -1,5 +1,6 @@
 import os
 import pathlib
+import sys
 from collections.abc import Generator
 from contextlib import contextmanager
 
@@ -7,9 +8,28 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-load_dotenv()
+_PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
+load_dotenv(_PROJECT_ROOT / ".env")
 
-DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./data/screener.db")
+
+def _default_sqlite_database_path() -> pathlib.Path:
+    if getattr(sys, "frozen", False):
+        return pathlib.Path(sys.executable).parent / "data" / "screener.db"
+    return _PROJECT_ROOT / "data" / "screener.db"
+
+
+def _build_sqlite_url(path: pathlib.Path) -> str:
+    return f"sqlite:///{path.resolve().as_posix()}"
+
+
+def _resolve_database_url() -> str:
+    configured = os.getenv("DATABASE_URL")
+    if configured:
+        return configured
+    return _build_sqlite_url(_default_sqlite_database_path())
+
+
+DATABASE_URL: str = _resolve_database_url()
 
 _connect_args: dict = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 
@@ -23,9 +43,10 @@ class Base(DeclarativeBase):
 
 
 def init_db() -> None:
-    if DATABASE_URL.startswith("sqlite"):
+    if DATABASE_URL.startswith("sqlite:///"):
         db_path = DATABASE_URL.removeprefix("sqlite:///")
-        pathlib.Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        if db_path != ":memory:":
+            pathlib.Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
     import src.models.company  # noqa: F401
     import src.models.company_executive  # noqa: F401

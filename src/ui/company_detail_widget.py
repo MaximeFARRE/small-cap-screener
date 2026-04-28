@@ -207,6 +207,13 @@ def _fmt_pct(value: float | None, decimals: int = 1) -> str:
     return f"{value * 100:.{decimals}f}%"
 
 
+def _fmt_signed_pct(value: float | None, decimals: int = 1) -> str:
+    if value is None:
+        return _NA
+    sign = "+" if value >= 0 else ""
+    return f"{sign}{value:.{decimals}f}%"
+
+
 def _to_quality_percent(value: float | None) -> float | None:
     if value is None:
         return None
@@ -229,6 +236,12 @@ def _fmt_ratio(value: float | None, decimals: int = 1) -> str:
     if value is None:
         return _NA
     return f"{value:.{decimals}f}x"
+
+
+def _fmt_bool(value: bool | None) -> str:
+    if value is None:
+        return _NA
+    return "Yes" if value else "No"
 
 
 def _fmt_large(value: float | None, currency: str = "EUR") -> str:
@@ -345,6 +358,7 @@ class CompanyDetailWidget(QWidget):
 
         self._tab_snapshot = self._create_scroll_tab("Snapshot")
         self._tab_financials = self._create_scroll_tab("Financials")
+        self._tab_peer = self._create_scroll_tab("Peer Comparison")
         self._tab_charts = self._create_scroll_tab("Charts")
         self._tab_ownership = self._create_scroll_tab("Ownership")
         self._tab_memo = self._create_scroll_tab("Memo / Thesis")
@@ -352,6 +366,7 @@ class CompanyDetailWidget(QWidget):
 
         self._build_kpis(self._tab_snapshot)
         self._build_financials(self._tab_financials)
+        self._build_peer_comparison(self._tab_peer)
         self._build_charts(self._tab_charts)
         self._build_ownership(self._tab_ownership)
         self._build_memo(self._tab_memo)
@@ -915,6 +930,72 @@ class CompanyDetailWidget(QWidget):
 
         parent_layout.addWidget(frame)
 
+    def _build_peer_comparison(self, parent_layout: QVBoxLayout) -> None:
+        summary_card = QFrame()
+        summary_card.setObjectName("Card")
+        summary_layout = QVBoxLayout(summary_card)
+        summary_layout.setContentsMargins(16, 12, 16, 12)
+        summary_layout.setSpacing(8)
+
+        self._peer_summary_label = QLabel("Peer set: -")
+        self._peer_summary_label.setStyleSheet("font-size: 13px; font-weight: 600;")
+        summary_layout.addWidget(self._peer_summary_label)
+
+        self._peer_analyst_label = QLabel("Analyst view: -")
+        self._peer_analyst_label.setWordWrap(True)
+        self._peer_analyst_label.setStyleSheet(f"color: {C_TEXT_SEC};")
+        summary_layout.addWidget(self._peer_analyst_label)
+        parent_layout.addWidget(summary_card)
+
+        metric_card = QFrame()
+        metric_card.setObjectName("Card")
+        metric_layout = QVBoxLayout(metric_card)
+        metric_layout.setContentsMargins(16, 12, 16, 12)
+        metric_layout.setSpacing(8)
+        metric_title = QLabel("Peer metrics (company vs sector median)")
+        metric_title.setStyleSheet("font-size: 12px; font-weight: 600;")
+        metric_layout.addWidget(metric_title)
+
+        self._peer_metric_table = QTableWidget()
+        self._peer_metric_table.setColumnCount(5)
+        self._peer_metric_table.setHorizontalHeaderLabels(
+            ["Metric", "Company", "Sector Median", "Percentile", "Premium/Discount"]
+        )
+        self._peer_metric_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._peer_metric_table.verticalHeader().setVisible(False)
+        metric_layout.addWidget(self._peer_metric_table)
+        parent_layout.addWidget(metric_card)
+
+        peers_card = QFrame()
+        peers_card.setObjectName("Card")
+        peers_layout = QVBoxLayout(peers_card)
+        peers_layout.setContentsMargins(16, 12, 16, 12)
+        peers_layout.setSpacing(8)
+        peers_title = QLabel("Closest peers")
+        peers_title.setStyleSheet("font-size: 12px; font-weight: 600;")
+        peers_layout.addWidget(peers_title)
+
+        self._peer_table = QTableWidget()
+        self._peer_table.setColumnCount(10)
+        self._peer_table.setHorizontalHeaderLabels(
+            [
+                "Ticker",
+                "Name",
+                "MCap",
+                "EV/EBITDA",
+                "P/E",
+                "FCF Yield",
+                "Rev Growth",
+                "EBITDA Margin",
+                "ROIC",
+                "Net Debt/EBITDA",
+            ]
+        )
+        self._peer_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._peer_table.verticalHeader().setVisible(False)
+        peers_layout.addWidget(self._peer_table)
+        parent_layout.addWidget(peers_card)
+
     def load(
         self,
         row: ScreenerRow,
@@ -1048,9 +1129,62 @@ class CompanyDetailWidget(QWidget):
         self._populate_fin_table(financial_detail)
         self._populate_charts(chart_data)
         self._populate_memo(analyst_detail, financial_detail)
+        self._populate_peer_comparison(peer_comparison)
         self._populate_ownership(peer_comparison, financial_detail)
         self._populate_quality(financial_detail, q_score)
         self._populate_profile_card(financial_detail)
+
+    def _populate_peer_comparison(self, peer_comparison: PeerComparisonData | None) -> None:
+        if peer_comparison is None:
+            self._peer_summary_label.setText("Peer set: -")
+            self._peer_analyst_label.setText("Analyst view: -")
+            self._peer_metric_table.setRowCount(0)
+            self._peer_table.setRowCount(0)
+            return
+
+        self._peer_summary_label.setText(
+            f"Peer set: sector={peer_comparison.sector or '-'} "
+            f"| market={peer_comparison.market or '-'} "
+            f"| bucket={peer_comparison.market_cap_bucket or '-'} "
+            f"| peers={peer_comparison.peer_count}"
+        )
+        assessment = peer_comparison.analyst_assessment
+        self._peer_analyst_label.setText(
+            " | ".join(
+                [
+                    f"Cheaper than peers: {_fmt_bool(assessment.cheaper_than_peers)}",
+                    f"Higher quality: {_fmt_bool(assessment.higher_quality_than_peers)}",
+                    f"Growth premium justified: {_fmt_bool(assessment.growth_premium_justified)}",
+                    f"Balance sheet weaker: {_fmt_bool(assessment.balance_sheet_weaker)}",
+                ]
+            )
+        )
+
+        self._peer_metric_table.setRowCount(len(peer_comparison.metrics))
+        for row_index, metric in enumerate(peer_comparison.metrics):
+            self._peer_metric_table.setItem(row_index, 0, QTableWidgetItem(metric.label))
+            self._peer_metric_table.setItem(row_index, 1, QTableWidgetItem(_fmt(metric.company_value)))
+            self._peer_metric_table.setItem(row_index, 2, QTableWidgetItem(_fmt(metric.sector_median)))
+            percentile_text = _NA if metric.percentile_rank is None else f"{metric.percentile_rank:.0f}%"
+            self._peer_metric_table.setItem(row_index, 3, QTableWidgetItem(percentile_text))
+            self._peer_metric_table.setItem(
+                row_index,
+                4,
+                QTableWidgetItem(_fmt_signed_pct(metric.premium_discount_vs_peers)),
+            )
+
+        self._peer_table.setRowCount(len(peer_comparison.peer_rows))
+        for row_index, peer in enumerate(peer_comparison.peer_rows):
+            self._peer_table.setItem(row_index, 0, QTableWidgetItem(peer.ticker or _NA))
+            self._peer_table.setItem(row_index, 1, QTableWidgetItem(peer.name))
+            self._peer_table.setItem(row_index, 2, QTableWidgetItem(_fmt_large(peer.market_cap)))
+            self._peer_table.setItem(row_index, 3, QTableWidgetItem(_fmt_ratio(peer.ev_ebitda)))
+            self._peer_table.setItem(row_index, 4, QTableWidgetItem(_fmt_ratio(peer.pe_ratio)))
+            self._peer_table.setItem(row_index, 5, QTableWidgetItem(_fmt_pct(peer.fcf_yield)))
+            self._peer_table.setItem(row_index, 6, QTableWidgetItem(_fmt_pct(peer.revenue_growth)))
+            self._peer_table.setItem(row_index, 7, QTableWidgetItem(_fmt_pct(peer.ebitda_margin)))
+            self._peer_table.setItem(row_index, 8, QTableWidgetItem(_fmt_pct(peer.roic)))
+            self._peer_table.setItem(row_index, 9, QTableWidgetItem(_fmt_ratio(peer.net_debt_to_ebitda)))
 
     def _populate_profile_card(self, detail: CompanyFinancialDetail | None) -> None:
         if not detail:
@@ -1638,6 +1772,7 @@ class CompanyDetailWidget(QWidget):
         self._lbl_profile_phone.setText("-")
         self._memo_business_summary.clear()
         self._populate_metrics_card(None)
+        self._populate_peer_comparison(None)
         self._populate_ownership(None, None)
         self._populate_quality(None, None)
 

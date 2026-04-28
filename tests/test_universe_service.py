@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from sqlalchemy import select
 
 from src.models.company import Company
+from src.repositories.seed_universe_repository import SeedUniverseEntry
 from src.services.universe_service import UniverseService
 
 
@@ -130,3 +131,72 @@ def test_company_universe_summary_is_stable(db_session, tmp_path):
         "over_market_cap": 1,
         "illiquid": 1,
     }
+
+
+def test_load_euronext_france_universe_uses_discovery_repository(db_session, monkeypatch):
+    discovered_entries = [
+        SeedUniverseEntry(
+            name="2CRSI",
+            ticker="AL2SI.PA",
+            isin="FR0013341781",
+            exchange="ALXP",
+            country="France",
+            sector="Unknown",
+            currency="EUR",
+        ),
+        SeedUniverseEntry(
+            name="TotalEnergies",
+            ticker="TTE.PA",
+            isin="FR0000120271",
+            exchange="XPAR",
+            country="France",
+            sector="Energy",
+            currency="EUR",
+        ),
+    ]
+
+    monkeypatch.setattr(
+        "src.services.universe_service.euronext_discovery_repository.discover_french_listed_companies",
+        lambda: discovered_entries,
+    )
+    service = _make_service(db_session)
+
+    imported = service.load_euronext_france_universe()
+
+    assert len(imported) == 2
+    assert {company.ticker for company in imported} == {"AL2SI.PA", "TTE.PA"}
+
+
+def test_import_euronext_france_universe_returns_report(db_session, monkeypatch):
+    discovered_entries = [
+        SeedUniverseEntry(
+            name="2CRSI",
+            ticker="AL2SI.PA",
+            isin="FR0013341781",
+            exchange="ALXP",
+            country="France",
+            sector="Unknown",
+            currency="EUR",
+        ),
+        SeedUniverseEntry(
+            name="TotalEnergies",
+            ticker="TTE.PA",
+            isin="FR0000120271",
+            exchange="XPAR",
+            country="France",
+            sector="Energy",
+            currency="EUR",
+        ),
+    ]
+    monkeypatch.setattr(
+        "src.services.universe_service.euronext_discovery_repository.discover_french_listed_companies",
+        lambda: discovered_entries,
+    )
+    service = _make_service(db_session)
+
+    report = service.import_euronext_france_universe()
+
+    assert report.discovered_count == 2
+    assert report.upserted_count == 2
+    assert set(report.discovered_tickers) == {"AL2SI.PA", "TTE.PA"}
+    assert len(report.upserted_company_ids) == 2

@@ -94,6 +94,7 @@ class UniverseScreeningEntry:
     ticker: str | None
     name: str
     sector: str | None
+    market: str | None = None
     country: str | None = None
     total_score: float | None = None
     quality_score: float | None = None
@@ -103,8 +104,14 @@ class UniverseScreeningEntry:
     rank: int | None = None
     sector_rank: int | None = None
     pe_ratio: float | None = None
+    ev_ebitda: float | None = None
+    fcf_yield: float | None = None
     revenue_growth: float | None = None
+    ebitda_margin: float | None = None
     operating_margin: float | None = None
+    roic: float | None = None
+    roe: float | None = None
+    net_debt_to_ebitda: float | None = None
     market_cap: float | None = None
     data_quality_score: float | None = None
     last_universe_refresh_at: datetime | None = None
@@ -518,6 +525,7 @@ def _build_universe_screening_entries(
                 ticker=company.ticker,
                 name=company.name,
                 sector=company.sector,
+                market=company.market,
                 country=company.country,
                 total_score=_snapshot_metric_as_float(snapshot, TOTAL_SCORE_KEY),
                 quality_score=_snapshot_metric_as_float(snapshot, QUALITY_SCORE_KEY),
@@ -527,9 +535,15 @@ def _build_universe_screening_entries(
                 rank=ranked.rank,
                 sector_rank=ranked.sector_rank,
                 pe_ratio=_snapshot_metric_as_float(snapshot, "pe_ratio"),
+                ev_ebitda=_snapshot_metric_as_float(snapshot, "ev_ebitda"),
+                fcf_yield=_snapshot_metric_as_float(snapshot, "fcf_yield"),
                 revenue_growth=_snapshot_metric_as_float(snapshot, "revenue_growth"),
+                ebitda_margin=_snapshot_metric_as_float(snapshot, "ebitda_margin"),
                 operating_margin=_snapshot_metric_as_float(snapshot, "operating_margin"),
-                market_cap=_snapshot_metric_as_float(snapshot, "market_cap"),
+                roic=_snapshot_metric_as_float(snapshot, "roic"),
+                roe=_snapshot_metric_as_float(snapshot, "roe"),
+                net_debt_to_ebitda=_snapshot_metric_as_float(snapshot, "net_debt_to_ebitda"),
+                market_cap=company.market_cap,
                 data_quality_score=_snapshot_metric_as_float(snapshot, "data_quality_score"),
                 last_universe_refresh_at=company.last_universe_refresh_at,
                 snapshot_date=snapshot.snapshot_date if snapshot is not None else None,
