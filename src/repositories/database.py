@@ -28,6 +28,9 @@ def init_db() -> None:
         pathlib.Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
     import src.models.company  # noqa: F401
+    import src.models.company_executive  # noqa: F401
+    import src.models.company_holder  # noqa: F401
+    import src.models.company_insider_transaction  # noqa: F401
     import src.models.dividend  # noqa: F401
     import src.models.financial_statement  # noqa: F401
     import src.models.kpi_snapshot  # noqa: F401
@@ -105,6 +108,7 @@ def _ensure_company_enrichment_columns() -> None:
         "analyst_recommendation": "VARCHAR(20)",
         "analyst_count": "INTEGER",
         "forward_pe": "FLOAT",
+        "enterprise_value_yahoo": "FLOAT",
     }
     with engine.begin() as connection:
         inspector = inspect(connection)

@@ -4,6 +4,9 @@ from contextlib import contextmanager
 from datetime import date
 
 from src.models.company import Company
+from src.models.company_executive import CompanyExecutive
+from src.models.company_holder import CompanyHolder
+from src.models.company_insider_transaction import CompanyInsiderTransaction
 from src.models.financial_statement import FinancialStatement, PeriodType
 from src.models.kpi_snapshot import KpiSnapshot
 from src.models.price_history import PriceHistory
@@ -128,6 +131,67 @@ def _add_snapshot(db_session, company_id: int, *, metrics: dict | None = None) -
     return snap
 
 
+def _add_executive(
+    db_session,
+    company_id: int,
+    *,
+    sort_order: int,
+    name: str,
+    title: str,
+) -> CompanyExecutive:
+    executive = CompanyExecutive(
+        company_id=company_id,
+        sort_order=sort_order,
+        name=name,
+        title=title,
+    )
+    db_session.add(executive)
+    db_session.flush()
+    return executive
+
+
+def _add_holder(
+    db_session,
+    company_id: int,
+    *,
+    sort_order: int,
+    holder_type: str,
+    holder_name: str,
+    weight: float | None,
+) -> CompanyHolder:
+    holder = CompanyHolder(
+        company_id=company_id,
+        sort_order=sort_order,
+        holder_type=holder_type,
+        holder_name=holder_name,
+        weight=weight,
+    )
+    db_session.add(holder)
+    db_session.flush()
+    return holder
+
+
+def _add_insider_tx(
+    db_session,
+    company_id: int,
+    *,
+    sort_order: int,
+    insider_name: str,
+    relation: str,
+    transaction_text: str,
+) -> CompanyInsiderTransaction:
+    transaction = CompanyInsiderTransaction(
+        company_id=company_id,
+        sort_order=sort_order,
+        insider_name=insider_name,
+        relation=relation,
+        transaction_text=transaction_text,
+    )
+    db_session.add(transaction)
+    db_session.flush()
+    return transaction
+
+
 # ---------------------------------------------------------------------------
 # Full company — all data present
 # ---------------------------------------------------------------------------
@@ -243,6 +307,68 @@ def test_company_not_found(db_session):
     svc = _make_service(db_session)
     detail = svc.get_financial_detail(99999)
     assert detail is None
+
+
+def test_ownership_payload_is_exposed_in_company_detail(db_session):
+    company = _add_company(db_session)
+    _add_executive(
+        db_session,
+        company.id,
+        sort_order=0,
+        name="John Leader",
+        title="Chief Executive Officer",
+    )
+    _add_executive(
+        db_session,
+        company.id,
+        sort_order=1,
+        name="Jane Finance",
+        title="Chief Financial Officer",
+    )
+    _add_holder(
+        db_session,
+        company.id,
+        sort_order=0,
+        holder_type="institutional",
+        holder_name="BlackRock",
+        weight=0.08,
+    )
+    _add_holder(
+        db_session,
+        company.id,
+        sort_order=1,
+        holder_type="mutual_fund",
+        holder_name="Vanguard Fund",
+        weight=0.04,
+    )
+    _add_holder(
+        db_session,
+        company.id,
+        sort_order=2,
+        holder_type="major",
+        holder_name="% held by institutions",
+        weight=0.72,
+    )
+    _add_insider_tx(
+        db_session,
+        company.id,
+        sort_order=0,
+        insider_name="Jane Finance",
+        relation="CFO",
+        transaction_text="Sale",
+    )
+
+    detail = _make_service(db_session).get_financial_detail(company.id)
+
+    assert detail is not None
+    assert detail.ceo_name == "John Leader"
+    assert detail.cfo_name == "Jane Finance"
+    assert len(detail.management_team) == 2
+    assert len(detail.major_holders) == 1
+    assert len(detail.top_shareholders) == 2
+    assert detail.top_shareholders[0].holder_name == "BlackRock"
+    assert len(detail.institutional_holders) == 1
+    assert len(detail.insider_activity) == 1
 
 
 # ---------------------------------------------------------------------------

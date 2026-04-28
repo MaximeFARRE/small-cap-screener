@@ -33,11 +33,12 @@ def _fmt_score(value: float | None) -> str:
 def _fmt_quality(value: float | None) -> str:
     if value is None:
         return _NA
-    if value >= 0.8:
-        return f"{value * 100:.0f}% (Élevée)"
-    if value >= 0.5:
-        return f"{value * 100:.0f}% (Moyenne)"
-    return f"{value * 100:.0f}% (Faible)"
+    quality_pct = value if value > 1.0 else value * 100.0
+    if quality_pct >= 80:
+        return f"{quality_pct:.0f}% (Élevée)"
+    if quality_pct >= 50:
+        return f"{quality_pct:.0f}% (Moyenne)"
+    return f"{quality_pct:.0f}% (Faible)"
 
 
 def _fmt_market_cap(value: float | None) -> str:
@@ -100,9 +101,10 @@ class CompanyTableModel(QAbstractTableModel):
             if col == 10 and row.data_quality_score is not None:
                 from PySide6.QtGui import QColor
 
-                if row.data_quality_score < 0.5:
+                quality_pct = row.data_quality_score if row.data_quality_score > 1.0 else row.data_quality_score * 100.0
+                if quality_pct < 50:
                     return QColor("#d62728")  # Red for poor quality
-                if row.data_quality_score < 0.8:
+                if quality_pct < 80:
                     return QColor("#ff7f0e")  # Orange for medium quality
             return None
 

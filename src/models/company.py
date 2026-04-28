@@ -12,6 +12,9 @@ SOURCE_PROVIDER = "provider"
 SOURCE_IMPORTED = "imported"
 
 if TYPE_CHECKING:
+    from src.models.company_executive import CompanyExecutive
+    from src.models.company_holder import CompanyHolder
+    from src.models.company_insider_transaction import CompanyInsiderTransaction
     from src.models.dividend import Dividend
     from src.models.financial_statement import FinancialStatement
     from src.models.kpi_snapshot import KpiSnapshot
@@ -57,6 +60,7 @@ class Company(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
     market_cap: Mapped[float | None]
     average_daily_volume: Mapped[float | None]
+    enterprise_value_yahoo: Mapped[float | None] = mapped_column(default=None)
     beta: Mapped[float | None] = mapped_column(default=None)
     analyst_target_price: Mapped[float | None] = mapped_column(default=None)
     analyst_recommendation: Mapped[str | None] = mapped_column(String(20), default=None)
@@ -76,4 +80,13 @@ class Company(Base):
     splits: Mapped[list["Split"]] = relationship(back_populates="company", cascade="all, delete-orphan")
     watchlist_entries: Mapped[list["WatchlistEntry"]] = relationship(
         back_populates="company", cascade="all, delete-orphan"
+    )
+    executives: Mapped[list["CompanyExecutive"]] = relationship(
+        back_populates="company",
+        cascade="all, delete-orphan",
+    )
+    holders: Mapped[list["CompanyHolder"]] = relationship(back_populates="company", cascade="all, delete-orphan")
+    insider_transactions: Mapped[list["CompanyInsiderTransaction"]] = relationship(
+        back_populates="company",
+        cascade="all, delete-orphan",
     )

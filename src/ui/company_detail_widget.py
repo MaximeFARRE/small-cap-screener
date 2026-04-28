@@ -207,6 +207,24 @@ def _fmt_pct(value: float | None, decimals: int = 1) -> str:
     return f"{value * 100:.{decimals}f}%"
 
 
+def _to_quality_percent(value: float | None) -> float | None:
+    if value is None:
+        return None
+    normalized = value * 100.0 if value <= 1.0 else value
+    if normalized > 100.0:
+        normalized = normalized / 100.0 if normalized <= 10_000.0 else 100.0
+    if normalized < 0.0:
+        return 0.0
+    return min(normalized, 100.0)
+
+
+def _fmt_quality_pct(value: float | None, decimals: int = 1) -> str:
+    normalized = _to_quality_percent(value)
+    if normalized is None:
+        return _NA
+    return f"{normalized:.{decimals}f}%"
+
+
 def _fmt_ratio(value: float | None, decimals: int = 1) -> str:
     if value is None:
         return _NA
@@ -249,7 +267,7 @@ def _kpi_signal(key: str, value: float | None) -> tuple[str, str]:
         return _get_signal_tuple(value, 0.15, 0.05, True)
     if key == "Rev Growth":
         return _get_signal_tuple(value, 0.10, 0.00, True)
-    if key == "EBITDA Margin":
+    if key == "Operating Margin":
         return _get_signal_tuple(value, 0.15, 0.05, True)
     if key == "Gross Margin":
         return _get_signal_tuple(value, 0.40, 0.20, True)
@@ -388,10 +406,13 @@ class CompanyDetailWidget(QWidget):
         val_layout = QHBoxLayout()
         self.lbl_mcap = QLabel("MCap: -")
         self.lbl_mcap.setObjectName("HeroSec")
-        self.lbl_ev = QLabel("EV: -")
-        self.lbl_ev.setObjectName("HeroSec")
+        self.lbl_ev_model = QLabel("EV (Model): -")
+        self.lbl_ev_model.setObjectName("HeroSec")
+        self.lbl_ev_yahoo = QLabel("EV (Yahoo): -")
+        self.lbl_ev_yahoo.setObjectName("HeroSec")
         val_layout.addWidget(self.lbl_mcap)
-        val_layout.addWidget(self.lbl_ev)
+        val_layout.addWidget(self.lbl_ev_model)
+        val_layout.addWidget(self.lbl_ev_yahoo)
         val_layout.addStretch()
         mid_layout.addLayout(val_layout)
         hero_layout.addLayout(mid_layout, stretch=2)
@@ -416,6 +437,40 @@ class CompanyDetailWidget(QWidget):
         badges_bot.addStretch()
         right_layout.addLayout(badges_bot)
 
+        hero_meta = QGridLayout()
+        hero_meta.setHorizontalSpacing(12)
+        hero_meta.setVerticalSpacing(4)
+
+        self.lbl_target = QLabel("Target: -")
+        self.lbl_upside = QLabel("Upside/Downside: -")
+        self.lbl_reco = QLabel("Reco: -")
+        self.lbl_analyst_count = QLabel("Analysts: -")
+        self.lbl_forward_pe = QLabel("Fwd P/E: -")
+        self.lbl_beta = QLabel("Beta: -")
+        self.lbl_confidence = QLabel("Confidence: -")
+        self.lbl_last_refresh = QLabel("Last refresh: -")
+        for label in (
+            self.lbl_target,
+            self.lbl_upside,
+            self.lbl_reco,
+            self.lbl_analyst_count,
+            self.lbl_forward_pe,
+            self.lbl_beta,
+            self.lbl_confidence,
+            self.lbl_last_refresh,
+        ):
+            label.setObjectName("HeroSec")
+
+        hero_meta.addWidget(self.lbl_target, 0, 0)
+        hero_meta.addWidget(self.lbl_upside, 0, 1)
+        hero_meta.addWidget(self.lbl_reco, 1, 0)
+        hero_meta.addWidget(self.lbl_analyst_count, 1, 1)
+        hero_meta.addWidget(self.lbl_forward_pe, 2, 0)
+        hero_meta.addWidget(self.lbl_beta, 2, 1)
+        hero_meta.addWidget(self.lbl_confidence, 3, 0)
+        hero_meta.addWidget(self.lbl_last_refresh, 3, 1)
+        right_layout.addLayout(hero_meta)
+
         hero_layout.addLayout(right_layout, stretch=1)
 
     def _build_kpis(self, parent_layout: QVBoxLayout) -> None:
@@ -425,7 +480,7 @@ class CompanyDetailWidget(QWidget):
         self.kpi_widgets = {}
         kpi_keys = [
             "Rev Growth",
-            "EBITDA Margin",
+            "Operating Margin",
             "Gross Margin",
             "ROIC",
             "ROE",
@@ -517,24 +572,6 @@ class CompanyDetailWidget(QWidget):
 
         layout.addLayout(meta_layout)
 
-        summary_header = QLabel("Business Description")
-        summary_header.setStyleSheet(
-            f"font-size: 11px; font-weight: 600; color: {C_TEXT_SEC};" f" text-transform: uppercase; padding-top: 8px;"
-        )
-        layout.addWidget(summary_header)
-
-        self._txt_business_summary = QTextEdit()
-        self._txt_business_summary.setReadOnly(True)
-        self._txt_business_summary.setMinimumHeight(90)
-        self._txt_business_summary.setMaximumHeight(150)
-        self._txt_business_summary.setPlaceholderText("No business description available.")
-        self._txt_business_summary.setStyleSheet(
-            f"background-color: {C_BG_SEC}; color: {C_TEXT_SEC};"
-            f" border: 1px solid {C_BORDER}; border-radius: 4px;"
-            f" font-size: 11px; padding: 6px;"
-        )
-        layout.addWidget(self._txt_business_summary)
-
         parent_layout.addWidget(frame)
 
     def _build_metrics_card(self, parent_layout: QVBoxLayout) -> None:
@@ -584,7 +621,7 @@ class CompanyDetailWidget(QWidget):
         self._lbl_roa = _meta_label("-", bold=True)
         metrics_layout.addWidget(self._lbl_roa, 4, 1)
 
-        # Middle Column: Ratios & Shares
+        # Middle Column: Analyst KPIs
         metrics_layout.addWidget(_meta_label("Current Ratio"), 0, 2)
         self._lbl_current_ratio = _meta_label("-", bold=True)
         metrics_layout.addWidget(self._lbl_current_ratio, 0, 3)
@@ -593,30 +630,38 @@ class CompanyDetailWidget(QWidget):
         self._lbl_quick_ratio = _meta_label("-", bold=True)
         metrics_layout.addWidget(self._lbl_quick_ratio, 1, 3)
 
-        metrics_layout.addWidget(_meta_label("Float Shares"), 2, 2)
-        self._lbl_float_shares = _meta_label("-", bold=True)
-        metrics_layout.addWidget(self._lbl_float_shares, 2, 3)
-
-        metrics_layout.addWidget(_meta_label("Payout Ratio"), 3, 2)
+        metrics_layout.addWidget(_meta_label("Payout Ratio"), 2, 2)
         self._lbl_payout_ratio = _meta_label("-", bold=True)
-        metrics_layout.addWidget(self._lbl_payout_ratio, 3, 3)
+        metrics_layout.addWidget(self._lbl_payout_ratio, 2, 3)
 
-        # Right Column: Dividends
+        metrics_layout.addWidget(_meta_label("Avg. Volume"), 3, 2)
+        self._lbl_avg_volume = _meta_label("-", bold=True)
+        metrics_layout.addWidget(self._lbl_avg_volume, 3, 3)
+
+        metrics_layout.addWidget(_meta_label("Shares Out."), 4, 2)
+        self._lbl_shares_outstanding = _meta_label("-", bold=True)
+        metrics_layout.addWidget(self._lbl_shares_outstanding, 4, 3)
+
+        # Right Column: Targets & Dividends
         metrics_layout.addWidget(_meta_label("Div. Yield"), 0, 4)
         self._lbl_div_yield = _meta_label("-", bold=True, color=C_POS)
         metrics_layout.addWidget(self._lbl_div_yield, 0, 5)
 
-        metrics_layout.addWidget(_meta_label("Div. Rate"), 1, 4)
-        self._lbl_div_rate = _meta_label("-", bold=True)
-        metrics_layout.addWidget(self._lbl_div_rate, 1, 5)
+        metrics_layout.addWidget(_meta_label("Target Upside"), 1, 4)
+        self._lbl_target_upside = _meta_label("-", bold=True)
+        metrics_layout.addWidget(self._lbl_target_upside, 1, 5)
 
-        metrics_layout.addWidget(_meta_label("Ex-Div Date"), 2, 4)
-        self._lbl_ex_div_date = _meta_label("-", bold=True)
-        metrics_layout.addWidget(self._lbl_ex_div_date, 2, 5)
+        metrics_layout.addWidget(_meta_label("Target Price"), 2, 4)
+        self._lbl_target_price = _meta_label("-", bold=True)
+        metrics_layout.addWidget(self._lbl_target_price, 2, 5)
 
-        metrics_layout.addWidget(_meta_label("5Y Avg Yield"), 3, 4)
+        metrics_layout.addWidget(_meta_label("Float Shares"), 3, 4)
+        self._lbl_float_shares = _meta_label("-", bold=True)
+        metrics_layout.addWidget(self._lbl_float_shares, 3, 5)
+
+        metrics_layout.addWidget(_meta_label("5Y Avg Yield"), 4, 4)
         self._lbl_5y_div_yield = _meta_label("-", bold=True)
-        metrics_layout.addWidget(self._lbl_5y_div_yield, 3, 5)
+        metrics_layout.addWidget(self._lbl_5y_div_yield, 4, 5)
 
         layout.addLayout(metrics_layout)
         parent_layout.addWidget(frame)
@@ -651,20 +696,87 @@ class CompanyDetailWidget(QWidget):
         parent_layout.addLayout(self.chart_container)
 
     def _build_ownership(self, parent_layout: QVBoxLayout) -> None:
-        frame = QFrame()
-        frame.setObjectName("Card")
-        layout = QVBoxLayout(frame)
-        layout.setContentsMargins(40, 40, 40, 40)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        management_frame = QFrame()
+        management_frame.setObjectName("Card")
+        management_layout = QGridLayout(management_frame)
+        management_layout.setContentsMargins(16, 12, 16, 16)
+        management_layout.setHorizontalSpacing(16)
+        management_layout.setVerticalSpacing(8)
+        management_title = QLabel("Management")
+        management_title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        management_layout.addWidget(management_title, 0, 0, 1, 2)
+        management_layout.addWidget(QLabel("CEO"), 1, 0)
+        self._lbl_ceo = QLabel("-")
+        management_layout.addWidget(self._lbl_ceo, 1, 1)
+        management_layout.addWidget(QLabel("CFO"), 2, 0)
+        self._lbl_cfo = QLabel("-")
+        management_layout.addWidget(self._lbl_cfo, 2, 1)
+        self._lbl_ownership_status = QLabel("")
+        self._lbl_ownership_status.setStyleSheet(f"color: {C_TEXT_SEC};")
+        management_layout.addWidget(self._lbl_ownership_status, 3, 0, 1, 2)
+        parent_layout.addWidget(management_frame)
 
-        lbl = QLabel("No ownership data available")
-        lbl.setStyleSheet(f"color: {C_TEXT_SEC}; font-size: 16px; font-weight: 500;")
-        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(lbl)
+        holders_frame = QFrame()
+        holders_frame.setObjectName("Card")
+        holders_layout = QVBoxLayout(holders_frame)
+        holders_layout.setContentsMargins(16, 12, 16, 16)
+        holders_title = QLabel("Top Holders")
+        holders_title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        holders_layout.addWidget(holders_title)
+        self._tbl_top_holders = QTableWidget()
+        self._tbl_top_holders.setColumnCount(4)
+        self._tbl_top_holders.setHorizontalHeaderLabels(["Holder", "Type", "Weight", "Reported"])
+        self._tbl_top_holders.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._tbl_top_holders.verticalHeader().setVisible(False)
+        self._tbl_top_holders.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._tbl_top_holders.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self._tbl_top_holders.setFixedHeight(170)
+        holders_layout.addWidget(self._tbl_top_holders)
 
-        parent_layout.addWidget(frame)
+        self._tbl_institutional_holders = QTableWidget()
+        self._tbl_institutional_holders.setColumnCount(3)
+        self._tbl_institutional_holders.setHorizontalHeaderLabels(["Institution", "Weight", "Reported"])
+        self._tbl_institutional_holders.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._tbl_institutional_holders.verticalHeader().setVisible(False)
+        self._tbl_institutional_holders.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._tbl_institutional_holders.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self._tbl_institutional_holders.setFixedHeight(170)
+        holders_layout.addWidget(self._tbl_institutional_holders)
+        parent_layout.addWidget(holders_frame)
+
+        insider_frame = QFrame()
+        insider_frame.setObjectName("Card")
+        insider_layout = QVBoxLayout(insider_frame)
+        insider_layout.setContentsMargins(16, 12, 16, 16)
+        insider_title = QLabel("Insider Activity")
+        insider_title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        insider_layout.addWidget(insider_title)
+        self._tbl_insider_activity = QTableWidget()
+        self._tbl_insider_activity.setColumnCount(4)
+        self._tbl_insider_activity.setHorizontalHeaderLabels(["Insider", "Role", "Activity", "Date"])
+        self._tbl_insider_activity.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._tbl_insider_activity.verticalHeader().setVisible(False)
+        self._tbl_insider_activity.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._tbl_insider_activity.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self._tbl_insider_activity.setFixedHeight(170)
+        insider_layout.addWidget(self._tbl_insider_activity)
+        parent_layout.addWidget(insider_frame)
 
     def _build_memo(self, parent_layout: QVBoxLayout) -> None:
+        summary_frame = QFrame()
+        summary_frame.setObjectName("Card")
+        summary_layout = QVBoxLayout(summary_frame)
+        summary_header = QLabel("Business Summary")
+        summary_header.setStyleSheet("font-size: 14px; font-weight: bold; padding-bottom: 8px;")
+        summary_layout.addWidget(summary_header)
+        self._memo_business_summary = QTextEdit()
+        self._memo_business_summary.setReadOnly(True)
+        self._memo_business_summary.setMinimumHeight(90)
+        self._memo_business_summary.setMaximumHeight(150)
+        self._memo_business_summary.setPlaceholderText("No business summary available.")
+        summary_layout.addWidget(self._memo_business_summary)
+        parent_layout.addWidget(summary_frame)
+
         # Strengths & Weaknesses
         sw_layout = QHBoxLayout()
 
@@ -769,18 +881,38 @@ class CompanyDetailWidget(QWidget):
     def _build_quality(self, parent_layout: QVBoxLayout) -> None:
         frame = QFrame()
         frame.setObjectName("Card")
-        layout = QVBoxLayout(frame)
-        layout.setContentsMargins(40, 40, 40, 40)
+        layout = QGridLayout(frame)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setHorizontalSpacing(16)
+        layout.setVerticalSpacing(10)
 
         self.lbl_q_score = QLabel("Data Quality: -")
         self.lbl_q_score.setStyleSheet("font-size: 18px; font-weight: bold;")
-        layout.addWidget(self.lbl_q_score)
+        layout.addWidget(self.lbl_q_score, 0, 0, 1, 2)
 
-        self.lbl_q_desc = QLabel("Detailed data quality analysis will be available here.")
+        self.lbl_q_provider = QLabel("Provider: -")
+        self.lbl_q_snapshot_source = QLabel("Snapshot source: -")
+        self.lbl_q_refresh = QLabel("Last refresh: -")
+        self.lbl_q_snapshot_date = QLabel("Snapshot date: -")
+        self.lbl_q_confidence = QLabel("Confidence: -")
+        for row_index, label in enumerate(
+            (
+                self.lbl_q_provider,
+                self.lbl_q_snapshot_source,
+                self.lbl_q_refresh,
+                self.lbl_q_snapshot_date,
+                self.lbl_q_confidence,
+            ),
+            start=1,
+        ):
+            label.setStyleSheet(f"color: {C_TEXT_MAIN};")
+            layout.addWidget(label, row_index, 0, 1, 2)
+
+        self.lbl_q_desc = QLabel("Missing fields: -")
+        self.lbl_q_desc.setWordWrap(True)
         self.lbl_q_desc.setStyleSheet(f"color: {C_TEXT_SEC};")
-        layout.addWidget(self.lbl_q_desc)
+        layout.addWidget(self.lbl_q_desc, 6, 0, 1, 2)
 
-        layout.addStretch()
         parent_layout.addWidget(frame)
 
     def load(
@@ -827,9 +959,38 @@ class CompanyDetailWidget(QWidget):
         self.lbl_price.setText(f"{_fmt(price)} {ccy}" if price else _NA)
 
         mcap = financial_detail.market_cap if financial_detail else None
-        ev = financial_detail.enterprise_value if financial_detail else None
+        ev_model = financial_detail.enterprise_value if financial_detail else None
+        ev_yahoo = financial_detail.enterprise_value_yahoo if financial_detail else None
         self.lbl_mcap.setText(f"MCap: {_fmt_large(mcap, ccy)}")
-        self.lbl_ev.setText(f"EV: {_fmt_large(ev, ccy)}")
+        self.lbl_ev_model.setText(f"EV (Model): {_fmt_large(ev_model, ccy)}")
+        self.lbl_ev_yahoo.setText(f"EV (Yahoo): {_fmt_large(ev_yahoo, ccy)}")
+
+        target_price = financial_detail.analyst_target_price if financial_detail else None
+        upside = financial_detail.analyst_target_upside if financial_detail else None
+        downside = financial_detail.analyst_target_downside if financial_detail else None
+        recommendation = financial_detail.analyst_recommendation if financial_detail else None
+        analyst_count = financial_detail.analyst_count if financial_detail else None
+        forward_pe = financial_detail.forward_pe if financial_detail else None
+        beta = financial_detail.beta if financial_detail else None
+        confidence = financial_detail.confidence_level if financial_detail else None
+        last_refresh = financial_detail.last_refresh_at if financial_detail else None
+        self.lbl_target.setText(f"Target: {_fmt(target_price)} {ccy}" if target_price is not None else "Target: -")
+        if upside is None:
+            self.lbl_upside.setText("Upside/Downside: -")
+        else:
+            upside_txt = _fmt_pct(upside)
+            downside_txt = _fmt_pct(downside) if downside is not None else "-"
+            self.lbl_upside.setText(f"Upside/Downside: {upside_txt} / {downside_txt}")
+        self.lbl_reco.setText(f"Reco: {recommendation}" if recommendation else "Reco: -")
+        self.lbl_analyst_count.setText(f"Analysts: {analyst_count}" if analyst_count is not None else "Analysts: -")
+        self.lbl_forward_pe.setText(f"Fwd P/E: {_fmt_ratio(forward_pe)}" if forward_pe is not None else "Fwd P/E: -")
+        self.lbl_beta.setText(f"Beta: {_fmt(beta)}" if beta is not None else "Beta: -")
+        self.lbl_confidence.setText(f"Confidence: {(confidence or '-').upper()}")
+        self.lbl_last_refresh.setText(
+            f"Last refresh: {last_refresh.strftime('%Y-%m-%d %H:%M')}"
+            if last_refresh is not None
+            else "Last refresh: -"
+        )
 
         score = row.total_score if analyst_detail is None else analyst_detail.total_score
         score_text = "N/A"
@@ -856,12 +1017,13 @@ class CompanyDetailWidget(QWidget):
         self.badge_rank.setText(f"Rank #{rank}" if rank else "Rank: -")
 
         q_score = row.data_quality_score
-        q_color = C_POS if q_score and q_score >= 0.8 else C_WARN if q_score and q_score >= 0.5 else C_NEG
-        self.badge_quality.setText(f"Data Qty: {_fmt_pct(q_score)}")
+        q_score_pct = _to_quality_percent(q_score)
+        q_color = C_POS if q_score_pct and q_score_pct >= 80 else C_WARN if q_score_pct and q_score_pct >= 50 else C_NEG
+        self.badge_quality.setText(f"Data Qty: {_fmt_quality_pct(q_score)}")
         self.badge_quality.setStyleSheet(
             f"color: {q_color}; background-color: {q_color}20; border: 1px solid {q_color};"
         )
-        self.lbl_q_score.setText(f"Data Quality Score: {_fmt_pct(q_score)}")
+        self.lbl_q_score.setText(f"Data Quality Score: {_fmt_quality_pct(q_score)}")
 
         wl_status = analyst_detail.watchlist_status if analyst_detail else _NOT_IN_WATCHLIST
         wl_color = C_ACC_SEC if wl_status != _NOT_IN_WATCHLIST else C_TEXT_SEC
@@ -872,7 +1034,7 @@ class CompanyDetailWidget(QWidget):
 
         # KPIs
         self._update_kpi("Rev Growth", financial_detail.revenue_growth if financial_detail else None, _fmt_pct)
-        self._update_kpi("EBITDA Margin", financial_detail.operating_margin if financial_detail else None, _fmt_pct)
+        self._update_kpi("Operating Margin", financial_detail.operating_margin if financial_detail else None, _fmt_pct)
         self._update_kpi("Gross Margin", financial_detail.gross_margin if financial_detail else None, _fmt_pct)
         self._update_kpi("ROIC", financial_detail.roic if financial_detail else None, _fmt_pct)
         self._update_kpi("ROE", financial_detail.roe if financial_detail else None, _fmt_pct)
@@ -885,7 +1047,9 @@ class CompanyDetailWidget(QWidget):
 
         self._populate_fin_table(financial_detail)
         self._populate_charts(chart_data)
-        self._populate_memo(analyst_detail)
+        self._populate_memo(analyst_detail, financial_detail)
+        self._populate_ownership(peer_comparison, financial_detail)
+        self._populate_quality(financial_detail, q_score)
         self._populate_profile_card(financial_detail)
 
     def _populate_profile_card(self, detail: CompanyFinancialDetail | None) -> None:
@@ -895,7 +1059,6 @@ class CompanyDetailWidget(QWidget):
             self._lbl_profile_employees.setText("-")
             self._lbl_profile_website.setText("-")
             self._lbl_profile_phone.setText("-")
-            self._txt_business_summary.clear()
             return
 
         self._lbl_profile_industry.setText(detail.industry or "-")
@@ -910,8 +1073,6 @@ class CompanyDetailWidget(QWidget):
 
         self._lbl_profile_website.setText(detail.website or "-")
         self._lbl_profile_phone.setText(detail.phone or "-")
-
-        self._txt_business_summary.setPlainText(detail.business_summary or "")
         self._populate_metrics_card(detail)
 
     def _populate_metrics_card(self, detail: CompanyFinancialDetail | None) -> None:
@@ -923,11 +1084,13 @@ class CompanyDetailWidget(QWidget):
             self._lbl_roa.setText("-")
             self._lbl_current_ratio.setText("-")
             self._lbl_quick_ratio.setText("-")
-            self._lbl_float_shares.setText("-")
             self._lbl_payout_ratio.setText("-")
+            self._lbl_avg_volume.setText("-")
+            self._lbl_shares_outstanding.setText("-")
             self._lbl_div_yield.setText("-")
-            self._lbl_div_rate.setText("-")
-            self._lbl_ex_div_date.setText("-")
+            self._lbl_target_upside.setText("-")
+            self._lbl_target_price.setText("-")
+            self._lbl_float_shares.setText("-")
             self._lbl_5y_div_yield.setText("-")
             return
 
@@ -945,22 +1108,31 @@ class CompanyDetailWidget(QWidget):
 
         self._lbl_current_ratio.setText(_fmt_val(detail.latest_current_ratio))
         self._lbl_quick_ratio.setText(_fmt_val(detail.latest_quick_ratio))
-        self._lbl_float_shares.setText(_fmt_large(detail.float_shares))
         self._lbl_payout_ratio.setText(_fmt_pct(detail.latest_payout_ratio))
+        self._lbl_avg_volume.setText(_fmt_large(detail.average_daily_volume, detail.currency))
+        self._lbl_shares_outstanding.setText(_fmt_large(detail.shares_outstanding, detail.currency))
 
         self._lbl_div_yield.setText(_fmt_pct(detail.latest_dividend_yield))
-        self._lbl_div_rate.setText(
-            f"{detail.latest_dividend_rate:.2f} {detail.currency}" if detail.latest_dividend_rate else "-"
+        self._lbl_target_upside.setText(_fmt_pct(detail.analyst_target_upside))
+        self._lbl_target_price.setText(
+            f"{detail.analyst_target_price:.2f} {detail.currency}" if detail.analyst_target_price is not None else "-"
         )
-        self._lbl_ex_div_date.setText(detail.ex_dividend_date.strftime("%Y-%m-%d") if detail.ex_dividend_date else "-")
+        self._lbl_float_shares.setText(_fmt_large(detail.float_shares, detail.currency))
 
         # 5yAvg yield from yf is usually in % (e.g. 2.5), while current yield is 0.025.
-        if detail.latest_five_year_avg_dividend_yield:
+        if detail.latest_five_year_avg_dividend_yield is not None:
             self._lbl_5y_div_yield.setText(f"{detail.latest_five_year_avg_dividend_yield:.2f}%")
         else:
             self._lbl_5y_div_yield.setText("-")
 
-    def _populate_memo(self, analyst_detail: CompanyAnalystDetail | None) -> None:
+    def _populate_memo(
+        self,
+        analyst_detail: CompanyAnalystDetail | None,
+        financial_detail: CompanyFinancialDetail | None,
+    ) -> None:
+        summary_text = financial_detail.business_summary if financial_detail else None
+        self._memo_business_summary.setPlainText(summary_text or "")
+
         score_explanation = analyst_detail.score_explanation if analyst_detail else None
 
         # Strengths
@@ -1021,6 +1193,120 @@ class CompanyDetailWidget(QWidget):
             self.input_catalysts.clear()
             self.input_val.clear()
             self.input_action.clear()
+
+    def _populate_ownership(
+        self,
+        peer_comparison: PeerComparisonData | None,
+        financial_detail: CompanyFinancialDetail | None,
+    ) -> None:
+        _ = peer_comparison
+        self._lbl_ceo.setText(
+            financial_detail.ceo_name if financial_detail and financial_detail.ceo_name else "Not available"
+        )
+        self._lbl_cfo.setText(
+            financial_detail.cfo_name if financial_detail and financial_detail.cfo_name else "Not available"
+        )
+
+        refresh_text = "-"
+        if financial_detail and financial_detail.last_refresh_at:
+            refresh_text = financial_detail.last_refresh_at.strftime("%Y-%m-%d %H:%M")
+
+        major_count = len(financial_detail.major_holders) if financial_detail else 0
+        institutional_count = len(financial_detail.institutional_holders) if financial_detail else 0
+        insider_count = len(financial_detail.insider_activity) if financial_detail else 0
+
+        if (major_count + institutional_count + insider_count) == 0:
+            self._lbl_ownership_status.setText(
+                "Ownership data is currently unavailable from provider feeds. "
+                f"Last refresh: {refresh_text}. This is common on less-covered tickers."
+            )
+        else:
+            self._lbl_ownership_status.setText(
+                f"Ownership feed loaded ({major_count} major metrics, "
+                f"{institutional_count} institutions, {insider_count} insider rows). "
+                f"Last refresh: {refresh_text}."
+            )
+
+        def _set_empty_table(table: QTableWidget, column_count: int, message: str) -> None:
+            table.setRowCount(1)
+            table.setItem(0, 0, QTableWidgetItem(message))
+            for col_index in range(1, column_count):
+                table.setItem(0, col_index, QTableWidgetItem("-"))
+
+        top_holders = financial_detail.top_shareholders if financial_detail else ()
+        if not top_holders:
+            _set_empty_table(
+                self._tbl_top_holders,
+                4,
+                "No top shareholders available (Yahoo coverage is limited for this ticker).",
+            )
+        else:
+            self._tbl_top_holders.setRowCount(len(top_holders))
+            for row_index, holder in enumerate(top_holders):
+                holder_type = holder.holder_type.replace("_", " ").title()
+                self._tbl_top_holders.setItem(row_index, 0, QTableWidgetItem(holder.holder_name))
+                self._tbl_top_holders.setItem(row_index, 1, QTableWidgetItem(holder_type))
+                self._tbl_top_holders.setItem(row_index, 2, QTableWidgetItem(_fmt_pct(holder.weight)))
+                reported = holder.date_reported.isoformat() if holder.date_reported is not None else "-"
+                self._tbl_top_holders.setItem(row_index, 3, QTableWidgetItem(reported))
+
+        institutional_holders = financial_detail.institutional_holders if financial_detail else ()
+        if not institutional_holders:
+            _set_empty_table(
+                self._tbl_institutional_holders,
+                3,
+                "No institutional holdings available for this ticker.",
+            )
+        else:
+            self._tbl_institutional_holders.setRowCount(len(institutional_holders))
+            for row_index, holder in enumerate(institutional_holders):
+                self._tbl_institutional_holders.setItem(row_index, 0, QTableWidgetItem(holder.holder_name))
+                self._tbl_institutional_holders.setItem(row_index, 1, QTableWidgetItem(_fmt_pct(holder.weight)))
+                reported = holder.date_reported.isoformat() if holder.date_reported is not None else "-"
+                self._tbl_institutional_holders.setItem(row_index, 2, QTableWidgetItem(reported))
+
+        insider_activity = financial_detail.insider_activity if financial_detail else ()
+        if not insider_activity:
+            _set_empty_table(
+                self._tbl_insider_activity,
+                4,
+                "No recent insider transactions disclosed.",
+            )
+            return
+
+        self._tbl_insider_activity.setRowCount(len(insider_activity))
+        for row_index, insider in enumerate(insider_activity):
+            self._tbl_insider_activity.setItem(row_index, 0, QTableWidgetItem(insider.insider_name or "-"))
+            self._tbl_insider_activity.setItem(row_index, 1, QTableWidgetItem(insider.relation or "-"))
+            activity = insider.transaction_text or insider.ownership or "-"
+            self._tbl_insider_activity.setItem(row_index, 2, QTableWidgetItem(activity))
+            date_text = insider.start_date.isoformat() if insider.start_date is not None else "-"
+            self._tbl_insider_activity.setItem(row_index, 3, QTableWidgetItem(date_text))
+
+    def _populate_quality(self, detail: CompanyFinancialDetail | None, q_score: float | None) -> None:
+        self.lbl_q_score.setText(f"Data Quality Score: {_fmt_quality_pct(q_score)}")
+        if detail is None:
+            self.lbl_q_provider.setText("Provider: -")
+            self.lbl_q_snapshot_source.setText("Snapshot source: -")
+            self.lbl_q_refresh.setText("Last refresh: -")
+            self.lbl_q_snapshot_date.setText("Snapshot date: -")
+            self.lbl_q_confidence.setText("Confidence: -")
+            self.lbl_q_desc.setText("Missing fields: -")
+            return
+
+        self.lbl_q_provider.setText(f"Provider: {detail.provider_source or '-'}")
+        self.lbl_q_snapshot_source.setText(f"Snapshot source: {detail.snapshot_source or '-'}")
+        self.lbl_q_refresh.setText(
+            f"Last refresh: {detail.last_refresh_at.strftime('%Y-%m-%d %H:%M')}"
+            if detail.last_refresh_at
+            else "Last refresh: -"
+        )
+        self.lbl_q_snapshot_date.setText(
+            f"Snapshot date: {detail.snapshot_date.isoformat()}" if detail.snapshot_date else "Snapshot date: -"
+        )
+        self.lbl_q_confidence.setText(f"Confidence: {(detail.confidence_level or '-').upper()}")
+        missing_fields = ", ".join(detail.missing_fields) if detail.missing_fields else "none"
+        self.lbl_q_desc.setText(f"Missing fields: {missing_fields}")
 
     def _populate_charts(self, chart_data: CompanyChartsData | None) -> None:
         # Clear existing charts
@@ -1313,7 +1599,16 @@ class CompanyDetailWidget(QWidget):
         self.lbl_sector.setText("-")
         self.lbl_price.setText("-")
         self.lbl_mcap.setText("-")
-        self.lbl_ev.setText("-")
+        self.lbl_ev_model.setText("-")
+        self.lbl_ev_yahoo.setText("-")
+        self.lbl_target.setText("Target: -")
+        self.lbl_upside.setText("Upside/Downside: -")
+        self.lbl_reco.setText("Reco: -")
+        self.lbl_analyst_count.setText("Analysts: -")
+        self.lbl_forward_pe.setText("Fwd P/E: -")
+        self.lbl_beta.setText("Beta: -")
+        self.lbl_confidence.setText("Confidence: -")
+        self.lbl_last_refresh.setText("Last refresh: -")
 
         font_st = "font-size: 18px; font-weight: 600; font-family: 'IBM Plex Sans', 'JetBrains Mono', monospace;"
         for lbl_val, lbl_sig in self.kpi_widgets.values():
@@ -1341,8 +1636,10 @@ class CompanyDetailWidget(QWidget):
         self._lbl_profile_employees.setText("-")
         self._lbl_profile_website.setText("-")
         self._lbl_profile_phone.setText("-")
-        self._txt_business_summary.clear()
+        self._memo_business_summary.clear()
         self._populate_metrics_card(None)
+        self._populate_ownership(None, None)
+        self._populate_quality(None, None)
 
         while self.chart_container.count():
             item = self.chart_container.takeAt(0)

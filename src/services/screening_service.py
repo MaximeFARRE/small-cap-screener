@@ -94,14 +94,14 @@ class UniverseScreeningEntry:
     ticker: str | None
     name: str
     sector: str | None
-    country: str | None
-    total_score: float | None
-    quality_score: float | None
-    value_score: float | None
-    growth_score: float | None
-    risk_score: float | None
-    rank: int | None
-    sector_rank: int | None
+    country: str | None = None
+    total_score: float | None = None
+    quality_score: float | None = None
+    value_score: float | None = None
+    growth_score: float | None = None
+    risk_score: float | None = None
+    rank: int | None = None
+    sector_rank: int | None = None
     pe_ratio: float | None = None
     revenue_growth: float | None = None
     operating_margin: float | None = None

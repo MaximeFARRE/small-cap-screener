@@ -9,7 +9,13 @@ from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
 
 from src.models.company import Company
+from src.models.company_executive import CompanyExecutive
+from src.models.company_holder import CompanyHolder
+from src.models.company_insider_transaction import CompanyInsiderTransaction
 from src.repositories import (
+    company_executive_repository,
+    company_holder_repository,
+    company_insider_transaction_repository,
     company_repository,
     financial_statement_repository,
     market_data_repository,
@@ -21,7 +27,10 @@ from src.repositories.providers.base import (
     BaseProvider,
     CompanyProfile,
     DividendData,
+    ExecutiveData,
     FinancialData,
+    HolderData,
+    InsiderTransactionData,
     MarketData,
     PriceHistory,
     ProviderDataInconsistentError,
@@ -57,6 +66,11 @@ class FetchedCompanyData:
     dividends: list[DividendData]
     splits: list[SplitData]
     analyst_data: AnalystData | None = None
+    major_holders: list[HolderData] = field(default_factory=list)
+    institutional_holders: list[HolderData] = field(default_factory=list)
+    mutualfund_holders: list[HolderData] = field(default_factory=list)
+    insider_transactions: list[InsiderTransactionData] = field(default_factory=list)
+    key_executives: list[ExecutiveData] = field(default_factory=list)
 
 
 @dataclass
@@ -165,6 +179,36 @@ class FinancialDataService:
             if hasattr(self.provider, "get_analyst_data")
             else None
         )
+        major_holders = self._fetch_optional_provider_data(
+            ticker=normalized_ticker,
+            operation="major_holders",
+            fallback=[],
+            fetch_fn=lambda: self.provider.get_major_holders(normalized_ticker),
+        )
+        institutional_holders = self._fetch_optional_provider_data(
+            ticker=normalized_ticker,
+            operation="institutional_holders",
+            fallback=[],
+            fetch_fn=lambda: self.provider.get_institutional_holders(normalized_ticker),
+        )
+        mutualfund_holders = self._fetch_optional_provider_data(
+            ticker=normalized_ticker,
+            operation="mutualfund_holders",
+            fallback=[],
+            fetch_fn=lambda: self.provider.get_mutualfund_holders(normalized_ticker),
+        )
+        insider_transactions = self._fetch_optional_provider_data(
+            ticker=normalized_ticker,
+            operation="insider_transactions",
+            fallback=[],
+            fetch_fn=lambda: self.provider.get_insider_transactions(normalized_ticker),
+        )
+        key_executives = self._fetch_optional_provider_data(
+            ticker=normalized_ticker,
+            operation="key_executives",
+            fallback=[],
+            fetch_fn=lambda: self.provider.get_key_executives(normalized_ticker),
+        )
 
         return FetchedCompanyData(
             ticker=normalized_ticker,
@@ -175,6 +219,11 @@ class FinancialDataService:
             dividends=dividends,
             splits=splits,
             analyst_data=analyst_data,
+            major_holders=major_holders,
+            institutional_holders=institutional_holders,
+            mutualfund_holders=mutualfund_holders,
+            insider_transactions=insider_transactions,
+            key_executives=key_executives,
         )
 
     def refresh_company_data(self, company_id: int) -> CompanyDataRefreshResult:
@@ -326,6 +375,7 @@ class FinancialDataService:
                     dividends=validated_data.dividends,
                     splits=validated_data.splits,
                 )
+                _sync_company_ownership_payload(session, company, fetched)
                 metadata_payload = _validation_data_to_fetched_data(validated_data)
                 metadata_payload.analyst_data = fetched.analyst_data
                 _apply_company_metadata(company, metadata_payload)
@@ -597,6 +647,7 @@ def _apply_company_metadata(company: Company, fetched: FetchedCompanyData) -> No
         if fetched.market_data.currency is not None:
             company.currency = fetched.market_data.currency
     if fetched.analyst_data is not None:
+        company.enterprise_value_yahoo = fetched.analyst_data.enterprise_value
         company.beta = fetched.analyst_data.beta
         company.analyst_target_price = fetched.analyst_data.target_price_mean
         company.analyst_recommendation = fetched.analyst_data.recommendation_key
@@ -689,6 +740,11 @@ def _build_payload_from_normalized(
             for record in normalized.splits
         ],
         analyst_data=fetched.analyst_data,
+        major_holders=fetched.major_holders,
+        institutional_holders=fetched.institutional_holders,
+        mutualfund_holders=fetched.mutualfund_holders,
+        insider_transactions=fetched.insider_transactions,
+        key_executives=fetched.key_executives,
     )
 
 
@@ -741,6 +797,69 @@ def _validation_data_to_fetched_data(validated_data) -> FetchedCompanyData:
         dividends=validated_data.dividends,
         splits=validated_data.splits,
     )
+
+
+def _sync_company_ownership_payload(session: Session, company: Company, fetched: FetchedCompanyData) -> None:
+    holders_payload = [*fetched.major_holders, *fetched.institutional_holders, *fetched.mutualfund_holders]
+    holders_to_store: list[CompanyHolder] = []
+    for index, holder in enumerate(holders_payload):
+        if not holder.holder_name.strip():
+            continue
+        holders_to_store.append(
+            CompanyHolder(
+                company_id=company.id,
+                sort_order=index,
+                holder_type=holder.holder_type,
+                holder_name=holder.holder_name,
+                weight=holder.weight,
+                shares=holder.shares,
+                market_value=holder.market_value,
+                date_reported=holder.date_reported,
+                source=holder.source,
+                fetched_at=holder.fetched_at,
+            )
+        )
+
+    executives_to_store: list[CompanyExecutive] = []
+    for index, executive in enumerate(fetched.key_executives):
+        if not executive.name.strip():
+            continue
+        executives_to_store.append(
+            CompanyExecutive(
+                company_id=company.id,
+                sort_order=index,
+                name=executive.name,
+                title=executive.title,
+                age=executive.age,
+                total_pay=executive.total_pay,
+                year_born=executive.year_born,
+                fiscal_year=executive.fiscal_year,
+                source=executive.source,
+                fetched_at=executive.fetched_at,
+            )
+        )
+
+    insiders_to_store: list[CompanyInsiderTransaction] = []
+    for index, insider in enumerate(fetched.insider_transactions):
+        insiders_to_store.append(
+            CompanyInsiderTransaction(
+                company_id=company.id,
+                sort_order=index,
+                insider_name=insider.insider_name,
+                relation=insider.relation,
+                transaction_text=insider.transaction_text,
+                ownership=insider.ownership,
+                shares=insider.shares,
+                market_value=insider.market_value,
+                start_date=insider.start_date,
+                source=insider.source,
+                fetched_at=insider.fetched_at,
+            )
+        )
+
+    company_holder_repository.replace_for_company(session, company.id, holders_to_store)
+    company_executive_repository.replace_for_company(session, company.id, executives_to_store)
+    company_insider_transaction_repository.replace_for_company(session, company.id, insiders_to_store)
 
 
 def _classify_provider_error(exc: Exception) -> str:
