@@ -41,6 +41,7 @@ def init_db() -> None:
     _ensure_company_isin_nullable()
     _ensure_watchlist_memo_columns()
     _ensure_company_enrichment_columns()
+    _ensure_company_profile_columns()
     _ensure_financial_statement_columns()
 
 
@@ -110,6 +111,23 @@ def _ensure_company_enrichment_columns() -> None:
             return
         existing_columns = {column["name"] for column in inspector.get_columns("companies")}
         for column_name, column_sql_type in company_columns.items():
+            if column_name in existing_columns:
+                continue
+            connection.exec_driver_sql(f"ALTER TABLE companies ADD COLUMN {column_name} {column_sql_type}")
+
+
+def _ensure_company_profile_columns() -> None:
+    profile_columns: dict[str, str] = {
+        "full_time_employees": "INTEGER",
+        "city": "VARCHAR(100)",
+        "phone": "VARCHAR(50)",
+    }
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        if "companies" not in inspector.get_table_names():
+            return
+        existing_columns = {column["name"] for column in inspector.get_columns("companies")}
+        for column_name, column_sql_type in profile_columns.items():
             if column_name in existing_columns:
                 continue
             connection.exec_driver_sql(f"ALTER TABLE companies ADD COLUMN {column_name} {column_sql_type}")

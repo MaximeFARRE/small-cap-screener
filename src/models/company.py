@@ -33,7 +33,10 @@ class Company(Base):
     market: Mapped[str | None] = mapped_column(String(100))
     currency: Mapped[str] = mapped_column(String(3), default="EUR")
     website: Mapped[str | None] = mapped_column(String(500), default=None)
-    business_summary: Mapped[str | None] = mapped_column(String(4000), default=None)
+    business_summary: Mapped[str | None] = mapped_column(String(5000), default=None)
+    full_time_employees: Mapped[int | None] = mapped_column(default=None)
+    city: Mapped[str | None] = mapped_column(String(100), default=None)
+    phone: Mapped[str | None] = mapped_column(String(50), default=None)
     is_active: Mapped[bool] = mapped_column(default=True)
     market_cap: Mapped[float | None]
     average_daily_volume: Mapped[float | None]
