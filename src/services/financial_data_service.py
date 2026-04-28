@@ -585,6 +585,12 @@ def _apply_company_metadata(company: Company, fetched: FetchedCompanyData) -> No
         company.website = fetched.profile.website
         if fetched.profile.business_summary is not None:
             company.business_summary = fetched.profile.business_summary
+        if fetched.profile.full_time_employees is not None:
+            company.full_time_employees = fetched.profile.full_time_employees
+        if fetched.profile.city is not None:
+            company.city = fetched.profile.city
+        if fetched.profile.phone is not None:
+            company.phone = fetched.profile.phone
     if fetched.market_data is not None:
         company.market_cap = fetched.market_data.market_cap
         company.average_daily_volume = fetched.market_data.volume
@@ -680,6 +686,9 @@ def _normalized_profile(normalized: NormalizedCompanyData, profile: CompanyProfi
         currency=normalized.currency if normalized.currency is not None else profile.currency,
         website=profile.website,
         business_summary=profile.business_summary,
+        full_time_employees=profile.full_time_employees,
+        city=profile.city,
+        phone=profile.phone,
         source=profile.source,
         fetched_at=profile.fetched_at,
     )
