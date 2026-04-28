@@ -14,7 +14,7 @@ load_dotenv(_PROJECT_ROOT / ".env")
 
 def _default_sqlite_database_path() -> pathlib.Path:
     if getattr(sys, "frozen", False):
-        return pathlib.Path(sys.executable).resolve().parent / "data" / "screener.db"
+        return pathlib.Path(sys.executable).parent / "data" / "screener.db"
     return _PROJECT_ROOT / "data" / "screener.db"
 
 
