@@ -94,13 +94,14 @@ class UniverseScreeningEntry:
     ticker: str | None
     name: str
     sector: str | None
-    total_score: float | None
-    quality_score: float | None
-    value_score: float | None
-    growth_score: float | None
-    risk_score: float | None
-    rank: int | None
-    sector_rank: int | None
+    country: str | None = None
+    total_score: float | None = None
+    quality_score: float | None = None
+    value_score: float | None = None
+    growth_score: float | None = None
+    risk_score: float | None = None
+    rank: int | None = None
+    sector_rank: int | None = None
     pe_ratio: float | None = None
     revenue_growth: float | None = None
     operating_margin: float | None = None
@@ -517,6 +518,7 @@ def _build_universe_screening_entries(
                 ticker=company.ticker,
                 name=company.name,
                 sector=company.sector,
+                country=company.country,
                 total_score=_snapshot_metric_as_float(snapshot, TOTAL_SCORE_KEY),
                 quality_score=_snapshot_metric_as_float(snapshot, QUALITY_SCORE_KEY),
                 value_score=_snapshot_metric_as_float(snapshot, VALUE_SCORE_KEY),

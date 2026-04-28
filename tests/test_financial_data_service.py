@@ -8,12 +8,22 @@ from unittest.mock import MagicMock
 from src.models.company import Company
 from src.models.financial_statement import FinancialStatement, PeriodType
 from src.models.price_history import PriceHistory as PriceHistoryModel
-from src.repositories import company_repository, financial_statement_repository, price_history_repository
+from src.repositories import (
+    company_executive_repository,
+    company_holder_repository,
+    company_insider_transaction_repository,
+    company_repository,
+    financial_statement_repository,
+    price_history_repository,
+)
 from src.repositories.providers.base import (
     CompanyInfo,
     CompanyProfile,
     DataFetchError,
+    ExecutiveData,
     FinancialData,
+    HolderData,
+    InsiderTransactionData,
     MarketData,
     PriceHistory,
 )
@@ -146,6 +156,65 @@ def _make_provider(
     provider.get_dividends.return_value = []
     provider.get_splits.return_value = []
     provider.get_analyst_data.return_value = None
+    provider.get_major_holders.return_value = [
+        HolderData(
+            ticker="ALPHA.PA",
+            holder_type="major",
+            holder_name="% of Shares Held by Institutions",
+            weight=0.72,
+            source="mock-provider",
+        )
+    ]
+    provider.get_institutional_holders.return_value = [
+        HolderData(
+            ticker="ALPHA.PA",
+            holder_type="institutional",
+            holder_name="BlackRock",
+            weight=0.08,
+            shares=1_200_000.0,
+            source="mock-provider",
+        )
+    ]
+    provider.get_mutualfund_holders.return_value = [
+        HolderData(
+            ticker="ALPHA.PA",
+            holder_type="mutual_fund",
+            holder_name="Vanguard Fund",
+            weight=0.04,
+            shares=600_000.0,
+            source="mock-provider",
+        )
+    ]
+    provider.get_insider_transactions.return_value = [
+        InsiderTransactionData(
+            ticker="ALPHA.PA",
+            insider_name="Jane Doe",
+            relation="CFO",
+            transaction_text="Sale",
+            ownership="D",
+            shares=10_000.0,
+            market_value=250_000.0,
+            source="mock-provider",
+        )
+    ]
+    provider.get_key_executives.return_value = [
+        ExecutiveData(
+            ticker="ALPHA.PA",
+            name="John CEO",
+            title="Chief Executive Officer",
+            age=52,
+            total_pay=1_200_000.0,
+            source="mock-provider",
+        ),
+        ExecutiveData(
+            ticker="ALPHA.PA",
+            name="Jane CFO",
+            title="Chief Financial Officer",
+            age=48,
+            total_pay=900_000.0,
+            source="mock-provider",
+        ),
+    ]
     return provider
 
 
@@ -190,6 +259,9 @@ def test_refresh_company_data_existing_company(db_session):
     assert updated.average_daily_volume == 250_000
     assert len(price_history_repository.get_by_company(db_session, company.id)) == 1
     assert len(financial_statement_repository.get_by_company(db_session, company.id)) == 1
+    assert len(company_executive_repository.get_by_company(db_session, company.id)) == 2
+    assert len(company_holder_repository.get_by_company(db_session, company.id)) == 3
+    assert len(company_insider_transaction_repository.get_by_company(db_session, company.id)) == 1
 
 
 def test_refresh_company_data_allows_missing_isin(db_session):
@@ -341,6 +413,19 @@ def test_fetch_company_data_uses_fallback_after_optional_retry_failure(db_sessio
     assert fetched.ticker == "ALPHA.PA"
     assert fetched.market_data is None
     assert service.provider.get_current_market_data.call_count == 2
+
+
+def test_fetch_company_data_ownership_fallback_when_provider_missing_data(db_session):
+    provider = _make_provider()
+    provider.get_institutional_holders.side_effect = DataFetchError("holders endpoint down")
+    service = _make_service(db_session, provider, provider_call_max_attempts=2)
+
+    fetched = service.fetch_company_data("ALPHA.PA")
+
+    assert fetched.ticker == "ALPHA.PA"
+    assert fetched.institutional_holders == []
+    assert fetched.major_holders != []
+    assert service.provider.get_institutional_holders.call_count == 2
 
 
 def test_refresh_company_data_offline_uses_local_data_only(db_session):

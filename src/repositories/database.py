@@ -28,6 +28,9 @@ def init_db() -> None:
         pathlib.Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
     import src.models.company  # noqa: F401
+    import src.models.company_executive  # noqa: F401
+    import src.models.company_holder  # noqa: F401
+    import src.models.company_insider_transaction  # noqa: F401
     import src.models.dividend  # noqa: F401
     import src.models.financial_statement  # noqa: F401
     import src.models.kpi_snapshot  # noqa: F401
@@ -41,6 +44,8 @@ def init_db() -> None:
     _ensure_company_isin_nullable()
     _ensure_watchlist_memo_columns()
     _ensure_company_enrichment_columns()
+    _ensure_company_profile_columns()
+    _ensure_company_fundamental_columns()
     _ensure_financial_statement_columns()
 
 
@@ -103,6 +108,7 @@ def _ensure_company_enrichment_columns() -> None:
         "analyst_recommendation": "VARCHAR(20)",
         "analyst_count": "INTEGER",
         "forward_pe": "FLOAT",
+        "enterprise_value_yahoo": "FLOAT",
     }
     with engine.begin() as connection:
         inspector = inspect(connection)
@@ -110,6 +116,51 @@ def _ensure_company_enrichment_columns() -> None:
             return
         existing_columns = {column["name"] for column in inspector.get_columns("companies")}
         for column_name, column_sql_type in company_columns.items():
+            if column_name in existing_columns:
+                continue
+            connection.exec_driver_sql(f"ALTER TABLE companies ADD COLUMN {column_name} {column_sql_type}")
+
+
+def _ensure_company_profile_columns() -> None:
+    profile_columns: dict[str, str] = {
+        "full_time_employees": "INTEGER",
+        "city": "VARCHAR(100)",
+        "phone": "VARCHAR(50)",
+    }
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        if "companies" not in inspector.get_table_names():
+            return
+        existing_columns = {column["name"] for column in inspector.get_columns("companies")}
+        for column_name, column_sql_type in profile_columns.items():
+            if column_name in existing_columns:
+                continue
+            connection.exec_driver_sql(f"ALTER TABLE companies ADD COLUMN {column_name} {column_sql_type}")
+
+
+def _ensure_company_fundamental_columns() -> None:
+    columns: dict[str, str] = {
+        "gross_margins": "FLOAT",
+        "operating_margins": "FLOAT",
+        "profit_margins": "FLOAT",
+        "roe": "FLOAT",
+        "roa": "FLOAT",
+        "current_ratio": "FLOAT",
+        "quick_ratio": "FLOAT",
+        "payout_ratio": "FLOAT",
+        "shares_outstanding": "FLOAT",
+        "float_shares": "FLOAT",
+        "dividend_rate": "FLOAT",
+        "dividend_yield": "FLOAT",
+        "ex_dividend_date": "DATETIME",
+        "five_year_avg_dividend_yield": "FLOAT",
+    }
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        if "companies" not in inspector.get_table_names():
+            return
+        existing_columns = {column["name"] for column in inspector.get_columns("companies")}
+        for column_name, column_sql_type in columns.items():
             if column_name in existing_columns:
                 continue
             connection.exec_driver_sql(f"ALTER TABLE companies ADD COLUMN {column_name} {column_sql_type}")

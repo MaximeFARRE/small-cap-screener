@@ -41,6 +41,9 @@ class CompanyProfile:
     website: str | None
     business_summary: str | None = None
     isin: str | None = None
+    full_time_employees: int | None = None
+    city: str | None = None
+    phone: str | None = None
     source: str | None = None
     fetched_at: datetime | None = None
 
@@ -126,6 +129,64 @@ class AnalystData:
     target_price_low: float | None
     recommendation_key: str | None
     number_of_analyst_opinions: int | None
+    # New fundamental metrics
+    gross_margins: float | None = None
+    operating_margins: float | None = None
+    profit_margins: float | None = None
+    roe: float | None = None
+    roa: float | None = None
+    current_ratio: float | None = None
+    quick_ratio: float | None = None
+    payout_ratio: float | None = None
+    # Shares and volume
+    shares_outstanding: float | None = None
+    float_shares: float | None = None
+    average_volume: float | None = None
+    # Dividends
+    dividend_rate: float | None = None
+    dividend_yield: float | None = None
+    ex_dividend_date: datetime | None = None
+    five_year_avg_dividend_yield: float | None = None
+    source: str | None = None
+    fetched_at: datetime | None = None
+
+
+@dataclass
+class HolderData:
+    ticker: str
+    holder_type: str
+    holder_name: str
+    weight: float | None
+    shares: float | None = None
+    market_value: float | None = None
+    date_reported: date | None = None
+    source: str | None = None
+    fetched_at: datetime | None = None
+
+
+@dataclass
+class InsiderTransactionData:
+    ticker: str
+    insider_name: str | None
+    relation: str | None
+    transaction_text: str | None
+    ownership: str | None
+    shares: float | None
+    market_value: float | None
+    start_date: date | None = None
+    source: str | None = None
+    fetched_at: datetime | None = None
+
+
+@dataclass
+class ExecutiveData:
+    ticker: str
+    name: str
+    title: str | None
+    age: int | None
+    total_pay: float | None
+    year_born: int | None = None
+    fiscal_year: int | None = None
     source: str | None = None
     fetched_at: datetime | None = None
 
@@ -153,6 +214,21 @@ class BaseProvider(ABC):
 
     @abstractmethod
     def get_current_price(self, ticker: str) -> float: ...
+
+    def get_major_holders(self, ticker: str) -> list[HolderData]:
+        return []
+
+    def get_institutional_holders(self, ticker: str) -> list[HolderData]:
+        return []
+
+    def get_mutualfund_holders(self, ticker: str) -> list[HolderData]:
+        return []
+
+    def get_insider_transactions(self, ticker: str) -> list[InsiderTransactionData]:
+        return []
+
+    def get_key_executives(self, ticker: str) -> list[ExecutiveData]:
+        return []
 
     def search_by_isin(self, isin: str) -> str | None:
         """Find the ticker corresponding to an ISIN, or None if not found or not supported."""

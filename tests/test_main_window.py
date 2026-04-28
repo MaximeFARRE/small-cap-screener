@@ -7,6 +7,7 @@ import pytest
 from PySide6.QtWidgets import QApplication
 
 import src.ui.main_window as main_window_module
+from src.services.company_detail_service import CompanyFinancialDetail
 from src.services.screening_service import (
     ScreeningSnapshotComparisonRow,
     ScreeningSnapshotRow,
@@ -277,6 +278,17 @@ def test_detail_widget_loads_with_none_data_without_crash(monkeypatch, qapp):
     window._detail.load(row, analyst_detail=None, financial_detail=None, chart_data=None, peer_comparison=None)
 
     assert window._detail._current_row is not None
+
+
+def test_detail_widget_loads_with_empty_ownership_data_without_crash(monkeypatch, qapp):
+    window = _build_window(monkeypatch, qapp)
+    row = _make_screener_row()
+    detail = CompanyFinancialDetail(company_id=row.company_id, ticker=row.ticker, name=row.name, currency="EUR")
+
+    window._detail.load(row, analyst_detail=None, financial_detail=detail, chart_data=None, peer_comparison=None)
+
+    assert window._detail._current_row is not None
+    assert "Ownership data is currently unavailable" in window._detail._lbl_ownership_status.text()
 
 
 class FakeWatchlistServiceWithSpies(FakeWatchlistService):

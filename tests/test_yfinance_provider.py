@@ -14,7 +14,17 @@ TICKER = "TTE.PA"
 
 
 def _mock_ticker(
-    info=None, history=None, financials=None, balance_sheet=None, cashflow=None, dividends=None, splits=None
+    info=None,
+    history=None,
+    financials=None,
+    balance_sheet=None,
+    cashflow=None,
+    dividends=None,
+    splits=None,
+    major_holders=None,
+    institutional_holders=None,
+    mutualfund_holders=None,
+    insider_transactions=None,
 ):
     t = MagicMock()
     t.info = info or {}
@@ -24,6 +34,10 @@ def _mock_ticker(
     t.cashflow = cashflow if cashflow is not None else pd.DataFrame()
     t.dividends = dividends if dividends is not None else pd.Series(dtype="float64")
     t.splits = splits if splits is not None else pd.Series(dtype="float64")
+    t.major_holders = major_holders if major_holders is not None else pd.DataFrame()
+    t.institutional_holders = institutional_holders if institutional_holders is not None else pd.DataFrame()
+    t.mutualfund_holders = mutualfund_holders if mutualfund_holders is not None else pd.DataFrame()
+    t.insider_transactions = insider_transactions if insider_transactions is not None else pd.DataFrame()
     return t
 
 
@@ -506,3 +520,101 @@ def test_get_analyst_data_ticker_stored_correctly(mock_ticker_cls):
     data = YFinanceProvider().get_analyst_data(TICKER)
     assert data.ticker == TICKER
     assert data.source == "yfinance"
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_major_holders_returns_structured_rows(mock_ticker_cls):
+    major_holders = pd.DataFrame(
+        [
+            ["72%", "% of Shares Held by Institutions"],
+            ["125", "Number of Institutions Holding Shares"],
+        ]
+    )
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"longName": "TotalEnergies SE", "currency": "EUR"},
+        major_holders=major_holders,
+    )
+    holders = YFinanceProvider().get_major_holders(TICKER)
+    assert len(holders) == 2
+    assert holders[0].holder_type == "major"
+    assert holders[0].holder_name == "% of Shares Held by Institutions"
+    assert holders[0].weight == pytest.approx(0.72)
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_institutional_holders_returns_structured_rows(mock_ticker_cls):
+    institutional = pd.DataFrame(
+        [
+            {
+                "Holder": "BlackRock",
+                "Shares": 1200000.0,
+                "% Out": 0.08,
+                "Value": 250000000.0,
+                "Date Reported": pd.Timestamp("2026-03-31"),
+            }
+        ]
+    )
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"longName": "TotalEnergies SE", "currency": "EUR"},
+        institutional_holders=institutional,
+    )
+    holders = YFinanceProvider().get_institutional_holders(TICKER)
+    assert len(holders) == 1
+    assert holders[0].holder_type == "institutional"
+    assert holders[0].holder_name == "BlackRock"
+    assert holders[0].weight == pytest.approx(0.08)
+    assert holders[0].shares == pytest.approx(1200000.0)
+    assert holders[0].date_reported == date(2026, 3, 31)
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_insider_transactions_returns_structured_rows(mock_ticker_cls):
+    insiders = pd.DataFrame(
+        [
+            {
+                "Insider": "Jane Doe",
+                "Position": "CFO",
+                "Text": "Sale",
+                "Ownership": "D",
+                "Shares": 10000.0,
+                "Value": 300000.0,
+                "Start Date": pd.Timestamp("2026-01-15"),
+            }
+        ]
+    )
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"longName": "TotalEnergies SE", "currency": "EUR"},
+        insider_transactions=insiders,
+    )
+    transactions = YFinanceProvider().get_insider_transactions(TICKER)
+    assert len(transactions) == 1
+    assert transactions[0].insider_name == "Jane Doe"
+    assert transactions[0].relation == "CFO"
+    assert transactions[0].transaction_text == "Sale"
+    assert transactions[0].start_date == date(2026, 1, 15)
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_key_executives_returns_company_officers(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={
+            "longName": "TotalEnergies SE",
+            "currency": "EUR",
+            "companyOfficers": [
+                {
+                    "name": "John Leader",
+                    "title": "Chief Executive Officer",
+                    "age": 52,
+                    "totalPay": 1200000.0,
+                    "yearBorn": 1974,
+                    "fiscalYear": 2025,
+                }
+            ],
+        }
+    )
+    executives = YFinanceProvider().get_key_executives(TICKER)
+    assert len(executives) == 1
+    assert executives[0].name == "John Leader"
+    assert executives[0].title == "Chief Executive Officer"
+    assert executives[0].age == 52
+    assert executives[0].total_pay == pytest.approx(1200000.0)

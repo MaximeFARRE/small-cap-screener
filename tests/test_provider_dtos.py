@@ -5,6 +5,9 @@ from datetime import date, datetime
 from src.repositories.providers.base import (
     CompanyProfile,
     DividendData,
+    ExecutiveData,
+    HolderData,
+    InsiderTransactionData,
     MarketData,
     PriceHistory,
     PriceRecord,
@@ -65,12 +68,43 @@ def test_dto_creation_with_metadata():
         source="yfinance",
         fetched_at=fetched_at,
     )
+    holder = HolderData(
+        ticker="TTE.PA",
+        holder_type="institutional",
+        holder_name="BlackRock",
+        weight=0.08,
+        source="yfinance",
+        fetched_at=fetched_at,
+    )
+    insider = InsiderTransactionData(
+        ticker="TTE.PA",
+        insider_name="Jane Doe",
+        relation="CFO",
+        transaction_text="Sale",
+        ownership="D",
+        shares=10000.0,
+        market_value=300000.0,
+        source="yfinance",
+        fetched_at=fetched_at,
+    )
+    executive = ExecutiveData(
+        ticker="TTE.PA",
+        name="John Leader",
+        title="Chief Executive Officer",
+        age=52,
+        total_pay=1200000.0,
+        source="yfinance",
+        fetched_at=fetched_at,
+    )
 
     assert profile.source == "yfinance"
     assert market_data.fetched_at == fetched_at
     assert price.source == "yfinance"
     assert dividend.fetched_at == fetched_at
     assert split.source == "yfinance"
+    assert holder.source == "yfinance"
+    assert insider.fetched_at == fetched_at
+    assert executive.title == "Chief Executive Officer"
 
 
 def test_dto_optional_fields_accept_none():
