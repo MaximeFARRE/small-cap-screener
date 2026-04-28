@@ -71,6 +71,13 @@ class CompanyFinancialDetail:
     name: str
     sector: str | None
     currency: str
+    # Company profile
+    industry: str | None
+    website: str | None
+    business_summary: str | None
+    full_time_employees: int | None
+    city: str | None
+    phone: str | None
     # Market data
     current_price: float | None
     market_cap: float | None
@@ -347,6 +354,12 @@ def _build_detail(
         name=company.name,
         sector=company.sector,
         currency=company.currency,
+        industry=company.industry,
+        website=company.website,
+        business_summary=company.business_summary,
+        full_time_employees=company.full_time_employees,
+        city=company.city,
+        phone=company.phone,
         current_price=current_price,
         market_cap=market_cap,
         enterprise_value=enterprise_value,
