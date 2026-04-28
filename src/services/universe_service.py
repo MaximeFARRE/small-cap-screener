@@ -8,7 +8,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from src.models.company import Company
-from src.repositories import company_repository, seed_universe_repository
+from src.repositories import company_repository, euronext_discovery_repository, seed_universe_repository
 from src.repositories.database import get_session
 
 SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
@@ -30,6 +30,11 @@ class UniverseService:
 
     def load_seed_universe(self, csv_path: str | Path) -> list[Company]:
         entries = seed_universe_repository.read_seed_universe(csv_path)
+        with self.session_scope_factory() as session:
+            return company_repository.bulk_upsert_from_seed(session, entries)
+
+    def load_euronext_france_universe(self) -> list[Company]:
+        entries = euronext_discovery_repository.discover_french_listed_companies()
         with self.session_scope_factory() as session:
             return company_repository.bulk_upsert_from_seed(session, entries)
 

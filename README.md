@@ -22,6 +22,7 @@ This project provides one coherent workflow: ingest data, compute KPIs, score co
 * Simple sub-score weight configuration (`src/services/scoring_config.py`)
 * Global and sector ranking on the scored universe
 * Real ticker and ISIN ingestion from the app (no CSV workflow required)
+* Automatic Euronext France universe discovery (XPAR/ALXP/XMLI) with no manual seed CSV
 * Automatic ticker resolution with exchange suffix probing (`.PA`, `.AL`, etc.)
 * One-click refresh for single company, watchlist, or full universe
 * Analyst workflow (watchlist, notes, status, exclusions)
