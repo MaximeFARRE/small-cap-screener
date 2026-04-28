@@ -462,6 +462,79 @@ class CompanyDetailWidget(QWidget):
             self.kpi_grid.addWidget(card, i // 3, i % 3)
 
         parent_layout.addLayout(self.kpi_grid)
+        self._build_profile_card(parent_layout)
+
+    def _build_profile_card(self, parent_layout: QVBoxLayout) -> None:
+        frame = QFrame()
+        frame.setObjectName("Card")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(16, 12, 16, 16)
+        layout.setSpacing(10)
+
+        header = QLabel("Company Profile")
+        header.setStyleSheet(
+            f"font-size: 13px; font-weight: bold; color: {C_TEXT_SEC};"
+            f" text-transform: uppercase; padding-bottom: 4px;"
+            f" border-bottom: 1px solid {C_BORDER};"
+        )
+        layout.addWidget(header)
+
+        meta_layout = QGridLayout()
+        meta_layout.setSpacing(8)
+        meta_layout.setColumnMinimumWidth(1, 120)
+
+        def _meta_label(text: str, bold: bool = False) -> QLabel:
+            lbl = QLabel(text)
+            style = f"color: {C_TEXT_SEC}; font-size: 12px;"
+            if bold:
+                style += f" font-weight: 600; color: {C_TEXT_MAIN};"
+            lbl.setStyleSheet(style)
+            lbl.setWordWrap(True)
+            return lbl
+
+        meta_layout.addWidget(_meta_label("Industry"), 0, 0)
+        self._lbl_profile_industry = _meta_label("-", bold=True)
+        meta_layout.addWidget(self._lbl_profile_industry, 0, 1)
+
+        meta_layout.addWidget(_meta_label("Location"), 1, 0)
+        self._lbl_profile_location = _meta_label("-", bold=True)
+        meta_layout.addWidget(self._lbl_profile_location, 1, 1)
+
+        meta_layout.addWidget(_meta_label("Employees"), 2, 0)
+        self._lbl_profile_employees = _meta_label("-", bold=True)
+        meta_layout.addWidget(self._lbl_profile_employees, 2, 1)
+
+        meta_layout.addWidget(_meta_label("Website"), 3, 0)
+        self._lbl_profile_website = QLabel("-")
+        self._lbl_profile_website.setStyleSheet(f"color: {C_ACC_PRI}; font-size: 12px; font-weight: 600;")
+        self._lbl_profile_website.setWordWrap(True)
+        meta_layout.addWidget(self._lbl_profile_website, 3, 1)
+
+        meta_layout.addWidget(_meta_label("Phone"), 4, 0)
+        self._lbl_profile_phone = _meta_label("-", bold=True)
+        meta_layout.addWidget(self._lbl_profile_phone, 4, 1)
+
+        layout.addLayout(meta_layout)
+
+        summary_header = QLabel("Business Description")
+        summary_header.setStyleSheet(
+            f"font-size: 11px; font-weight: 600; color: {C_TEXT_SEC};" f" text-transform: uppercase; padding-top: 8px;"
+        )
+        layout.addWidget(summary_header)
+
+        self._txt_business_summary = QTextEdit()
+        self._txt_business_summary.setReadOnly(True)
+        self._txt_business_summary.setMinimumHeight(90)
+        self._txt_business_summary.setMaximumHeight(150)
+        self._txt_business_summary.setPlaceholderText("No business description available.")
+        self._txt_business_summary.setStyleSheet(
+            f"background-color: {C_BG_SEC}; color: {C_TEXT_SEC};"
+            f" border: 1px solid {C_BORDER}; border-radius: 4px;"
+            f" font-size: 11px; padding: 6px;"
+        )
+        layout.addWidget(self._txt_business_summary)
+
+        parent_layout.addWidget(frame)
 
     def _build_financials(self, parent_layout: QVBoxLayout) -> None:
         fin_frame = QFrame()
@@ -649,7 +722,21 @@ class CompanyDetailWidget(QWidget):
 
         self.lbl_name.setText(row.name)
         self.lbl_ticker.setText(row.ticker or _NA)
-        self.lbl_sector.setText(f"{row.sector or 'Unknown Sector'} | {ccy}")
+
+        # Enrich sector line with industry and location
+        location_parts = []
+        if financial_detail:
+            if financial_detail.city:
+                location_parts.append(financial_detail.city)
+            if row.country:
+                location_parts.append(row.country)
+        location = ", ".join(location_parts) if location_parts else (row.country or "Unknown Location")
+
+        sector_line = row.sector or "Unknown Sector"
+        if financial_detail and financial_detail.industry:
+            sector_line += f" ({financial_detail.industry})"
+
+        self.lbl_sector.setText(f"{sector_line} | {location} | {ccy}")
 
         price = financial_detail.current_price if financial_detail else None
         self.lbl_price.setText(f"{_fmt(price)} {ccy}" if price else _NA)
@@ -714,6 +801,32 @@ class CompanyDetailWidget(QWidget):
         self._populate_fin_table(financial_detail)
         self._populate_charts(chart_data)
         self._populate_memo(analyst_detail)
+        self._populate_profile_card(financial_detail)
+
+    def _populate_profile_card(self, detail: CompanyFinancialDetail | None) -> None:
+        if not detail:
+            self._lbl_profile_industry.setText("-")
+            self._lbl_profile_location.setText("-")
+            self._lbl_profile_employees.setText("-")
+            self._lbl_profile_website.setText("-")
+            self._lbl_profile_phone.setText("-")
+            self._txt_business_summary.clear()
+            return
+
+        self._lbl_profile_industry.setText(detail.industry or "-")
+
+        location = detail.country or "-"
+        if detail.city:
+            location = f"{detail.city}, {location}"
+        self._lbl_profile_location.setText(location)
+
+        employees = f"{detail.full_time_employees:,}" if detail.full_time_employees else "-"
+        self._lbl_profile_employees.setText(employees)
+
+        self._lbl_profile_website.setText(detail.website or "-")
+        self._lbl_profile_phone.setText(detail.phone or "-")
+
+        self._txt_business_summary.setPlainText(detail.business_summary or "")
 
     def _populate_memo(self, analyst_detail: CompanyAnalystDetail | None) -> None:
         score_explanation = analyst_detail.score_explanation if analyst_detail else None
@@ -1089,6 +1202,14 @@ class CompanyDetailWidget(QWidget):
         self.input_catalysts.clear()
         self.input_val.clear()
         self.input_action.clear()
+
+        # Reset profile card
+        self._lbl_profile_industry.setText("-")
+        self._lbl_profile_location.setText("-")
+        self._lbl_profile_employees.setText("-")
+        self._lbl_profile_website.setText("-")
+        self._lbl_profile_phone.setText("-")
+        self._txt_business_summary.clear()
 
         while self.chart_container.count():
             item = self.chart_container.takeAt(0)
