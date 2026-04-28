@@ -37,6 +37,23 @@ class Company(Base):
     full_time_employees: Mapped[int | None] = mapped_column(default=None)
     city: Mapped[str | None] = mapped_column(String(100), default=None)
     phone: Mapped[str | None] = mapped_column(String(50), default=None)
+    # Fundamental Metrics (Latest)
+    gross_margins: Mapped[float | None] = mapped_column(default=None)
+    operating_margins: Mapped[float | None] = mapped_column(default=None)
+    profit_margins: Mapped[float | None] = mapped_column(default=None)
+    roe: Mapped[float | None] = mapped_column(default=None)
+    roa: Mapped[float | None] = mapped_column(default=None)
+    current_ratio: Mapped[float | None] = mapped_column(default=None)
+    quick_ratio: Mapped[float | None] = mapped_column(default=None)
+    payout_ratio: Mapped[float | None] = mapped_column(default=None)
+    # Shares and Volume
+    shares_outstanding: Mapped[float | None] = mapped_column(default=None)
+    float_shares: Mapped[float | None] = mapped_column(default=None)
+    # Dividend Info
+    dividend_rate: Mapped[float | None] = mapped_column(default=None)
+    dividend_yield: Mapped[float | None] = mapped_column(default=None)
+    ex_dividend_date: Mapped[datetime | None] = mapped_column(default=None)
+    five_year_avg_dividend_yield: Mapped[float | None] = mapped_column(default=None)
     is_active: Mapped[bool] = mapped_column(default=True)
     market_cap: Mapped[float | None]
     average_daily_volume: Mapped[float | None]
