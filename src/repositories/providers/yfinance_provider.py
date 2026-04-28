@@ -169,6 +169,16 @@ def _df_float(df: pd.DataFrame, row: str, col: object) -> float | None:
         return None
 
 
+def _df_float_multi(df: pd.DataFrame, rows: list[str], col: object) -> float | None:
+    if df is None:
+        return None
+    for row in rows:
+        val = _df_float(df, row, col)
+        if val is not None:
+            return val
+    return None
+
+
 def _parse_statement(
     col: pd.Timestamp,
     income: pd.DataFrame,
@@ -176,22 +186,40 @@ def _parse_statement(
     cashflow: pd.DataFrame | None,
     shares: float | None,
 ) -> FinancialData:
-    ebit = _df_float(income, "EBIT", col)
+    ebit = _df_float_multi(income, ["EBIT", "Operating Income"], col)
     ebitda = _df_float(income, "EBITDA", col)
     if ebitda is None and ebit is not None and cashflow is not None:
-        da = _df_float(cashflow, "Depreciation And Amortization", col)
+        da = _df_float_multi(cashflow, ["Depreciation And Amortization", "Depreciation & Amortization"], col)
         if da is not None:
             ebitda = ebit + da
+
     total_debt = _df_float(balance, "Total Debt", col) if balance is not None else None
-    cash = _df_float(balance, "Cash And Cash Equivalents", col) if balance is not None else None
+    cash = (
+        _df_float_multi(balance, ["Cash And Cash Equivalents", "Cash Cash Equivalents And Short Term Investments"], col)
+        if balance is not None
+        else None
+    )
     net_debt = (total_debt - cash) if total_debt is not None and cash is not None else None
     equity = _df_float(balance, "Stockholders Equity", col) if balance is not None else None
     current_assets = _df_float(balance, "Current Assets", col) if balance is not None else None
     current_liabilities = _df_float(balance, "Current Liabilities", col) if balance is not None else None
+
+    gross_profit = _df_float(income, "Gross Profit", col)
+    revenue = _df_float(income, "Total Revenue", col)
+    if gross_profit is None and revenue is not None:
+        cost_of_rev = _df_float(income, "Cost Of Revenue", col)
+        if cost_of_rev is not None:
+            gross_profit = revenue - cost_of_rev
+
+    # Interest expense - some providers use negative values
+    interest = _df_float_multi(income, ["Interest Expense", "Interest Expense Non Operating"], col)
+    if interest is not None:
+        interest = abs(interest)
+
     return FinancialData(
         fiscal_year=col.year,
         period_type=PeriodType.ANNUAL,
-        revenue=_df_float(income, "Total Revenue", col),
+        revenue=revenue,
         ebit=ebit,
         ebitda=ebitda,
         net_income=_df_float(income, "Net Income", col),
@@ -201,10 +229,10 @@ def _parse_statement(
         net_debt=net_debt,
         free_cash_flow=(_df_float(cashflow, "Free Cash Flow", col) if cashflow is not None else None),
         shares_outstanding=shares,
-        gross_profit=_df_float(income, "Gross Profit", col),
+        gross_profit=gross_profit,
         current_assets=current_assets,
         current_liabilities=current_liabilities,
-        interest_expense=_df_float(income, "Interest Expense", col),
+        interest_expense=interest,
     )
 
 
