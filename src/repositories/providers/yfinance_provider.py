@@ -110,6 +110,7 @@ def _get_company_profile(ticker: str) -> CompanyProfile:
     if not name:
         raise TickerNotFoundError(f"No data found for ticker '{ticker}'")
     fetched_at = _fetched_at_now()
+    raw_employees = info.get("fullTimeEmployees")
     return CompanyProfile(
         ticker=ticker,
         name=name,
@@ -121,6 +122,9 @@ def _get_company_profile(ticker: str) -> CompanyProfile:
         website=info.get("website"),
         business_summary=info.get("longBusinessSummary") or None,
         isin=info.get("isin") or None,
+        full_time_employees=_to_int(raw_employees) if raw_employees is not None else None,
+        city=info.get("city") or None,
+        phone=info.get("phone") or None,
         source=_SOURCE_NAME,
         fetched_at=fetched_at,
     )
