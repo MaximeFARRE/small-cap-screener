@@ -1,6 +1,24 @@
 # CHANGELOG
 
+## v1.0.0 (2026-04-28)
+
+### Breaking
+
+* feat!: trigger v1 major release
+
+BREAKING CHANGE: release baseline moves to v1.0.0. ([`1f0ac6d`](https://github.com/MaximeFARRE/small-cap-screener/commit/1f0ac6dbc7cb0e179852fa453dc87be8b74a75c8))
+
+### Unknown
+
+* Merge pull request #48 from MaximeFARRE/feat/euronext-discovery-provider
+
+feat!: trigger v1 major release ([`3a07221`](https://github.com/MaximeFARRE/small-cap-screener/commit/3a07221c3ad43c80e4058003ed29b7cca33ceb47))
+
 ## v0.34.0 (2026-04-28)
+
+### Chore
+
+* chore(release): 0.34.0 [skip ci] ([`b925a15`](https://github.com/MaximeFARRE/small-cap-screener/commit/b925a1533e568d85504fddf835bd4d77b647bed1))
 
 ### Feature
 
