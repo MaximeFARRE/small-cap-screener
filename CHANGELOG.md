@@ -1,6 +1,58 @@
 # CHANGELOG
 
+## v0.32.0 (2026-04-28)
+
+### Chore
+
+* chore: update chart color palette and increase default chart height ([`651f42e`](https://github.com/MaximeFARRE/small-cap-screener/commit/651f42e6f4359a067670075308058741f7d491dd))
+
+### Feature
+
+* feat: restore and wire up full analyst memo actions in company detail UI ([`546fe7e`](https://github.com/MaximeFARRE/small-cap-screener/commit/546fe7e41a4172abf1f45874b654ccaa1b3187c1))
+
+* feat: add tabbed navigation and restore charts/drivers in company detail UI ([`471b46c`](https://github.com/MaximeFARRE/small-cap-screener/commit/471b46c1b67731fe6fbfe25d148467291cbcb232))
+
+* feat: refactor company detail UI to terminal style ([`ecb10b3`](https://github.com/MaximeFARRE/small-cap-screener/commit/ecb10b3f4f2aed18eb405681554249127ada19c7))
+
+* feat: replace text peer comparison with styled QTableWidget ([`82dc602`](https://github.com/MaximeFARRE/small-cap-screener/commit/82dc602944c5734690b2d6e3a912ba5c136d4a1a))
+
+* feat: refactor charts with base-100 price, ME scale, debt chart, score colors ([`6ba2c85`](https://github.com/MaximeFARRE/small-cap-screener/commit/6ba2c85ffd5b6a70ed83f43fa27f5aaaa6dcbef4))
+
+* feat: styled empty chart state with placeholder axes ([`df4a0a4`](https://github.com/MaximeFARRE/small-cap-screener/commit/df4a0a489f14b05248e267b22bed4bb8c7ee55d0))
+
+* feat: true historical financials table with formatting ([`0d43996`](https://github.com/MaximeFARRE/small-cap-screener/commit/0d439961b66d3d3cff2d5fe5ade9d1a80b5eb36a))
+
+* feat: refonte UX fiche entreprise (analyst dashboard) ([`5759bd9`](https://github.com/MaximeFARRE/small-cap-screener/commit/5759bd98f6113ddfd9bfcf621675b208c82d0656))
+
+* feat(ui): replace side-panel detail with full-screen QStackedWidget navigation
+
+Clicking a company row now navigates to a full-screen detail page instead of
+populating a side panel. A back button returns to the screener. QSplitter
+replaced with QStackedWidget (index 0 = screener, index 1 = detail page).
+
+Co-Authored-By: Claude Sonnet 4.6 &lt;noreply@anthropic.com&gt; ([`1ded99d`](https://github.com/MaximeFARRE/small-cap-screener/commit/1ded99ddc72da91924177c360243b82dcf465fe8))
+
+### Fix
+
+* fix: use correct properties from CompanyAnalystDetail in UI ([`b2be9e9`](https://github.com/MaximeFARRE/small-cap-screener/commit/b2be9e9916c0944508ee040c46edc4f8ba2c1a70))
+
+* fix: make historical financials table full block height ([`518d903`](https://github.com/MaximeFARRE/small-cap-screener/commit/518d903774276eaed7a4667a322723c350a37e53))
+
+### Test
+
+* test: add UI test for saving watchlist and analyst memo data ([`8ee5a07`](https://github.com/MaximeFARRE/small-cap-screener/commit/8ee5a072090c387d5605e8bfe68030c64d776053))
+
+### Unknown
+
+* Merge pull request #45 from MaximeFARRE/feat/phase36-company-detail-page
+
+Feat/phase36 company detail page ([`5035a99`](https://github.com/MaximeFARRE/small-cap-screener/commit/5035a99ce576ea018d663ad7a7bc68d398610630))
+
 ## v0.31.0 (2026-04-27)
+
+### Chore
+
+* chore(release): 0.31.0 [skip ci] ([`14a6ecc`](https://github.com/MaximeFARRE/small-cap-screener/commit/14a6ecc6362def4c86500a36ea2e746d6ee12c0f))
 
 ### Feature
 
