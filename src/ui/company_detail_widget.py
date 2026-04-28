@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import math
-from datetime import UTC, datetime
-
 from PySide6.QtCharts import (
     QBarCategoryAxis,
     QBarSeries,
@@ -20,13 +17,16 @@ from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
     QFrame,
-    QGroupBox,
+    QGridLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QTableWidget,
+    QTableWidgetItem,
     QTabWidget,
     QTextEdit,
     QVBoxLayout,
@@ -41,56 +41,158 @@ from src.models.watchlist_entry import (
 )
 from src.services.company_charts_service import (
     CompanyChartsData,
-    DatedChartPoint,
-    ScoreBreakdownPoint,
-    YearlyChartPoint,
 )
 from src.services.company_detail_service import CompanyFinancialDetail
-from src.services.peer_comparison_service import PeerCompanyRow, PeerComparisonData, PeerMetricComparison
-from src.services.scoring_service import ScoreExplanation, ScoreMetricDriver
-from src.services.screening_service import STALE_REFRESH_DAYS
-from src.services.watchlist_service import AnalystMemo, CompanyAnalystDetail
+from src.services.peer_comparison_service import PeerComparisonData
+from src.services.watchlist_service import CompanyAnalystDetail
 from src.ui.company_table_model import ScreenerRow
 
-_NA = "N/A"
-_PLACEHOLDER = "Sélectionnez une société"
-_NOT_IN_WATCHLIST = "hors watchlist"
-_DATA_QUALITY_HIGH = 0.8
-_DATA_QUALITY_MEDIUM = 0.5
-_ALERT_STYLE = (
-    "QFrame { background: #FFF3CD; border: 1px solid #FFC107; "
-    "border-left: 4px solid #FFC107; border-radius: 4px; padding: 6px; }"
-)
-_WATCHLIST_STATUS_OPTIONS: list[tuple[str, str]] = [
-    ("watching", WATCHLIST_STATUS_WATCHING),
-    ("review", WATCHLIST_STATUS_REVIEW),
-    ("rejected", WATCHLIST_STATUS_REJECTED),
-    ("conviction", WATCHLIST_STATUS_CONVICTION),
-]
+# -- DESIGN SYSTEM FINANCE --
+C_BG_MAIN = "#0F1115"
+C_BG_CARD = "#171A21"
+C_BG_SEC = "#1E222B"
+C_BORDER = "#2A2F3A"
+C_TEXT_MAIN = "#F3F4F6"
+C_TEXT_SEC = "#AAB2BF"
+C_POS = "#22C55E"
+C_NEG = "#EF4444"
+C_WARN = "#F59E0B"
+C_ACC_PRI = "#3B82F6"
+C_ACC_SEC = "#8B5CF6"
 
-_GROUPS_ORDER = [
-    "Société",
-    "Financial overview",
-    "Historical fundamentals",
-    "Valuation ratios",
-    "Quality / Growth / Risk",
-    "Peer Comparison",
-    "Analyste",
-    "Analyst Memo",
-    "Scoring",
-]
-_TREND_LABELS = {
-    "positive": "positive",
-    "negative": "negative",
-    "stable": "stable",
-}
-_CHART_HEIGHT = 200
-_PRICE_COLOR = "#1f77b4"
-_REVENUE_COLOR = "#2ca02c"
-_OPERATING_COLOR = "#ff7f0e"
-_MARGIN_COLOR = "#d62728"
-_SCORE_BAR_COLOR = "#4c78a8"
-_NO_DATA_SUFFIX = " (no data)"
+GLOBAL_STYLE = f"""
+QWidget {{
+    background-color: {C_BG_MAIN};
+    color: {C_TEXT_MAIN};
+    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+}}
+QScrollArea {{
+    border: none;
+    background-color: transparent;
+}}
+QFrame#Card {{
+    background-color: {C_BG_CARD};
+    border: 1px solid {C_BORDER};
+    border-radius: 6px;
+}}
+QLabel {{
+    background-color: transparent;
+}}
+QLabel#HeroTitle {{
+    font-size: 24px;
+    font-weight: 700;
+    color: {C_TEXT_MAIN};
+}}
+QLabel#HeroTicker {{
+    font-size: 14px;
+    font-weight: 600;
+    color: {C_ACC_PRI};
+    background-color: {C_BG_SEC};
+    border: 1px solid {C_ACC_PRI};
+    border-radius: 4px;
+    padding: 2px 6px;
+}}
+QLabel#HeroSec {{
+    font-size: 13px;
+    color: {C_TEXT_SEC};
+}}
+QLabel#HeroPrice {{
+    font-size: 28px;
+    font-weight: 700;
+    color: {C_TEXT_MAIN};
+}}
+QLabel#KpiValue {{
+    font-size: 18px;
+    font-weight: 600;
+    font-family: 'IBM Plex Sans', 'JetBrains Mono', monospace;
+}}
+QLabel#KpiLabel {{
+    font-size: 11px;
+    font-weight: 600;
+    color: {C_TEXT_SEC};
+    text-transform: uppercase;
+}}
+QLabel#Badge {{
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 4px;
+    padding: 4px 8px;
+}}
+QPushButton {{
+    background-color: {C_BG_SEC};
+    color: {C_TEXT_MAIN};
+    border: 1px solid {C_BORDER};
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-weight: 600;
+}}
+QPushButton:hover {{
+    background-color: {C_BORDER};
+}}
+QPushButton#PrimaryBtn {{
+    background-color: {C_ACC_PRI};
+    color: #FFFFFF;
+    border: none;
+}}
+QPushButton#PrimaryBtn:hover {{
+    background-color: #2563EB;
+}}
+QTableWidget {{
+    background-color: {C_BG_CARD};
+    color: {C_TEXT_MAIN};
+    border: 1px solid {C_BORDER};
+    border-radius: 6px;
+    gridline-color: {C_BORDER};
+    font-size: 12px;
+}}
+QHeaderView::section {{
+    background-color: {C_BG_SEC};
+    color: {C_TEXT_SEC};
+    padding: 6px;
+    border: none;
+    border-bottom: 1px solid {C_BORDER};
+    border-right: 1px solid {C_BORDER};
+    font-weight: bold;
+    font-size: 11px;
+    text-transform: uppercase;
+}}
+QTableWidget::item {{
+    padding: 6px;
+    border-bottom: 1px solid {C_BORDER};
+}}
+QTabWidget::pane {{
+    border: 1px solid {C_BORDER};
+    border-radius: 6px;
+    background-color: {C_BG_MAIN};
+    top: -1px;
+}}
+QTabBar::tab {{
+    background-color: {C_BG_SEC};
+    color: {C_TEXT_SEC};
+    padding: 8px 16px;
+    border: 1px solid {C_BORDER};
+    border-bottom: none;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    font-weight: bold;
+    font-size: 12px;
+}}
+QTabBar::tab:selected {{
+    background-color: {C_BG_CARD};
+    color: {C_ACC_PRI};
+}}
+QTextEdit {{
+    background-color: {C_BG_SEC};
+    color: {C_TEXT_MAIN};
+    border: 1px solid {C_BORDER};
+    border-radius: 4px;
+    padding: 6px;
+    font-size: 12px;
+}}
+"""
+
+_NA = "N/A"
+_NOT_IN_WATCHLIST = "Not in watchlist"
 
 
 def _fmt(value: float | None, decimals: int = 2) -> str:
@@ -105,28 +207,69 @@ def _fmt_pct(value: float | None, decimals: int = 1) -> str:
     return f"{value * 100:.{decimals}f}%"
 
 
+def _fmt_ratio(value: float | None, decimals: int = 1) -> str:
+    if value is None:
+        return _NA
+    return f"{value:.{decimals}f}x"
+
+
 def _fmt_large(value: float | None, currency: str = "EUR") -> str:
-    """Format large monetary values as M or B with currency."""
     if value is None:
         return _NA
     abs_val = abs(value)
     if abs_val >= 1_000_000_000:
-        return f"{value / 1_000_000_000:.2f} G{currency}"
+        return f"{value / 1_000_000_000:.2f} B"
     if abs_val >= 1_000_000:
-        return f"{value / 1_000_000:.1f} M{currency}"
-    return f"{value:,.0f} {currency}"
+        return f"{value / 1_000_000:.1f} M"
+    return f"{value:,.0f}"
 
 
-def _fmt_ratio(value: float | None, decimals: int = 1, suffix: str = "x") -> str:
+def _get_signal_tuple(value: float, good_th: float, weak_th: float, gt_is_good: bool) -> tuple[str, str]:
+    if gt_is_good:
+        if value >= good_th:
+            return "Good", C_POS
+        if value < weak_th:
+            return "Weak", C_NEG
+        return "Neutral", C_WARN
+    else:
+        if value <= good_th:
+            return "Good", C_POS
+        if value > weak_th:
+            return "Weak", C_NEG
+        return "Neutral", C_WARN
+
+
+def _kpi_signal(key: str, value: float | None) -> tuple[str, str]:
     if value is None:
-        return _NA
-    return f"{value:.{decimals}f}{suffix}"
+        return "N/A", C_TEXT_SEC
+
+    if key == "ROIC":
+        return _get_signal_tuple(value, 0.10, 0.05, True)
+    if key == "ROE":
+        return _get_signal_tuple(value, 0.15, 0.05, True)
+    if key == "Rev Growth":
+        return _get_signal_tuple(value, 0.10, 0.00, True)
+    if key == "EBITDA Margin":
+        return _get_signal_tuple(value, 0.15, 0.05, True)
+    if key == "Gross Margin":
+        return _get_signal_tuple(value, 0.40, 0.20, True)
+    if key == "FCF Yield":
+        return _get_signal_tuple(value, 0.05, 0.00, True)
+    if key == "Net Debt / EBITDA":
+        return _get_signal_tuple(value, 2.0, 4.0, False)
+    if key == "EV / EBITDA":
+        return _get_signal_tuple(value, 10.0, 20.0, False)
+    if key == "P/E":
+        return _get_signal_tuple(value, 15.0, 30.0, False)
+
+    return "Neutral", C_TEXT_SEC
 
 
-def _label(text: str) -> QLabel:
+def _create_badge(text: str, color: str, bg_color: str) -> QLabel:
     lbl = QLabel(text)
-    lbl.setWordWrap(True)
-    lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+    lbl.setObjectName("Badge")
+    lbl.setStyleSheet(f"color: {color}; background-color: {bg_color}; border: 1px solid {color};")
+    lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
     return lbl
 
 
@@ -135,157 +278,352 @@ class CompanyDetailWidget(QWidget):
     remove_watchlist_requested = Signal(int)
     save_watchlist_requested = Signal(int, str, str, bool, str, str, str, str, str, str)
     refresh_company_requested = Signal(int)
+    back_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._current_row: ScreenerRow | None = None
         self._in_watchlist = False
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        self.setStyleSheet(GLOBAL_STYLE)
         self._setup_ui()
 
     def _setup_ui(self) -> None:
-        outer_layout = QVBoxLayout(self)
-        outer_layout.setContentsMargins(8, 8, 8, 8)
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
 
-        self._placeholder = QLabel(_PLACEHOLDER)
-        self._placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._placeholder.setStyleSheet("color: #777; font-size: 14pt; font-style: italic;")
-        outer_layout.addWidget(self._placeholder)
+        # Top Bar
+        top_bar = QWidget()
+        top_bar.setStyleSheet(f"background-color: {C_BG_SEC}; border-bottom: 1px solid {C_BORDER};")
+        top_layout = QHBoxLayout(top_bar)
+        top_layout.setContentsMargins(16, 8, 16, 8)
 
-        self._alert_frame = QFrame()
-        self._alert_frame.setStyleSheet(_ALERT_STYLE)
-        alert_layout = QVBoxLayout(self._alert_frame)
-        alert_layout.setContentsMargins(6, 4, 6, 4)
-        self._alert_label = QLabel()
-        self._alert_label.setWordWrap(True)
-        alert_layout.addWidget(self._alert_label)
-        self._alert_frame.setVisible(False)
-        outer_layout.addWidget(self._alert_frame)
+        self._back_btn = QPushButton("← Back")
+        self._back_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._back_btn.clicked.connect(self.back_requested)
+        top_layout.addWidget(self._back_btn)
 
-        self._tabs = QTabWidget()
-        self._tabs.setVisible(False)
-        outer_layout.addWidget(self._tabs)
+        top_layout.addStretch()
 
-        def _create_scroll_tab(name: str) -> QVBoxLayout:
-            tab = QWidget()
-            layout = QVBoxLayout(tab)
-            layout.setContentsMargins(0, 0, 0, 0)
-            scroll = QScrollArea()
-            scroll.setWidgetResizable(True)
-            scroll.setFrameShape(QFrame.Shape.NoFrame)
-            content = QWidget()
-            content_layout = QVBoxLayout(content)
-            content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-            scroll.setWidget(content)
-            layout.addWidget(scroll)
-            self._tabs.addTab(tab, name)
-            return content_layout
-
-        self._layout_synthese = _create_scroll_tab("Synthèse")
-        self._layout_finances = _create_scroll_tab("Finances")
-        self._layout_charts = _create_scroll_tab("Graphiques")
-
-        self._groups: dict[str, QFormLayout] = {}
-
-        # Mapping groups to their respective tab layouts
-        group_layouts = {
-            "Société": self._layout_synthese,
-            "Analyste": self._layout_synthese,
-            "Analyst Memo": self._layout_synthese,
-            "Financial overview": self._layout_finances,
-            "Historical fundamentals": self._layout_finances,
-            "Valuation ratios": self._layout_finances,
-            "Quality / Growth / Risk": self._layout_finances,
-            "Peer Comparison": self._layout_finances,
-            "Scoring": self._layout_finances,
-        }
-
-        for title in _GROUPS_ORDER:
-            box = QGroupBox(title)
-            form = QFormLayout(box)
-            self._groups[title] = form
-            target_layout = group_layouts.get(title, self._layout_finances)
-            target_layout.addWidget(box)
-
-        charts_box = QGroupBox("Visual analysis")
-        charts_layout = QVBoxLayout(charts_box)
-        self._price_chart_view = _build_chart_view()
-        self._fundamentals_chart_view = _build_chart_view()
-        self._margin_chart_view = _build_chart_view()
-        self._score_chart_view = _build_chart_view()
-        charts_layout.addWidget(self._price_chart_view)
-        charts_layout.addWidget(self._fundamentals_chart_view)
-        charts_layout.addWidget(self._margin_chart_view)
-        charts_layout.addWidget(self._score_chart_view)
-        self._layout_charts.addWidget(charts_box)
-        self._clear_charts()
-
-        actions_box = QGroupBox("Actions analyste")
-        actions_layout = QVBoxLayout(actions_box)
-        actions_form = QFormLayout()
-
-        self._status_input = QComboBox()
-        for label, value in _WATCHLIST_STATUS_OPTIONS:
-            self._status_input.addItem(label, value)
-
-        self._notes_input = QLineEdit()
-        self._excluded_input = QCheckBox("Exclure du screening")
-        self._next_review_input = QLineEdit()
-        self._next_review_input.setPlaceholderText("YYYY-MM-DD or YYYY-MM-DD HH:MM")
-        self._investment_thesis_input = QTextEdit()
-        self._key_risks_input = QTextEdit()
-        self._catalysts_input = QTextEdit()
-        self._valuation_notes_input = QTextEdit()
-        self._next_action_input = QTextEdit()
-
-        for widget in (
-            self._investment_thesis_input,
-            self._key_risks_input,
-            self._catalysts_input,
-            self._valuation_notes_input,
-            self._next_action_input,
-        ):
-            widget.setMaximumHeight(70)
-
-        actions_form.addRow("Status", self._status_input)
-        actions_form.addRow("Notes", self._notes_input)
-        actions_form.addRow("", self._excluded_input)
-        actions_form.addRow("Next review at", self._next_review_input)
-        actions_form.addRow("Investment thesis", self._investment_thesis_input)
-        actions_form.addRow("Key risks", self._key_risks_input)
-        actions_form.addRow("Catalysts", self._catalysts_input)
-        actions_form.addRow("Valuation notes", self._valuation_notes_input)
-        actions_form.addRow("Next action", self._next_action_input)
-        actions_layout.addLayout(actions_form)
-
-        buttons_layout = QHBoxLayout()
-        self._add_watchlist_btn = QPushButton("Ajouter watchlist")
-        self._remove_watchlist_btn = QPushButton("Retirer watchlist")
-        self._save_btn = QPushButton("Enregistrer")
-        self._refresh_btn = QPushButton("Actualiser cette société")
-        buttons_layout.addWidget(self._add_watchlist_btn)
-        buttons_layout.addWidget(self._remove_watchlist_btn)
-        buttons_layout.addWidget(self._save_btn)
-        buttons_layout.addWidget(self._refresh_btn)
-        actions_layout.addLayout(buttons_layout)
-        self._layout_synthese.addWidget(actions_box)
-
-        self._add_watchlist_btn.clicked.connect(self._on_add_watchlist_clicked)
-        self._remove_watchlist_btn.clicked.connect(self._on_remove_watchlist_clicked)
-        self._save_btn.clicked.connect(self._on_save_clicked)
+        self._refresh_btn = QPushButton("Refresh Data")
+        self._refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._refresh_btn.clicked.connect(self._on_refresh_clicked)
-        self._set_actions_enabled(False)
+        top_layout.addWidget(self._refresh_btn)
 
-    def _set_field(self, group: str, label: str, value: str) -> None:
-        form = self._groups[group]
-        for i in range(form.rowCount()):
-            item = form.itemAt(i, QFormLayout.ItemRole.LabelRole)
-            if item and item.widget() and item.widget().text() == label:
-                val_widget = form.itemAt(i, QFormLayout.ItemRole.FieldRole)
-                if val_widget and val_widget.widget():
-                    val_widget.widget().setText(value)
-                return
-        form.addRow(label, _label(value))
+        self._watchlist_btn = QPushButton("Add to Watchlist")
+        self._watchlist_btn.setObjectName("PrimaryBtn")
+        self._watchlist_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._watchlist_btn.clicked.connect(self._toggle_watchlist)
+        top_layout.addWidget(self._watchlist_btn)
+
+        self.main_layout.addWidget(top_bar)
+
+        self._build_hero()
+        self.main_layout.addWidget(self.hero_frame)
+
+        self.tabs = QTabWidget()
+        self.main_layout.addWidget(self.tabs)
+
+        self._tab_snapshot = self._create_scroll_tab("Snapshot")
+        self._tab_financials = self._create_scroll_tab("Financials")
+        self._tab_charts = self._create_scroll_tab("Charts")
+        self._tab_ownership = self._create_scroll_tab("Ownership")
+        self._tab_memo = self._create_scroll_tab("Memo / Thesis")
+        self._tab_quality = self._create_scroll_tab("Data Quality")
+
+        self._build_kpis(self._tab_snapshot)
+        self._build_financials(self._tab_financials)
+        self._build_charts(self._tab_charts)
+        self._build_ownership(self._tab_ownership)
+        self._build_memo(self._tab_memo)
+        self._build_quality(self._tab_quality)
+
+    def _create_scroll_tab(self, name: str) -> QVBoxLayout:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        content_layout.setContentsMargins(24, 24, 24, 24)
+        content_layout.setSpacing(24)
+        scroll.setWidget(content)
+        layout.addWidget(scroll)
+        self.tabs.addTab(tab, name)
+        return content_layout
+
+    def _build_hero(self) -> None:
+        self.hero_frame = QFrame()
+        self.hero_frame.setStyleSheet(f"background-color: {C_BG_MAIN}; border-bottom: 1px solid {C_BORDER};")
+        hero_layout = QHBoxLayout(self.hero_frame)
+        hero_layout.setContentsMargins(20, 20, 20, 20)
+
+        # Left: Identity
+        left_layout = QVBoxLayout()
+        name_ticker_layout = QHBoxLayout()
+        self.lbl_name = QLabel("COMPANY NAME")
+        self.lbl_name.setObjectName("HeroTitle")
+        self.lbl_ticker = QLabel("TICKER")
+        self.lbl_ticker.setObjectName("HeroTicker")
+        name_ticker_layout.addWidget(self.lbl_name)
+        name_ticker_layout.addWidget(self.lbl_ticker)
+        name_ticker_layout.addStretch()
+        left_layout.addLayout(name_ticker_layout)
+
+        self.lbl_sector = QLabel("Sector / Country / Exchange")
+        self.lbl_sector.setObjectName("HeroSec")
+        left_layout.addWidget(self.lbl_sector)
+        hero_layout.addLayout(left_layout, stretch=2)
+
+        # Mid: Valuation
+        mid_layout = QVBoxLayout()
+        self.lbl_price = QLabel("0.00 EUR")
+        self.lbl_price.setObjectName("HeroPrice")
+        mid_layout.addWidget(self.lbl_price)
+
+        val_layout = QHBoxLayout()
+        self.lbl_mcap = QLabel("MCap: -")
+        self.lbl_mcap.setObjectName("HeroSec")
+        self.lbl_ev = QLabel("EV: -")
+        self.lbl_ev.setObjectName("HeroSec")
+        val_layout.addWidget(self.lbl_mcap)
+        val_layout.addWidget(self.lbl_ev)
+        val_layout.addStretch()
+        mid_layout.addLayout(val_layout)
+        hero_layout.addLayout(mid_layout, stretch=2)
+
+        # Right: Signals/Badges
+        right_layout = QVBoxLayout()
+        right_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+
+        badges_top = QHBoxLayout()
+        self.badge_score = _create_badge("Score: -", C_ACC_PRI, f"{C_ACC_PRI}20")
+        self.badge_rank = _create_badge("Rank: -", C_TEXT_MAIN, C_BG_SEC)
+        badges_top.addWidget(self.badge_score)
+        badges_top.addWidget(self.badge_rank)
+        badges_top.addStretch()
+        right_layout.addLayout(badges_top)
+
+        badges_bot = QHBoxLayout()
+        self.badge_quality = _create_badge("Data: -", C_WARN, f"{C_WARN}20")
+        self.badge_watchlist = _create_badge("Watchlist: -", C_TEXT_SEC, C_BG_SEC)
+        badges_bot.addWidget(self.badge_quality)
+        badges_bot.addWidget(self.badge_watchlist)
+        badges_bot.addStretch()
+        right_layout.addLayout(badges_bot)
+
+        hero_layout.addLayout(right_layout, stretch=1)
+
+    def _build_kpis(self, parent_layout: QVBoxLayout) -> None:
+        self.kpi_grid = QGridLayout()
+        self.kpi_grid.setSpacing(16)
+
+        self.kpi_widgets = {}
+        kpi_keys = [
+            "Rev Growth",
+            "EBITDA Margin",
+            "Gross Margin",
+            "ROIC",
+            "ROE",
+            "FCF Yield",
+            "Net Debt / EBITDA",
+            "EV / EBITDA",
+            "P/E",
+        ]
+
+        for i, key in enumerate(kpi_keys):
+            card = QFrame()
+            card.setObjectName("Card")
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(16, 12, 16, 12)
+
+            lbl_title = QLabel(key)
+            lbl_title.setObjectName("KpiLabel")
+
+            val_layout = QHBoxLayout()
+            lbl_val = QLabel("-")
+            lbl_val.setObjectName("KpiValue")
+
+            lbl_signal = _create_badge("-", C_TEXT_SEC, "transparent")
+            lbl_signal.setStyleSheet(f"color: {C_TEXT_SEC}; font-weight: bold; font-size: 10px; border: none;")
+
+            val_layout.addWidget(lbl_val)
+            val_layout.addStretch()
+            val_layout.addWidget(lbl_signal)
+
+            card_layout.addWidget(lbl_title)
+            card_layout.addLayout(val_layout)
+
+            self.kpi_widgets[key] = (lbl_val, lbl_signal)
+            self.kpi_grid.addWidget(card, i // 3, i % 3)
+
+        parent_layout.addLayout(self.kpi_grid)
+
+    def _build_financials(self, parent_layout: QVBoxLayout) -> None:
+        fin_frame = QFrame()
+        fin_frame.setObjectName("Card")
+        fin_layout = QVBoxLayout(fin_frame)
+        fin_layout.setContentsMargins(0, 0, 0, 0)
+
+        header = QLabel("Historical Financials")
+        header.setStyleSheet(
+            f"font-size: 14px; font-weight: bold; padding: 12px 16px; border-bottom: 1px solid {C_BORDER};"
+        )
+        fin_layout.addWidget(header)
+
+        self.fin_table = QTableWidget()
+        self.fin_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.fin_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self.fin_table.verticalHeader().setVisible(False)
+        self.fin_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.fin_table.setFrameShape(QFrame.Shape.NoFrame)
+        self.fin_table.setFixedHeight(350)
+        fin_layout.addWidget(self.fin_table)
+
+        parent_layout.addWidget(fin_frame)
+
+    def _build_charts(self, parent_layout: QVBoxLayout) -> None:
+        # We will dynamically recreate QChartViews later in populate to avoid memory leaks
+        self.chart_container = QVBoxLayout()
+        self.chart_container.setSpacing(24)
+        parent_layout.addLayout(self.chart_container)
+
+    def _build_ownership(self, parent_layout: QVBoxLayout) -> None:
+        frame = QFrame()
+        frame.setObjectName("Card")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        lbl = QLabel("No ownership data available")
+        lbl.setStyleSheet(f"color: {C_TEXT_SEC}; font-size: 16px; font-weight: 500;")
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(lbl)
+
+        parent_layout.addWidget(frame)
+
+    def _build_memo(self, parent_layout: QVBoxLayout) -> None:
+        # Strengths & Weaknesses
+        sw_layout = QHBoxLayout()
+
+        self.str_frame = QFrame()
+        self.str_frame.setObjectName("Card")
+        str_layout = QVBoxLayout(self.str_frame)
+        self.lbl_strengths = QLabel("Strengths")
+        self.lbl_strengths.setStyleSheet(f"color: {C_POS}; font-weight: bold; font-size: 14px;")
+        self.txt_strengths = QLabel("-")
+        self.txt_strengths.setWordWrap(True)
+        self.txt_strengths.setStyleSheet(f"color: {C_TEXT_MAIN}; line-height: 1.5;")
+        str_layout.addWidget(self.lbl_strengths)
+        str_layout.addWidget(self.txt_strengths)
+        str_layout.addStretch()
+        sw_layout.addWidget(self.str_frame)
+
+        self.weak_frame = QFrame()
+        self.weak_frame.setObjectName("Card")
+        weak_layout = QVBoxLayout(self.weak_frame)
+        self.lbl_weaknesses = QLabel("Weaknesses")
+        self.lbl_weaknesses.setStyleSheet(f"color: {C_WARN}; font-weight: bold; font-size: 14px;")
+        self.txt_weaknesses = QLabel("-")
+        self.txt_weaknesses.setWordWrap(True)
+        self.txt_weaknesses.setStyleSheet(f"color: {C_TEXT_MAIN}; line-height: 1.5;")
+        weak_layout.addWidget(self.lbl_weaknesses)
+        weak_layout.addWidget(self.txt_weaknesses)
+        weak_layout.addStretch()
+        sw_layout.addWidget(self.weak_frame)
+
+        self.red_frame = QFrame()
+        self.red_frame.setObjectName("Card")
+        red_layout = QVBoxLayout(self.red_frame)
+        self.lbl_red = QLabel("Red Flags")
+        self.lbl_red.setStyleSheet(f"color: {C_NEG}; font-weight: bold; font-size: 14px;")
+        self.txt_red = QLabel("-")
+        self.txt_red.setWordWrap(True)
+        self.txt_red.setStyleSheet(f"color: {C_TEXT_MAIN}; line-height: 1.5;")
+        red_layout.addWidget(self.lbl_red)
+        red_layout.addWidget(self.txt_red)
+        red_layout.addStretch()
+        sw_layout.addWidget(self.red_frame)
+
+        parent_layout.addLayout(sw_layout)
+
+        # Analyst Memo inputs (read-only style for now, or editable if they click edit)
+        memo_frame = QFrame()
+        memo_frame.setObjectName("Card")
+        memo_layout = QVBoxLayout(memo_frame)
+        memo_header = QLabel("Analyst Memo")
+        memo_header.setStyleSheet("font-size: 14px; font-weight: bold; padding-bottom: 8px;")
+        memo_layout.addWidget(memo_header)
+
+        form_layout = QFormLayout()
+
+        self.input_status = QComboBox()
+        self.input_status.addItem("watching", WATCHLIST_STATUS_WATCHING)
+        self.input_status.addItem("review", WATCHLIST_STATUS_REVIEW)
+        self.input_status.addItem("rejected", WATCHLIST_STATUS_REJECTED)
+        self.input_status.addItem("conviction", WATCHLIST_STATUS_CONVICTION)
+        form_layout.addRow("Status", self.input_status)
+
+        self.input_excluded = QCheckBox("Exclude from screening")
+        form_layout.addRow("", self.input_excluded)
+
+        self.input_notes = QLineEdit()
+        form_layout.addRow("Notes", self.input_notes)
+
+        self.input_review_at = QLineEdit()
+        self.input_review_at.setPlaceholderText("YYYY-MM-DD or YYYY-MM-DD HH:MM")
+        form_layout.addRow("Next review at", self.input_review_at)
+
+        self.input_thesis = QTextEdit()
+        self.input_thesis.setMaximumHeight(60)
+        form_layout.addRow("Investment Thesis", self.input_thesis)
+
+        self.input_risks = QTextEdit()
+        self.input_risks.setMaximumHeight(60)
+        form_layout.addRow("Key Risks", self.input_risks)
+
+        self.input_catalysts = QTextEdit()
+        self.input_catalysts.setMaximumHeight(60)
+        form_layout.addRow("Catalysts", self.input_catalysts)
+
+        self.input_val = QTextEdit()
+        self.input_val.setMaximumHeight(60)
+        form_layout.addRow("Valuation Notes", self.input_val)
+
+        self.input_action = QTextEdit()
+        self.input_action.setMaximumHeight(60)
+        form_layout.addRow("Next Action", self.input_action)
+
+        memo_layout.addLayout(form_layout)
+
+        btn_save_memo = QPushButton("Save Analyst Data")
+        btn_save_memo.setObjectName("PrimaryBtn")
+        btn_save_memo.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_save_memo.clicked.connect(self._on_save_clicked)
+        memo_layout.addWidget(btn_save_memo, alignment=Qt.AlignmentFlag.AlignRight)
+
+        parent_layout.addWidget(memo_frame)
+
+    def _build_quality(self, parent_layout: QVBoxLayout) -> None:
+        frame = QFrame()
+        frame.setObjectName("Card")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(40, 40, 40, 40)
+
+        self.lbl_q_score = QLabel("Data Quality: -")
+        self.lbl_q_score.setStyleSheet("font-size: 18px; font-weight: bold;")
+        layout.addWidget(self.lbl_q_score)
+
+        self.lbl_q_desc = QLabel("Detailed data quality analysis will be available here.")
+        self.lbl_q_desc.setStyleSheet(f"color: {C_TEXT_SEC};")
+        layout.addWidget(self.lbl_q_desc)
+
+        layout.addStretch()
+        parent_layout.addWidget(frame)
 
     def load(
         self,
@@ -296,838 +634,463 @@ class CompanyDetailWidget(QWidget):
         peer_comparison: PeerComparisonData | None = None,
     ) -> None:
         self._current_row = row
-        for form in self._groups.values():
-            while form.rowCount():
-                form.removeRow(0)
+        self._in_watchlist = analyst_detail is not None and analyst_detail.watchlist_status is not None
 
-        watchlist_status = _NOT_IN_WATCHLIST
-        watchlist_notes = _NA
-        watchlist_is_excluded = False
-        total_score = row.total_score
-        quality_score = row.quality_score
-        value_score = row.value_score
-        growth_score = row.growth_score
-        risk_score = row.risk_score
-        rank = row.rank
-        sector_rank = row.sector_rank
-        explanation_summary = _NA
-        score_explanation: ScoreExplanation | None = None
-        analyst_memo = AnalystMemo()
-
-        if analyst_detail is not None:
-            self._in_watchlist = analyst_detail.watchlist_status is not None
-            watchlist_status = analyst_detail.watchlist_status or _NOT_IN_WATCHLIST
-            watchlist_notes = analyst_detail.watchlist_notes or _NA
-            watchlist_is_excluded = analyst_detail.watchlist_is_excluded
-            total_score = analyst_detail.total_score
-            quality_score = analyst_detail.quality_score
-            value_score = analyst_detail.value_score
-            growth_score = analyst_detail.growth_score
-            risk_score = analyst_detail.risk_score
-            rank = analyst_detail.rank
-            sector_rank = analyst_detail.sector_rank
-            score_explanation = analyst_detail.score_explanation
-            analyst_memo = analyst_detail.analyst_memo
-            explanation_summary = analyst_detail.score_explanation.summary
-            self._set_editor_values(
-                status=analyst_detail.watchlist_status or WATCHLIST_STATUS_WATCHING,
-                notes=analyst_detail.watchlist_notes or "",
-                is_excluded=analyst_detail.watchlist_is_excluded,
-                next_review_at=analyst_detail.next_review_at,
-                memo=analyst_detail.analyst_memo,
+        if self._in_watchlist:
+            self._watchlist_btn.setText("Remove Watchlist")
+            self._watchlist_btn.setStyleSheet(
+                f"background-color: {C_BG_SEC}; color: {C_TEXT_MAIN}; border: 1px solid {C_BORDER};"
             )
         else:
-            self._in_watchlist = False
-            self._set_editor_values(
-                status=WATCHLIST_STATUS_WATCHING,
-                notes="",
-                is_excluded=False,
-                next_review_at=None,
-                memo=AnalystMemo(),
-            )
+            self._watchlist_btn.setText("Add to Watchlist")
+            self._watchlist_btn.setStyleSheet(f"background-color: {C_ACC_PRI}; color: #FFFFFF; border: none;")
 
-        self._set_field("Société", "Nom", row.name)
-        self._set_field("Société", "Ticker", row.ticker or _NA)
-        self._set_field("Société", "Secteur", row.sector or _NA)
-        self._set_field("Société", "Dernière actualisation", _fmt_refresh_date(row.last_universe_refresh_at))
-        self._set_field(
-            "Société",
-            "Snapshot KPI",
-            str(row.snapshot_date) if row.snapshot_date is not None else "Aucun",
+        ccy = financial_detail.currency if financial_detail else "EUR"
+
+        self.lbl_name.setText(row.name)
+        self.lbl_ticker.setText(row.ticker or _NA)
+        self.lbl_sector.setText(f"{row.sector or 'Unknown Sector'} | {ccy}")
+
+        price = financial_detail.current_price if financial_detail else None
+        self.lbl_price.setText(f"{_fmt(price)} {ccy}" if price else _NA)
+
+        mcap = financial_detail.market_cap if financial_detail else None
+        ev = financial_detail.enterprise_value if financial_detail else None
+        self.lbl_mcap.setText(f"MCap: {_fmt_large(mcap, ccy)}")
+        self.lbl_ev.setText(f"EV: {_fmt_large(ev, ccy)}")
+
+        score = row.total_score if analyst_detail is None else analyst_detail.total_score
+        score_text = "N/A"
+        score_color = C_TEXT_SEC
+        if score is not None:
+            score_text = f"Score {score:.0f}"
+            if score >= 70:
+                score_color = C_POS
+                story = "Top Tier"
+            elif score >= 40:
+                score_color = C_WARN
+                story = "Mid Tier"
+            else:
+                score_color = C_NEG
+                story = "Bottom Tier"
+            score_text += f" ({story})"
+
+        self.badge_score.setText(score_text)
+        self.badge_score.setStyleSheet(
+            f"color: {score_color}; background-color: {score_color}20; border: 1px solid {score_color};"
         )
 
-        self._populate_financial_overview(financial_detail, row.data_quality_score)
-        self._populate_historical_fundamentals(financial_detail)
-        self._populate_valuation_ratios(financial_detail)
-        self._populate_quality_growth_risk(financial_detail)
+        rank = row.sector_rank if analyst_detail is None else analyst_detail.sector_rank
+        self.badge_rank.setText(f"Rank #{rank}" if rank else "Rank: -")
+
+        q_score = row.data_quality_score
+        q_color = C_POS if q_score and q_score >= 0.8 else C_WARN if q_score and q_score >= 0.5 else C_NEG
+        self.badge_quality.setText(f"Data Qty: {_fmt_pct(q_score)}")
+        self.badge_quality.setStyleSheet(
+            f"color: {q_color}; background-color: {q_color}20; border: 1px solid {q_color};"
+        )
+        self.lbl_q_score.setText(f"Data Quality Score: {_fmt_pct(q_score)}")
+
+        wl_status = analyst_detail.watchlist_status if analyst_detail else _NOT_IN_WATCHLIST
+        wl_color = C_ACC_SEC if wl_status != _NOT_IN_WATCHLIST else C_TEXT_SEC
+        self.badge_watchlist.setText(f"WL: {wl_status}")
+        self.badge_watchlist.setStyleSheet(
+            f"color: {wl_color}; background-color: {wl_color}20; border: 1px solid {wl_color};"
+        )
+
+        # KPIs
+        self._update_kpi("Rev Growth", financial_detail.revenue_growth if financial_detail else None, _fmt_pct)
+        self._update_kpi("EBITDA Margin", financial_detail.operating_margin if financial_detail else None, _fmt_pct)
+        self._update_kpi("Gross Margin", financial_detail.gross_margin if financial_detail else None, _fmt_pct)
+        self._update_kpi("ROIC", financial_detail.roic if financial_detail else None, _fmt_pct)
+        self._update_kpi("ROE", financial_detail.roe if financial_detail else None, _fmt_pct)
+        self._update_kpi("FCF Yield", financial_detail.fcf_yield if financial_detail else None, _fmt_pct)
+        self._update_kpi(
+            "Net Debt / EBITDA", financial_detail.net_debt_to_ebitda if financial_detail else None, _fmt_ratio
+        )
+        self._update_kpi("EV / EBITDA", financial_detail.ev_ebitda if financial_detail else None, _fmt_ratio)
+        self._update_kpi("P/E", financial_detail.pe_ratio if financial_detail else None, _fmt_ratio)
+
+        self._populate_fin_table(financial_detail)
         self._populate_charts(chart_data)
-        self._populate_peer_comparison(peer_comparison)
-        self._update_alerts(row)
+        self._populate_memo(analyst_detail)
 
-        self._set_field("Analyste", "Status watchlist", watchlist_status)
-        self._set_field("Analyste", "Notes watchlist", watchlist_notes)
-        self._set_field("Analyste", "Exclue", "oui" if watchlist_is_excluded else "non")
-        self._set_field(
-            "Analyste", "Next review at", _fmt_next_review_at(analyst_detail.next_review_at if analyst_detail else None)
-        )
-        self._populate_analyst_memo(analyst_memo)
-        self._set_field("Scoring", "Score total", _fmt(total_score))
-        self._set_field("Scoring", "Quality", _fmt(quality_score))
-        self._set_field("Scoring", "Value", _fmt(value_score))
-        self._set_field("Scoring", "Growth", _fmt(growth_score))
-        self._set_field("Scoring", "Risk", _fmt(risk_score))
-        self._set_field("Scoring", "Rang global", str(rank) if rank is not None else _NA)
-        self._set_field("Scoring", "Rang secteur", str(sector_rank) if sector_rank is not None else _NA)
-        self._set_field("Scoring", "Poids actifs", _fmt_score_weights(score_explanation))
-        self._set_field("Scoring", "Décomposition", _fmt_score_contributions(score_explanation))
-        self._set_field("Scoring", "Drivers +", _fmt_score_drivers(score_explanation, positive=True))
-        self._set_field("Scoring", "Drivers -", _fmt_score_drivers(score_explanation, positive=False))
-        self._set_field("Scoring", "Forces", _fmt_score_points(score_explanation, strengths=True))
-        self._set_field("Scoring", "Faiblesses", _fmt_score_points(score_explanation, strengths=False))
-        self._set_field("Scoring", "Résumé score", explanation_summary)
-        self._set_actions_enabled(True)
-        self._add_watchlist_btn.setEnabled(not self._in_watchlist)
-        self._remove_watchlist_btn.setEnabled(self._in_watchlist)
+    def _populate_memo(self, analyst_detail: CompanyAnalystDetail | None) -> None:
+        score_explanation = analyst_detail.score_explanation if analyst_detail else None
 
-        self._placeholder.setVisible(False)
-        self._tabs.setVisible(True)
+        # Strengths
+        strengths = score_explanation.strengths if score_explanation and score_explanation.strengths else []
+        if strengths:
+            self.txt_strengths.setText("• " + "\n• ".join(strengths))
+        else:
+            self.txt_strengths.setText("No major strengths identified.")
 
-    def _populate_financial_overview(
-        self,
-        detail: CompanyFinancialDetail | None,
-        data_quality_score: float | None = None,
-    ) -> None:
-        ccy = detail.currency if detail is not None else "EUR"
-        period = _fmt_period(detail) if detail is not None else _NA
-        self._set_field("Financial overview", "Période", period)
-        self._set_field(
-            "Financial overview",
-            "Prix actuel",
-            _fmt(detail.current_price if detail else None, 2) + (f" {ccy}" if detail and detail.current_price else ""),
-        )
-        self._set_field(
-            "Financial overview",
-            "Market cap",
-            _fmt_large(detail.market_cap if detail else None, ccy),
-        )
-        self._set_field(
-            "Financial overview",
-            "Enterprise value",
-            _fmt_large(detail.enterprise_value if detail else None, ccy),
-        )
-        self._set_field(
-            "Financial overview",
-            "Revenus",
-            _fmt_large(detail.revenue if detail else None, ccy),
-        )
-        self._set_field(
-            "Financial overview",
-            "EBITDA",
-            _fmt_large(detail.ebitda if detail else None, ccy),
-        )
-        self._set_field(
-            "Financial overview",
-            "Résultat net",
-            _fmt_large(detail.net_income if detail else None, ccy),
-        )
-        self._set_field(
-            "Financial overview",
-            "Free cash flow",
-            _fmt_large(detail.free_cash_flow if detail else None, ccy),
-        )
-        self._set_field(
-            "Financial overview",
-            "Dette nette",
-            _fmt_large(detail.net_debt if detail else None, ccy),
-        )
-        fallback = detail.data_quality_score if detail else None
-        score = data_quality_score if data_quality_score is not None else fallback
-        self._set_field(
-            "Financial overview",
-            "Qualité données",
-            _fmt_quality(score),
-        )
+        # Weaknesses
+        weaknesses = score_explanation.weaknesses if score_explanation and score_explanation.weaknesses else []
+        if weaknesses:
+            self.txt_weaknesses.setText("• " + "\n• ".join(weaknesses))
+        else:
+            self.txt_weaknesses.setText("No major weaknesses identified.")
 
-    def _populate_valuation_ratios(self, detail: CompanyFinancialDetail | None) -> None:
-        self._set_field(
-            "Valuation ratios",
-            "P/E",
-            _fmt_ratio(detail.pe_ratio if detail else None),
-        )
-        self._set_field(
-            "Valuation ratios",
-            "P/B",
-            _fmt_ratio(detail.pb_ratio if detail else None),
-        )
-        self._set_field(
-            "Valuation ratios",
-            "EV/EBITDA",
-            _fmt_ratio(detail.ev_ebitda if detail else None),
-        )
-        self._set_field(
-            "Valuation ratios",
-            "EV/Sales",
-            _fmt_ratio(detail.ev_sales if detail else None),
-        )
-        self._set_field(
-            "Valuation ratios",
-            "FCF yield",
-            _fmt_pct(detail.fcf_yield if detail else None),
-        )
+        # Red flags (from memo.key_risks or extremely bad drivers)
+        red_flags = []
+        if analyst_detail and analyst_detail.analyst_memo and analyst_detail.analyst_memo.key_risks:
+            red_flags.append(analyst_detail.analyst_memo.key_risks)
 
-    def _populate_historical_fundamentals(self, detail: CompanyFinancialDetail | None) -> None:
-        if detail is None:
-            self._set_field("Historical fundamentals", "Revenue CAGR", _NA)
-            self._set_field("Historical fundamentals", "Operating income CAGR", _NA)
-            self._set_field("Historical fundamentals", "Net income CAGR", _NA)
-            self._set_field("Historical fundamentals", "Free cash flow CAGR", _NA)
-            self._set_field("Historical fundamentals", "Revenue trend", _NA)
-            self._set_field("Historical fundamentals", "Margin trend", _NA)
-            self._set_field("Historical fundamentals", "Net debt trend", _NA)
-            self._set_field("Historical fundamentals", "Table", _NA)
-            return
+        if red_flags:
+            self.txt_red.setText("• " + "\n• ".join(red_flags))
+        else:
+            self.txt_red.setText("No red flags identified.")
 
-        trends = detail.historical_fundamentals.trends
-        self._set_field("Historical fundamentals", "Revenue CAGR", _fmt_pct(trends.revenue_cagr))
-        self._set_field("Historical fundamentals", "Operating income CAGR", _fmt_pct(trends.operating_income_cagr))
-        self._set_field("Historical fundamentals", "Net income CAGR", _fmt_pct(trends.net_income_cagr))
-        self._set_field("Historical fundamentals", "Free cash flow CAGR", _fmt_pct(trends.free_cash_flow_cagr))
-        self._set_field("Historical fundamentals", "Revenue trend", _fmt_trend(trends.revenue_direction))
-        self._set_field("Historical fundamentals", "Margin trend", _fmt_trend(trends.margin_direction))
-        self._set_field("Historical fundamentals", "Net debt trend", _fmt_trend(trends.net_debt_direction))
-        self._set_field("Historical fundamentals", "Table", _fmt_historical_table(detail))
+        # Memo text edits
+        if analyst_detail:
+            self.input_status.setCurrentText(analyst_detail.watchlist_status or WATCHLIST_STATUS_WATCHING)
+            self.input_excluded.setChecked(analyst_detail.watchlist_is_excluded)
+            self.input_notes.setText(analyst_detail.watchlist_notes or "")
 
-    def _populate_quality_growth_risk(self, detail: CompanyFinancialDetail | None) -> None:
-        self._set_field(
-            "Quality / Growth / Risk",
-            "Marge brute",
-            _fmt_pct(detail.gross_margin if detail else None),
-        )
-        self._set_field(
-            "Quality / Growth / Risk",
-            "Marge opérationnelle",
-            _fmt_pct(detail.operating_margin if detail else None),
-        )
-        self._set_field(
-            "Quality / Growth / Risk",
-            "Marge nette",
-            _fmt_pct(detail.net_margin if detail else None),
-        )
-        self._set_field(
-            "Quality / Growth / Risk",
-            "ROE",
-            _fmt_pct(detail.roe if detail else None),
-        )
-        self._set_field(
-            "Quality / Growth / Risk",
-            "ROIC",
-            _fmt_pct(detail.roic if detail else None),
-        )
-        self._set_field(
-            "Quality / Growth / Risk",
-            "Croissance revenus",
-            _fmt_pct(detail.revenue_growth if detail else None),
-        )
-        self._set_field(
-            "Quality / Growth / Risk",
-            "Croissance EBITDA",
-            _fmt_pct(detail.ebitda_growth if detail else None),
-        )
-        self._set_field(
-            "Quality / Growth / Risk",
-            "Dette nette / EBITDA",
-            _fmt_ratio(detail.net_debt_to_ebitda if detail else None),
-        )
+            review_at_str = ""
+            if analyst_detail.next_review_at:
+                review_at_str = analyst_detail.next_review_at.strftime("%Y-%m-%d")
+            self.input_review_at.setText(review_at_str)
+
+            memo = analyst_detail.analyst_memo
+            if memo:
+                self.input_thesis.setPlainText(memo.investment_thesis or "")
+                self.input_risks.setPlainText(memo.key_risks or "")
+                self.input_catalysts.setPlainText(memo.catalysts or "")
+                self.input_val.setPlainText(memo.valuation_notes or "")
+                self.input_action.setPlainText(memo.next_action or "")
+            else:
+                self.input_thesis.clear()
+                self.input_risks.clear()
+                self.input_catalysts.clear()
+                self.input_val.clear()
+                self.input_action.clear()
+        else:
+            self.input_status.setCurrentText(WATCHLIST_STATUS_WATCHING)
+            self.input_excluded.setChecked(False)
+            self.input_notes.clear()
+            self.input_review_at.clear()
+            self.input_thesis.clear()
+            self.input_risks.clear()
+            self.input_catalysts.clear()
+            self.input_val.clear()
+            self.input_action.clear()
 
     def _populate_charts(self, chart_data: CompanyChartsData | None) -> None:
-        if chart_data is None:
-            self._clear_charts()
+        # Clear existing charts
+        while self.chart_container.count():
+            item = self.chart_container.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if not chart_data:
             return
-        self._price_chart_view.setChart(
-            _line_chart_for_dated_points(
-                title="Price history",
-                points=chart_data.price_points,
-                color=_PRICE_COLOR,
-                y_title="Price",
-            )
-        )
-        self._fundamentals_chart_view.setChart(
-            _line_chart_for_year_points(
-                title="Revenue and EBITDA / operating income",
-                main_points=chart_data.fundamentals.revenue_points,
-                main_label="Revenue",
-                main_color=_REVENUE_COLOR,
-                secondary_points=chart_data.fundamentals.operating_income_points,
-                secondary_label="EBITDA / operating income",
-                secondary_color=_OPERATING_COLOR,
-                y_title="Amount",
-            )
-        )
-        margin_points = [
-            _to_year_point(point.fiscal_year, point.value * 100.0) for point in chart_data.fundamentals.margin_points
+
+        def _add_chart(chart: QChart):
+            cv = QChartView(chart)
+            cv.setRenderHint(QPainter.RenderHint.Antialiasing)
+            cv.setMinimumHeight(280)
+            cv.setStyleSheet(f"background-color: {C_BG_CARD}; border: 1px solid {C_BORDER}; border-radius: 6px;")
+            self.chart_container.addWidget(cv)
+
+        # 1. Price
+        chart_price = QChart()
+        chart_price.setTitle("Price History (Base 100)")
+        chart_price.legend().hide()
+        chart_price.setBackgroundBrush(QColor(C_BG_CARD))
+        chart_price.setTitleBrush(QColor(C_TEXT_MAIN))
+
+        series_price = QLineSeries()
+        pen = QPen(QColor(C_ACC_PRI))
+        pen.setWidth(2)
+        series_price.setPen(pen)
+
+        if chart_data.price_points:
+            base = chart_data.price_points[0].value
+            if base == 0:
+                base = 1
+            vals = []
+            for p in chart_data.price_points:
+                dt = QDateTime(p.point_date.year, p.point_date.month, p.point_date.day, 0, 0, 0)
+                norm = (p.value / base) * 100
+                series_price.append(float(dt.toMSecsSinceEpoch()), norm)
+                vals.append(norm)
+
+            chart_price.addSeries(series_price)
+            ax = QDateTimeAxis()
+            ax.setFormat("MMM yyyy")
+            ax.setLabelsBrush(QColor(C_TEXT_SEC))
+            chart_price.addAxis(ax, Qt.AlignmentFlag.AlignBottom)
+            series_price.attachAxis(ax)
+
+            ay = QValueAxis()
+            ay.setLabelFormat("%.0f")
+            ay.setLabelsBrush(QColor(C_TEXT_SEC))
+            ay.setRange(min(vals) * 0.9, max(vals) * 1.1)
+            chart_price.addAxis(ay, Qt.AlignmentFlag.AlignLeft)
+            series_price.attachAxis(ay)
+
+        _add_chart(chart_price)
+
+        # 2. Revenue & EBITDA
+        chart_rev = QChart()
+        chart_rev.setTitle("Revenue & EBITDA (M)")
+        chart_rev.setBackgroundBrush(QColor(C_BG_CARD))
+        chart_rev.setTitleBrush(QColor(C_TEXT_MAIN))
+        chart_rev.legend().setLabelBrush(QColor(C_TEXT_SEC))
+
+        s_rev = QLineSeries()
+        s_rev.setName("Revenue")
+        p_rev = QPen(QColor(C_ACC_PRI))
+        p_rev.setWidth(2)
+        s_rev.setPen(p_rev)
+
+        s_ebitda = QLineSeries()
+        s_ebitda.setName("EBITDA")
+        p_ebitda = QPen(QColor(C_POS))
+        p_ebitda.setWidth(2)
+        s_ebitda.setPen(p_ebitda)
+
+        if chart_data.fundamentals.revenue_points:
+            years = []
+            vals = []
+            for p in chart_data.fundamentals.revenue_points:
+                s_rev.append(float(p.fiscal_year), p.value / 1_000_000)
+                years.append(p.fiscal_year)
+                vals.append(p.value / 1_000_000)
+
+            for p in chart_data.fundamentals.operating_income_points:
+                s_ebitda.append(float(p.fiscal_year), p.value / 1_000_000)
+                vals.append(p.value / 1_000_000)
+
+            chart_rev.addSeries(s_rev)
+            chart_rev.addSeries(s_ebitda)
+
+            ax = QValueAxis()
+            ax.setLabelFormat("%.0f")
+            ax.setLabelsBrush(QColor(C_TEXT_SEC))
+            ax.setRange(min(years) - 0.5, max(years) + 0.5)
+            chart_rev.addAxis(ax, Qt.AlignmentFlag.AlignBottom)
+            s_rev.attachAxis(ax)
+            s_ebitda.attachAxis(ax)
+
+            ay = QValueAxis()
+            ay.setLabelFormat("%.0f")
+            ay.setLabelsBrush(QColor(C_TEXT_SEC))
+            ay.setRange(min(vals) * 0.9 if min(vals) < 0 else 0, max(vals) * 1.1)
+            chart_rev.addAxis(ay, Qt.AlignmentFlag.AlignLeft)
+            s_rev.attachAxis(ay)
+            s_ebitda.attachAxis(ay)
+
+        _add_chart(chart_rev)
+
+        # 3. Margin Evolution
+        chart_margin = QChart()
+        chart_margin.setTitle("Margin Evolution (%)")
+        chart_margin.setBackgroundBrush(QColor(C_BG_CARD))
+        chart_margin.setTitleBrush(QColor(C_TEXT_MAIN))
+        chart_margin.legend().setLabelBrush(QColor(C_TEXT_SEC))
+
+        s_margin = QLineSeries()
+        s_margin.setName("Op. Margin")
+        p_margin = QPen(QColor(C_ACC_SEC))
+        p_margin.setWidth(2)
+        s_margin.setPen(p_margin)
+
+        if chart_data.fundamentals.margin_points:
+            years = []
+            vals = []
+            for p in chart_data.fundamentals.margin_points:
+                s_margin.append(float(p.fiscal_year), p.value * 100)
+                years.append(p.fiscal_year)
+                vals.append(p.value * 100)
+
+            chart_margin.addSeries(s_margin)
+
+            ax = QValueAxis()
+            ax.setLabelFormat("%.0f")
+            ax.setLabelsBrush(QColor(C_TEXT_SEC))
+            ax.setRange(min(years) - 0.5, max(years) + 0.5)
+            chart_margin.addAxis(ax, Qt.AlignmentFlag.AlignBottom)
+            s_margin.attachAxis(ax)
+
+            ay = QValueAxis()
+            ay.setLabelFormat("%.1f")
+            ay.setLabelsBrush(QColor(C_TEXT_SEC))
+            ay.setRange(min(vals) * 0.9 if min(vals) < 0 else 0, max(vals) * 1.1)
+            chart_margin.addAxis(ay, Qt.AlignmentFlag.AlignLeft)
+            s_margin.attachAxis(ay)
+
+        _add_chart(chart_margin)
+
+        # 4. Score Breakdown
+        chart_score = QChart()
+        chart_score.setTitle("Score Breakdown")
+        chart_score.legend().hide()
+        chart_score.setBackgroundBrush(QColor(C_BG_CARD))
+        chart_score.setTitleBrush(QColor(C_TEXT_MAIN))
+
+        if chart_data.score_breakdown:
+            bar_set = QBarSet("Score")
+            cats = []
+            max_score = 0
+            for p in chart_data.score_breakdown:
+                bar_set.append(p.score)
+                cats.append(p.label)
+                max_score = max(max_score, p.score)
+
+            bar_set.setColor(QColor(C_ACC_PRI))
+            s_score = QBarSeries()
+            s_score.append(bar_set)
+            chart_score.addSeries(s_score)
+
+            ax = QBarCategoryAxis()
+            ax.append(cats)
+            ax.setLabelsBrush(QColor(C_TEXT_SEC))
+            chart_score.addAxis(ax, Qt.AlignmentFlag.AlignBottom)
+            s_score.attachAxis(ax)
+
+            ay = QValueAxis()
+            ay.setLabelFormat("%.0f")
+            ay.setLabelsBrush(QColor(C_TEXT_SEC))
+            ay.setRange(0, max(100.0, max_score * 1.1))
+            chart_score.addAxis(ay, Qt.AlignmentFlag.AlignLeft)
+            s_score.attachAxis(ay)
+
+        _add_chart(chart_score)
+
+    def _update_kpi(self, key: str, value: float | None, fmt_func) -> None:
+        lbl_val, lbl_sig = self.kpi_widgets[key]
+        lbl_val.setText(fmt_func(value))
+        sig_text, sig_color = _kpi_signal(key, value)
+        lbl_sig.setText(sig_text)
+        lbl_sig.setStyleSheet(f"color: {sig_color}; font-weight: bold; font-size: 11px; border: none;")
+
+        font_st = "font-size: 18px; font-weight: 600; font-family: 'IBM Plex Sans', 'JetBrains Mono', monospace;"
+        if sig_color == C_POS:
+            lbl_val.setStyleSheet(f"color: {C_POS}; {font_st}")
+        elif sig_color == C_NEG:
+            lbl_val.setStyleSheet(f"color: {C_NEG}; {font_st}")
+        else:
+            lbl_val.setStyleSheet(f"color: {C_TEXT_MAIN}; {font_st}")
+
+    def _populate_fin_table(self, detail: CompanyFinancialDetail | None) -> None:
+        self.fin_table.clear()
+        self.fin_table.setRowCount(0)
+        self.fin_table.setColumnCount(0)
+
+        if not detail or not getattr(detail, "historical_fundamentals", None):
+            return
+
+        hf = detail.historical_fundamentals
+        periods = [
+            ("Revenue", hf.revenue_history, _fmt_large),
+            ("EBITDA", getattr(hf, "ebitda_history", []), _fmt_large),
+            ("Net Income", hf.net_income_history, _fmt_large),
+            ("FCF", hf.free_cash_flow_history, _fmt_large),
+            ("Net Debt", hf.net_debt_history, _fmt_large),
         ]
-        self._margin_chart_view.setChart(
-            _line_chart_for_year_points(
-                title="Operating margin history (%)",
-                main_points=margin_points,
-                main_label="Margin %",
-                main_color=_MARGIN_COLOR,
-                secondary_points=[],
-                secondary_label=None,
-                secondary_color=None,
-                y_title="Percent",
-            )
-        )
-        self._score_chart_view.setChart(_score_breakdown_chart(chart_data.score_breakdown))
 
-    def _clear_charts(self) -> None:
-        self._price_chart_view.setChart(_empty_chart("Price history"))
-        self._fundamentals_chart_view.setChart(_empty_chart("Revenue and EBITDA / operating income"))
-        self._margin_chart_view.setChart(_empty_chart("Operating margin history (%)"))
-        self._score_chart_view.setChart(_empty_chart("Score breakdown"))
+        years_set = set()
+        for _, history, _ in periods:
+            for point in history:
+                years_set.add(point.fiscal_year)
 
-    def _populate_peer_comparison(self, comparison: PeerComparisonData | None) -> None:
-        if comparison is None:
-            self._set_field("Peer Comparison", "Sector", _NA)
-            self._set_field("Peer Comparison", "Relative rank", _NA)
-            self._set_field("Peer Comparison", "Peer count", _NA)
-            self._set_field("Peer Comparison", "Median comparison", _NA)
-            self._set_field("Peer Comparison", "Peer table", _NA)
+        years = sorted(list(years_set), reverse=True)[:5]
+        if not years:
             return
 
-        self._set_field("Peer Comparison", "Sector", comparison.sector or _NA)
-        self._set_field(
-            "Peer Comparison",
-            "Relative rank",
-            _fmt_relative_rank(comparison.company_sector_rank, comparison.sector_scored_count),
-        )
-        self._set_field("Peer Comparison", "Peer count", str(comparison.peer_count))
-        self._set_field("Peer Comparison", "Median comparison", _fmt_peer_metric_comparisons(comparison.metrics))
-        self._set_field("Peer Comparison", "Peer table", _fmt_peer_table(comparison.peer_rows))
+        headers = ["Metric"] + [str(y) for y in years]
+        self.fin_table.setColumnCount(len(headers))
+        self.fin_table.setHorizontalHeaderLabels(headers)
+        self.fin_table.setRowCount(len(periods))
 
-    def _populate_analyst_memo(self, memo: AnalystMemo) -> None:
-        self._set_field("Analyst Memo", "Investment thesis", _fmt_memo(memo.investment_thesis))
-        self._set_field("Analyst Memo", "Key risks", _fmt_memo(memo.key_risks))
-        self._set_field("Analyst Memo", "Catalysts", _fmt_memo(memo.catalysts))
-        self._set_field("Analyst Memo", "Valuation notes", _fmt_memo(memo.valuation_notes))
-        self._set_field("Analyst Memo", "Next action", _fmt_memo(memo.next_action))
-        self._set_field("Analyst Memo", "Quick scan", _fmt_memo_quick_line(memo))
+        for row_idx, (label, history, fmt_func) in enumerate(periods):
+            item = QTableWidgetItem(label)
+            item.setForeground(QColor(C_TEXT_MAIN))
+            self.fin_table.setItem(row_idx, 0, item)
 
-    def _update_alerts(self, row: ScreenerRow) -> None:
-        alerts: list[str] = []
-        if row.snapshot_date is None:
-            alerts.append("Aucun snapshot KPI disponible.")
-        if row.data_quality_score is None or row.data_quality_score < _DATA_QUALITY_MEDIUM:
-            alerts.append("Qualité des données faible ou inconnue.")
-        if row.last_universe_refresh_at is None:
-            alerts.append("Données jamais actualisées.")
+            h_dict = {p.fiscal_year: p for p in history}
+            for col_idx, year in enumerate(years):
+                point = h_dict.get(year)
+                val_str = fmt_func(point.value, detail.currency) if point else _NA
+                cell = QTableWidgetItem(val_str)
+                cell.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                cell.setForeground(QColor(C_TEXT_SEC if not point else C_TEXT_MAIN))
+                self.fin_table.setItem(row_idx, col_idx + 1, cell)
+
+    def _toggle_watchlist(self) -> None:
+        if self._current_row is None:
+            return
+        if self._in_watchlist:
+            self.remove_watchlist_requested.emit(self._current_row.company_id)
         else:
-            now = datetime.now(UTC)
-            refresh_at = row.last_universe_refresh_at
-            if refresh_at.tzinfo is None:
-                refresh_at = refresh_at.replace(tzinfo=UTC)
-            age_days = (now - refresh_at).days
-            if age_days > STALE_REFRESH_DAYS:
-                alerts.append(f"Données obsolètes ({age_days} jours depuis la dernière actualisation).")
-        if alerts:
-            self._alert_label.setText("\n".join(alerts))
-            self._alert_frame.setVisible(True)
-        else:
-            self._alert_frame.setVisible(False)
-
-    def clear(self) -> None:
-        self._current_row = None
-        self._in_watchlist = False
-        self._set_editor_values(
-            status=WATCHLIST_STATUS_WATCHING,
-            notes="",
-            is_excluded=False,
-            next_review_at=None,
-            memo=AnalystMemo(),
-        )
-        self._set_actions_enabled(False)
-        self._clear_charts()
-        self._alert_frame.setVisible(False)
-        self._tabs.setVisible(False)
-        self._placeholder.setVisible(True)
-
-    def _set_editor_values(
-        self,
-        *,
-        status: str,
-        notes: str,
-        is_excluded: bool,
-        next_review_at: datetime | None,
-        memo: AnalystMemo,
-    ) -> None:
-        status_index = self._status_input.findData(status)
-        if status_index < 0:
-            status_index = self._status_input.findData(WATCHLIST_STATUS_WATCHING)
-        if status_index >= 0:
-            self._status_input.setCurrentIndex(status_index)
-        self._notes_input.setText(notes)
-        self._excluded_input.setChecked(is_excluded)
-        self._next_review_input.setText(_to_next_review_editor_text(next_review_at))
-        self._investment_thesis_input.setPlainText(memo.investment_thesis or "")
-        self._key_risks_input.setPlainText(memo.key_risks or "")
-        self._catalysts_input.setPlainText(memo.catalysts or "")
-        self._valuation_notes_input.setPlainText(memo.valuation_notes or "")
-        self._next_action_input.setPlainText(memo.next_action or "")
-
-    def _set_actions_enabled(self, enabled: bool) -> None:
-        self._status_input.setEnabled(enabled)
-        self._notes_input.setEnabled(enabled)
-        self._excluded_input.setEnabled(enabled)
-        self._next_review_input.setEnabled(enabled)
-        self._investment_thesis_input.setEnabled(enabled)
-        self._key_risks_input.setEnabled(enabled)
-        self._catalysts_input.setEnabled(enabled)
-        self._valuation_notes_input.setEnabled(enabled)
-        self._next_action_input.setEnabled(enabled)
-        self._add_watchlist_btn.setEnabled(enabled)
-        self._remove_watchlist_btn.setEnabled(enabled)
-        self._save_btn.setEnabled(enabled)
-        self._refresh_btn.setEnabled(enabled)
-
-    def _on_add_watchlist_clicked(self) -> None:
-        if self._current_row is None:
-            return
-        self.add_watchlist_requested.emit(self._current_row.company_id, self._notes_input.text().strip())
-
-    def _on_remove_watchlist_clicked(self) -> None:
-        if self._current_row is None:
-            return
-        self.remove_watchlist_requested.emit(self._current_row.company_id)
-
-    def _on_save_clicked(self) -> None:
-        if self._current_row is None:
-            return
-        status = str(self._status_input.currentData() or WATCHLIST_STATUS_WATCHING)
-        notes = self._notes_input.text().strip()
-        self.save_watchlist_requested.emit(
-            self._current_row.company_id,
-            status,
-            notes,
-            self._excluded_input.isChecked(),
-            self._investment_thesis_input.toPlainText().strip(),
-            self._key_risks_input.toPlainText().strip(),
-            self._catalysts_input.toPlainText().strip(),
-            self._valuation_notes_input.toPlainText().strip(),
-            self._next_action_input.toPlainText().strip(),
-            self._next_review_input.text().strip(),
-        )
+            self.add_watchlist_requested.emit(self._current_row.company_id, "")
 
     def _on_refresh_clicked(self) -> None:
         if self._current_row is None:
             return
         self.refresh_company_requested.emit(self._current_row.company_id)
 
+    def _on_save_clicked(self) -> None:
+        if self._current_row is None:
+            return
 
-def _build_chart_view() -> QChartView:
-    chart_view = QChartView()
-    chart_view.setRenderHint(QPainter.RenderHint.Antialiasing)
-    chart_view.setMinimumHeight(_CHART_HEIGHT)
-    chart_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-    return chart_view
+        status = self.input_status.currentData()
+        notes = self.input_notes.text().strip()
+        is_excluded = self.input_excluded.isChecked()
+        thesis = self.input_thesis.toPlainText().strip()
+        risks = self.input_risks.toPlainText().strip()
+        catalysts = self.input_catalysts.toPlainText().strip()
+        val_notes = self.input_val.toPlainText().strip()
+        next_action = self.input_action.toPlainText().strip()
+        review_at = self.input_review_at.text().strip()
 
-
-def _empty_chart(title: str) -> QChart:
-    chart = QChart()
-    chart.setTitle(title + _NO_DATA_SUFFIX)
-    chart.legend().hide()
-    return chart
-
-
-def _line_chart_for_dated_points(
-    *,
-    title: str,
-    points: list[DatedChartPoint],
-    color: str,
-    y_title: str,
-) -> QChart:
-    if not points:
-        return _empty_chart(title)
-    chart = QChart()
-    chart.setTitle(title)
-    chart.legend().hide()
-
-    series = QLineSeries()
-    series.setPen(_line_pen(color))
-    chart.addSeries(series)
-
-    values: list[float] = []
-    for point in points:
-        qdt = QDateTime(point.point_date.year, point.point_date.month, point.point_date.day, 0, 0, 0)
-        series.append(float(qdt.toMSecsSinceEpoch()), point.value)
-        values.append(point.value)
-
-    axis_x = QDateTimeAxis()
-    axis_x.setFormat("yyyy-MM")
-    axis_x.setTitleText("Date")
-    start = QDateTime(points[0].point_date.year, points[0].point_date.month, points[0].point_date.day, 0, 0, 0)
-    end = QDateTime(points[-1].point_date.year, points[-1].point_date.month, points[-1].point_date.day, 0, 0, 0)
-    if len(points) == 1:
-        start = start.addDays(-1)
-        end = end.addDays(1)
-    axis_x.setRange(start, end)
-    chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
-    series.attachAxis(axis_x)
-
-    axis_y = QValueAxis()
-    axis_y.setLabelFormat("%.2f")
-    axis_y.setTitleText(y_title)
-    _set_value_axis_range(axis_y, min(values), max(values))
-    chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
-    series.attachAxis(axis_y)
-    return chart
-
-
-def _line_chart_for_year_points(
-    *,
-    title: str,
-    main_points: list[YearlyChartPoint],
-    main_label: str,
-    main_color: str,
-    secondary_points: list[YearlyChartPoint],
-    secondary_label: str | None,
-    secondary_color: str | None,
-    y_title: str,
-) -> QChart:
-    has_main = bool(main_points)
-    has_secondary = bool(secondary_points)
-    if not has_main and not has_secondary:
-        return _empty_chart(title)
-
-    chart = QChart()
-    chart.setTitle(title)
-    chart.legend().setVisible(has_secondary)
-
-    main_series = _year_line_series(main_label, main_points, main_color)
-    chart.addSeries(main_series)
-    all_points = list(main_points)
-
-    secondary_series: QLineSeries | None = None
-    if has_secondary and secondary_label is not None and secondary_color is not None:
-        secondary_series = _year_line_series(secondary_label, secondary_points, secondary_color)
-        chart.addSeries(secondary_series)
-        all_points.extend(secondary_points)
-
-    years = [point.fiscal_year for point in all_points]
-    values = [point.value for point in all_points]
-
-    axis_x = QValueAxis()
-    axis_x.setLabelFormat("%.0f")
-    axis_x.setTitleText("Fiscal year")
-    _set_year_axis_range(axis_x, min(years), max(years))
-    chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
-    main_series.attachAxis(axis_x)
-    if secondary_series is not None:
-        secondary_series.attachAxis(axis_x)
-
-    axis_y = QValueAxis()
-    axis_y.setLabelFormat("%.2f")
-    axis_y.setTitleText(y_title)
-    _set_value_axis_range(axis_y, min(values), max(values))
-    chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
-    main_series.attachAxis(axis_y)
-    if secondary_series is not None:
-        secondary_series.attachAxis(axis_y)
-
-    return chart
-
-
-def _score_breakdown_chart(points: list[ScoreBreakdownPoint]) -> QChart:
-    if not points:
-        return _empty_chart("Score breakdown")
-
-    chart = QChart()
-    chart.setTitle("Score breakdown")
-    chart.legend().hide()
-
-    bar_set = QBarSet("Score")
-    bar_set.setColor(QColor(_SCORE_BAR_COLOR))
-    for point in points:
-        bar_set.append(point.score)
-
-    series = QBarSeries()
-    series.append(bar_set)
-    chart.addSeries(series)
-
-    axis_x = QBarCategoryAxis()
-    axis_x.append([point.label for point in points])
-    axis_x.setTitleText("Category")
-    chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
-    series.attachAxis(axis_x)
-
-    max_score = max(100.0, max(point.score for point in points))
-    axis_y = QValueAxis()
-    axis_y.setLabelFormat("%.0f")
-    axis_y.setTitleText("Score")
-    axis_y.setRange(0.0, max_score * 1.05)
-    chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
-    series.attachAxis(axis_y)
-    return chart
-
-
-def _line_pen(color: str) -> QPen:
-    pen = QPen(QColor(color))
-    pen.setWidth(2)
-    return pen
-
-
-def _year_line_series(name: str, points: list[YearlyChartPoint], color: str) -> QLineSeries:
-    series = QLineSeries()
-    series.setName(name)
-    series.setPen(_line_pen(color))
-    for point in points:
-        series.append(float(point.fiscal_year), point.value)
-    return series
-
-
-def _set_year_axis_range(axis: QValueAxis, start_year: int, end_year: int) -> None:
-    if start_year == end_year:
-        axis.setRange(float(start_year - 1), float(end_year + 1))
-        return
-    axis.setRange(float(start_year), float(end_year))
-
-
-def _set_value_axis_range(axis: QValueAxis, min_value: float, max_value: float) -> None:
-    if min_value == max_value:
-        padding = 1.0 if min_value == 0 else abs(min_value) * 0.1
-        axis.setRange(min_value - padding, max_value + padding)
-        return
-    padding = abs(max_value - min_value) * 0.1
-    axis.setRange(min_value - padding, max_value + padding)
-
-
-def _to_year_point(fiscal_year: int, value: float) -> YearlyChartPoint:
-    return YearlyChartPoint(fiscal_year=fiscal_year, value=value)
-
-
-def _fmt_period(detail: CompanyFinancialDetail) -> str:
-    if detail.fiscal_year is None:
-        return _NA
-    period_label = "annuel" if "annual" in (detail.period_type or "") else (detail.period_type or "")
-    return f"{detail.fiscal_year} ({period_label})"
-
-
-def _fmt_trend(value: str | None) -> str:
-    if value is None:
-        return _NA
-    return _TREND_LABELS.get(value, value)
-
-
-def _fmt_historical_table(detail: CompanyFinancialDetail) -> str:
-    periods = [
-        ("Revenues", detail.historical_fundamentals.revenue_history),
-        ("Operating income", detail.historical_fundamentals.operating_income_history),
-        ("Net income", detail.historical_fundamentals.net_income_history),
-        ("Free cash flow", detail.historical_fundamentals.free_cash_flow_history),
-        ("Net debt", detail.historical_fundamentals.net_debt_history),
-    ]
-    years = _collect_historical_years(periods)
-    if not years:
-        return _NA
-
-    header = "Metric | " + " | ".join(str(year) for year in years)
-    rows = [header]
-    for label, history in periods:
-        values = {point.fiscal_year: point for point in history}
-        cells = [label]
-        for year in years:
-            point = values.get(year)
-            cells.append(_fmt_history_cell(point.value, point.period_type, detail.currency) if point else _NA)
-        rows.append(" | ".join(cells))
-    return "<pre>" + "\n".join(rows) + "</pre>"
-
-
-def _collect_historical_years(periods: list[tuple[str, list]]) -> list[int]:
-    years: set[int] = set()
-    for _, history in periods:
-        for point in history:
-            years.add(point.fiscal_year)
-    return sorted(years, reverse=True)
-
-
-def _fmt_history_cell(value: float | None, period_type: str | None, currency: str) -> str:
-    if value is None:
-        return _NA
-    suffix = "A" if period_type and "annual" in period_type else "H"
-    return f"{_fmt_large(value, currency)} ({suffix})"
-
-
-def _fmt_quality(score: float | None) -> str:
-    if score is None:
-        return _NA
-    pct = f"{score * 100:.1f}%"
-    if score >= _DATA_QUALITY_HIGH:
-        badge = "Élevée"
-    elif score >= _DATA_QUALITY_MEDIUM:
-        badge = "Moyenne"
-    else:
-        badge = "Faible"
-    return f"{pct} ({badge})"
-
-
-def _normalize_optional_text(value: str | None) -> str | None:
-    if value is None:
-        return None
-    normalized = value.strip()
-    if not normalized:
-        return None
-    return normalized
-
-
-def _fmt_memo(value: str | None) -> str:
-    normalized = _normalize_optional_text(value)
-    if normalized is None:
-        return _NA
-    return "<pre>" + normalized + "</pre>"
-
-
-def _fmt_memo_quick_line(memo: AnalystMemo) -> str:
-    snippets = [
-        _normalize_optional_text(memo.investment_thesis),
-        _normalize_optional_text(memo.key_risks),
-        _normalize_optional_text(memo.catalysts),
-        _normalize_optional_text(memo.valuation_notes),
-        _normalize_optional_text(memo.next_action),
-    ]
-    present = [item for item in snippets if item is not None]
-    if not present:
-        return _NA
-    return " | ".join(present)
-
-
-def _fmt_relative_rank(rank: int | None, sector_size: int) -> str:
-    if rank is None or sector_size <= 0:
-        return _NA
-    return f"#{rank}/{sector_size} ({_relative_rank_signal(rank, sector_size)})"
-
-
-def _relative_rank_signal(rank: int, sector_size: int) -> str:
-    top_limit = max(1, math.ceil(sector_size / 3))
-    mid_limit = max(top_limit, math.ceil((sector_size * 2) / 3))
-    if rank <= top_limit:
-        return "top tier"
-    if rank <= mid_limit:
-        return "mid tier"
-    return "bottom tier"
-
-
-def _fmt_peer_metric_comparisons(metrics: list[PeerMetricComparison]) -> str:
-    if not metrics:
-        return _NA
-    lines = ["Metric | Company | Sector median | Position"]
-    for metric in metrics:
-        lines.append(
-            " | ".join(
-                [
-                    metric.label,
-                    _fmt_peer_metric_value(metric.key, metric.company_value),
-                    _fmt_peer_metric_value(metric.key, metric.sector_median),
-                    metric.position or _NA,
-                ]
-            )
+        self.save_watchlist_requested.emit(
+            self._current_row.company_id,
+            status,
+            notes,
+            is_excluded,
+            thesis,
+            risks,
+            catalysts,
+            val_notes,
+            next_action,
+            review_at,
         )
-    return "<pre>" + "\n".join(lines) + "</pre>"
 
+    def clear(self) -> None:
+        self._current_row = None
+        self._in_watchlist = False
+        self.lbl_name.setText("-")
+        self.lbl_ticker.setText("-")
+        self.lbl_sector.setText("-")
+        self.lbl_price.setText("-")
+        self.lbl_mcap.setText("-")
+        self.lbl_ev.setText("-")
 
-def _fmt_peer_table(rows: list[PeerCompanyRow]) -> str:
-    if not rows:
-        return _NA
-    lines = ["Ticker | Rank | Score | EV/EBITDA | P/E | Op. margin | Rev. growth"]
-    for row in rows:
-        lines.append(
-            " | ".join(
-                [
-                    row.ticker or _NA,
-                    str(row.sector_rank) if row.sector_rank is not None else _NA,
-                    _fmt_peer_metric_value("total_score", row.total_score),
-                    _fmt_peer_metric_value("ev_ebitda", row.ev_ebitda),
-                    _fmt_peer_metric_value("pe_ratio", row.pe_ratio),
-                    _fmt_peer_metric_value("operating_margin", row.operating_margin),
-                    _fmt_peer_metric_value("revenue_growth", row.revenue_growth),
-                ]
-            )
-        )
-    return "<pre>" + "\n".join(lines) + "</pre>"
+        font_st = "font-size: 18px; font-weight: 600; font-family: 'IBM Plex Sans', 'JetBrains Mono', monospace;"
+        for lbl_val, lbl_sig in self.kpi_widgets.values():
+            lbl_val.setText("-")
+            lbl_val.setStyleSheet(f"color: {C_TEXT_MAIN}; {font_st}")
+            lbl_sig.setText("-")
 
+        self.fin_table.clear()
+        self.fin_table.setRowCount(0)
+        self.fin_table.setColumnCount(0)
 
-def _fmt_peer_metric_value(metric_key: str, value: float | None) -> str:
-    if metric_key in {"gross_margin", "operating_margin", "revenue_growth", "ebitda_growth"}:
-        return _fmt_pct(value)
-    if metric_key in {"ev_ebitda", "pe_ratio"}:
-        return _fmt_ratio(value)
-    if metric_key in {
-        "total_score",
-        "quality_score",
-        "value_score",
-        "growth_score",
-        "risk_score",
-        "data_quality_score",
-    }:
-        return _fmt(value, 1)
-    return _fmt(value)
+        self.input_status.setCurrentIndex(0)
+        self.input_excluded.setChecked(False)
+        self.input_notes.clear()
+        self.input_review_at.clear()
+        self.input_thesis.clear()
+        self.input_risks.clear()
+        self.input_catalysts.clear()
+        self.input_val.clear()
+        self.input_action.clear()
 
-
-def _fmt_score_weights(explanation: ScoreExplanation | None) -> str:
-    if explanation is None or not explanation.weights:
-        return _NA
-    return ", ".join(f"{entry.category} {entry.weight * 100:.1f}%" for entry in explanation.weights)
-
-
-def _fmt_score_contributions(explanation: ScoreExplanation | None) -> str:
-    if explanation is None or not explanation.category_contributions:
-        return _NA
-    rows = ["Category | Sub-score | Weight | Points"]
-    for entry in explanation.category_contributions:
-        rows.append(f"{entry.category} | {entry.sub_score:.2f} | {entry.weight:.2f} | {entry.weighted_points:.2f}")
-    return "<pre>" + "\n".join(rows) + "</pre>"
-
-
-def _fmt_score_drivers(explanation: ScoreExplanation | None, *, positive: bool) -> str:
-    if explanation is None:
-        return _NA
-    drivers = explanation.positive_drivers if positive else explanation.negative_drivers
-    if not drivers:
-        return _NA
-    return "<pre>" + "\n".join(_fmt_single_driver(driver) for driver in drivers) + "</pre>"
-
-
-def _fmt_single_driver(driver: ScoreMetricDriver) -> str:
-    return (
-        f"{driver.category}.{driver.metric}: impact {driver.impact_points:+.2f} pts, "
-        f"metric {driver.metric_score:.1f}/100, raw {driver.raw_value:.4g}"
-    )
-
-
-def _fmt_score_points(explanation: ScoreExplanation | None, *, strengths: bool) -> str:
-    if explanation is None:
-        return _NA
-    points = explanation.strengths if strengths else explanation.weaknesses
-    if not points:
-        return _NA
-    return "; ".join(points)
-
-
-def _fmt_refresh_date(refresh_at: datetime | None) -> str:
-    if refresh_at is None:
-        return "Jamais"
-    if refresh_at.tzinfo is None:
-        refresh_at = refresh_at.replace(tzinfo=UTC)
-    return refresh_at.strftime("%Y-%m-%d %H:%M")
-
-
-def _fmt_next_review_at(next_review_at: datetime | None) -> str:
-    if next_review_at is None:
-        return _NA
-    return _to_next_review_editor_text(next_review_at)
-
-
-def _to_next_review_editor_text(next_review_at: datetime | None) -> str:
-    if next_review_at is None:
-        return ""
-    if next_review_at.tzinfo is not None:
-        next_review_at = next_review_at.astimezone(UTC)
-    return next_review_at.strftime("%Y-%m-%d %H:%M")
+        while self.chart_container.count():
+            item = self.chart_container.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
