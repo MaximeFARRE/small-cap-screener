@@ -9,7 +9,13 @@ from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
 
 from src.models.company import Company
+from src.models.company_executive import CompanyExecutive
+from src.models.company_holder import CompanyHolder
+from src.models.company_insider_transaction import CompanyInsiderTransaction
 from src.repositories import (
+    company_executive_repository,
+    company_holder_repository,
+    company_insider_transaction_repository,
     company_repository,
     financial_statement_repository,
     market_data_repository,
@@ -17,10 +23,14 @@ from src.repositories import (
 )
 from src.repositories.database import get_session
 from src.repositories.providers.base import (
+    AnalystData,
     BaseProvider,
     CompanyProfile,
     DividendData,
+    ExecutiveData,
     FinancialData,
+    HolderData,
+    InsiderTransactionData,
     MarketData,
     PriceHistory,
     ProviderDataInconsistentError,
@@ -55,6 +65,12 @@ class FetchedCompanyData:
     financial_statements: list[FinancialData]
     dividends: list[DividendData]
     splits: list[SplitData]
+    analyst_data: AnalystData | None = None
+    major_holders: list[HolderData] = field(default_factory=list)
+    institutional_holders: list[HolderData] = field(default_factory=list)
+    mutualfund_holders: list[HolderData] = field(default_factory=list)
+    insider_transactions: list[InsiderTransactionData] = field(default_factory=list)
+    key_executives: list[ExecutiveData] = field(default_factory=list)
 
 
 @dataclass
@@ -127,9 +143,10 @@ class FinancialDataService:
             operation="price_history",
             fetch_fn=lambda: self.provider.get_price_history(normalized_ticker, period=self.default_period),
         )
-        financial_statements = self._fetch_required_provider_data(
+        financial_statements = self._fetch_optional_provider_data(
             ticker=normalized_ticker,
             operation="financial_statements",
+            fallback=[],
             fetch_fn=lambda: self.provider.get_financial_statements(normalized_ticker, years=self.default_years),
         )
         dividends = (
@@ -152,6 +169,46 @@ class FinancialDataService:
             if hasattr(self.provider, "get_splits")
             else []
         )
+        analyst_data = (
+            self._fetch_optional_provider_data(
+                ticker=normalized_ticker,
+                operation="analyst_data",
+                fallback=None,
+                fetch_fn=lambda: self.provider.get_analyst_data(normalized_ticker),
+            )
+            if hasattr(self.provider, "get_analyst_data")
+            else None
+        )
+        major_holders = self._fetch_optional_provider_data(
+            ticker=normalized_ticker,
+            operation="major_holders",
+            fallback=[],
+            fetch_fn=lambda: self.provider.get_major_holders(normalized_ticker),
+        )
+        institutional_holders = self._fetch_optional_provider_data(
+            ticker=normalized_ticker,
+            operation="institutional_holders",
+            fallback=[],
+            fetch_fn=lambda: self.provider.get_institutional_holders(normalized_ticker),
+        )
+        mutualfund_holders = self._fetch_optional_provider_data(
+            ticker=normalized_ticker,
+            operation="mutualfund_holders",
+            fallback=[],
+            fetch_fn=lambda: self.provider.get_mutualfund_holders(normalized_ticker),
+        )
+        insider_transactions = self._fetch_optional_provider_data(
+            ticker=normalized_ticker,
+            operation="insider_transactions",
+            fallback=[],
+            fetch_fn=lambda: self.provider.get_insider_transactions(normalized_ticker),
+        )
+        key_executives = self._fetch_optional_provider_data(
+            ticker=normalized_ticker,
+            operation="key_executives",
+            fallback=[],
+            fetch_fn=lambda: self.provider.get_key_executives(normalized_ticker),
+        )
 
         return FetchedCompanyData(
             ticker=normalized_ticker,
@@ -161,6 +218,12 @@ class FinancialDataService:
             financial_statements=financial_statements,
             dividends=dividends,
             splits=splits,
+            analyst_data=analyst_data,
+            major_holders=major_holders,
+            institutional_holders=institutional_holders,
+            mutualfund_holders=mutualfund_holders,
+            insider_transactions=insider_transactions,
+            key_executives=key_executives,
         )
 
     def refresh_company_data(self, company_id: int) -> CompanyDataRefreshResult:
@@ -312,10 +375,10 @@ class FinancialDataService:
                     dividends=validated_data.dividends,
                     splits=validated_data.splits,
                 )
-                _apply_company_metadata(
-                    company,
-                    _validation_data_to_fetched_data(validated_data),
-                )
+                _sync_company_ownership_payload(session, company, fetched)
+                metadata_payload = _validation_data_to_fetched_data(validated_data)
+                metadata_payload.analyst_data = fetched.analyst_data
+                _apply_company_metadata(company, metadata_payload)
                 company_repository.update(session, company)
                 _LOGGER.info(
                     (
@@ -568,15 +631,52 @@ def _apply_company_metadata(company: Company, fetched: FetchedCompanyData) -> No
     if fetched.profile is not None:
         company.country = fetched.profile.country
         company.sector = fetched.profile.sector
+        company.industry = fetched.profile.industry
+        company.website = fetched.profile.website
+        if fetched.profile.business_summary is not None:
+            company.business_summary = fetched.profile.business_summary
+        if fetched.profile.full_time_employees is not None:
+            company.full_time_employees = fetched.profile.full_time_employees
+        if fetched.profile.city is not None:
+            company.city = fetched.profile.city
+        if fetched.profile.phone is not None:
+            company.phone = fetched.profile.phone
     if fetched.market_data is not None:
         company.market_cap = fetched.market_data.market_cap
         company.average_daily_volume = fetched.market_data.volume
         if fetched.market_data.currency is not None:
             company.currency = fetched.market_data.currency
+    if fetched.analyst_data is not None:
+        company.enterprise_value_yahoo = fetched.analyst_data.enterprise_value
+        company.beta = fetched.analyst_data.beta
+        company.analyst_target_price = fetched.analyst_data.target_price_mean
+        company.analyst_recommendation = fetched.analyst_data.recommendation_key
+        company.analyst_count = fetched.analyst_data.number_of_analyst_opinions
+        company.forward_pe = fetched.analyst_data.forward_pe
+        # Fundamental metrics
+        company.gross_margins = fetched.analyst_data.gross_margins
+        company.operating_margins = fetched.analyst_data.operating_margins
+        company.profit_margins = fetched.analyst_data.profit_margins
+        company.roe = fetched.analyst_data.roe
+        company.roa = fetched.analyst_data.roa
+        company.current_ratio = fetched.analyst_data.current_ratio
+        company.quick_ratio = fetched.analyst_data.quick_ratio
+        company.payout_ratio = fetched.analyst_data.payout_ratio
+        # Shares and volume
+        company.shares_outstanding = fetched.analyst_data.shares_outstanding
+        company.float_shares = fetched.analyst_data.float_shares
+        if fetched.analyst_data.average_volume is not None:
+            company.average_daily_volume = fetched.analyst_data.average_volume
+        # Dividend info
+        company.dividend_rate = fetched.analyst_data.dividend_rate
+        company.dividend_yield = fetched.analyst_data.dividend_yield
+        company.ex_dividend_date = fetched.analyst_data.ex_dividend_date
+        company.five_year_avg_dividend_yield = fetched.analyst_data.five_year_avg_dividend_yield
 
 
 def _build_payload_from_normalized(
-    normalized: NormalizedCompanyData, fetched: FetchedCompanyData
+    normalized: NormalizedCompanyData,
+    fetched: FetchedCompanyData,
 ) -> FetchedCompanyData:
     profile = _normalized_profile(normalized, fetched.profile)
     market_data = _normalized_market_data(normalized, fetched.market_data)
@@ -612,6 +712,10 @@ def _build_payload_from_normalized(
                 net_debt=record.net_debt,
                 free_cash_flow=record.free_cash_flow,
                 shares_outstanding=record.shares_outstanding,
+                gross_profit=record.gross_profit,
+                current_assets=record.current_assets,
+                current_liabilities=record.current_liabilities,
+                interest_expense=record.interest_expense,
             )
             for record in normalized.financial_statements
         ],
@@ -635,6 +739,12 @@ def _build_payload_from_normalized(
             )
             for record in normalized.splits
         ],
+        analyst_data=fetched.analyst_data,
+        major_holders=fetched.major_holders,
+        institutional_holders=fetched.institutional_holders,
+        mutualfund_holders=fetched.mutualfund_holders,
+        insider_transactions=fetched.insider_transactions,
+        key_executives=fetched.key_executives,
     )
 
 
@@ -650,6 +760,10 @@ def _normalized_profile(normalized: NormalizedCompanyData, profile: CompanyProfi
         country=profile.country,
         currency=normalized.currency if normalized.currency is not None else profile.currency,
         website=profile.website,
+        business_summary=profile.business_summary,
+        full_time_employees=profile.full_time_employees,
+        city=profile.city,
+        phone=profile.phone,
         source=profile.source,
         fetched_at=profile.fetched_at,
     )
@@ -683,6 +797,69 @@ def _validation_data_to_fetched_data(validated_data) -> FetchedCompanyData:
         dividends=validated_data.dividends,
         splits=validated_data.splits,
     )
+
+
+def _sync_company_ownership_payload(session: Session, company: Company, fetched: FetchedCompanyData) -> None:
+    holders_payload = [*fetched.major_holders, *fetched.institutional_holders, *fetched.mutualfund_holders]
+    holders_to_store: list[CompanyHolder] = []
+    for index, holder in enumerate(holders_payload):
+        if not holder.holder_name.strip():
+            continue
+        holders_to_store.append(
+            CompanyHolder(
+                company_id=company.id,
+                sort_order=index,
+                holder_type=holder.holder_type,
+                holder_name=holder.holder_name,
+                weight=holder.weight,
+                shares=holder.shares,
+                market_value=holder.market_value,
+                date_reported=holder.date_reported,
+                source=holder.source,
+                fetched_at=holder.fetched_at,
+            )
+        )
+
+    executives_to_store: list[CompanyExecutive] = []
+    for index, executive in enumerate(fetched.key_executives):
+        if not executive.name.strip():
+            continue
+        executives_to_store.append(
+            CompanyExecutive(
+                company_id=company.id,
+                sort_order=index,
+                name=executive.name,
+                title=executive.title,
+                age=executive.age,
+                total_pay=executive.total_pay,
+                year_born=executive.year_born,
+                fiscal_year=executive.fiscal_year,
+                source=executive.source,
+                fetched_at=executive.fetched_at,
+            )
+        )
+
+    insiders_to_store: list[CompanyInsiderTransaction] = []
+    for index, insider in enumerate(fetched.insider_transactions):
+        insiders_to_store.append(
+            CompanyInsiderTransaction(
+                company_id=company.id,
+                sort_order=index,
+                insider_name=insider.insider_name,
+                relation=insider.relation,
+                transaction_text=insider.transaction_text,
+                ownership=insider.ownership,
+                shares=insider.shares,
+                market_value=insider.market_value,
+                start_date=insider.start_date,
+                source=insider.source,
+                fetched_at=insider.fetched_at,
+            )
+        )
+
+    company_holder_repository.replace_for_company(session, company.id, holders_to_store)
+    company_executive_repository.replace_for_company(session, company.id, executives_to_store)
+    company_insider_transaction_repository.replace_for_company(session, company.id, insiders_to_store)
 
 
 def _classify_provider_error(exc: Exception) -> str:

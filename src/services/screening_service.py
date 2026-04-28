@@ -94,13 +94,25 @@ class UniverseScreeningEntry:
     ticker: str | None
     name: str
     sector: str | None
-    total_score: float | None
-    quality_score: float | None
-    value_score: float | None
-    growth_score: float | None
-    risk_score: float | None
-    rank: int | None
-    sector_rank: int | None
+    market: str | None = None
+    country: str | None = None
+    total_score: float | None = None
+    quality_score: float | None = None
+    value_score: float | None = None
+    growth_score: float | None = None
+    risk_score: float | None = None
+    rank: int | None = None
+    sector_rank: int | None = None
+    pe_ratio: float | None = None
+    ev_ebitda: float | None = None
+    fcf_yield: float | None = None
+    revenue_growth: float | None = None
+    ebitda_margin: float | None = None
+    operating_margin: float | None = None
+    roic: float | None = None
+    roe: float | None = None
+    net_debt_to_ebitda: float | None = None
+    market_cap: float | None = None
     data_quality_score: float | None = None
     last_universe_refresh_at: datetime | None = None
     snapshot_date: date | None = None
@@ -111,6 +123,11 @@ class UniverseScreeningFilters:
     sector: str | None = None
     min_total_score: float | None = None
     min_data_quality_score: float | None = None
+    max_pe: float | None = None
+    min_growth: float | None = None
+    min_margin: float | None = None
+    min_market_cap: float | None = None
+    max_market_cap: float | None = None
     stale_only: bool = False
     scored_only: bool = False
     watchlist_scope: WatchlistScopeFilter = "all"
@@ -508,6 +525,8 @@ def _build_universe_screening_entries(
                 ticker=company.ticker,
                 name=company.name,
                 sector=company.sector,
+                market=company.market,
+                country=company.country,
                 total_score=_snapshot_metric_as_float(snapshot, TOTAL_SCORE_KEY),
                 quality_score=_snapshot_metric_as_float(snapshot, QUALITY_SCORE_KEY),
                 value_score=_snapshot_metric_as_float(snapshot, VALUE_SCORE_KEY),
@@ -515,6 +534,16 @@ def _build_universe_screening_entries(
                 risk_score=_snapshot_metric_as_float(snapshot, RISK_SCORE_KEY),
                 rank=ranked.rank,
                 sector_rank=ranked.sector_rank,
+                pe_ratio=_snapshot_metric_as_float(snapshot, "pe_ratio"),
+                ev_ebitda=_snapshot_metric_as_float(snapshot, "ev_ebitda"),
+                fcf_yield=_snapshot_metric_as_float(snapshot, "fcf_yield"),
+                revenue_growth=_snapshot_metric_as_float(snapshot, "revenue_growth"),
+                ebitda_margin=_snapshot_metric_as_float(snapshot, "ebitda_margin"),
+                operating_margin=_snapshot_metric_as_float(snapshot, "operating_margin"),
+                roic=_snapshot_metric_as_float(snapshot, "roic"),
+                roe=_snapshot_metric_as_float(snapshot, "roe"),
+                net_debt_to_ebitda=_snapshot_metric_as_float(snapshot, "net_debt_to_ebitda"),
+                market_cap=company.market_cap,
                 data_quality_score=_snapshot_metric_as_float(snapshot, "data_quality_score"),
                 last_universe_refresh_at=company.last_universe_refresh_at,
                 snapshot_date=snapshot.snapshot_date if snapshot is not None else None,
@@ -580,6 +609,21 @@ def _apply_universe_screening_filters(
                 continue
         if filters.min_data_quality_score is not None:
             if entry.data_quality_score is None or entry.data_quality_score < filters.min_data_quality_score:
+                continue
+        if filters.max_pe is not None:
+            if entry.pe_ratio is None or entry.pe_ratio > filters.max_pe:
+                continue
+        if filters.min_growth is not None:
+            if entry.revenue_growth is None or entry.revenue_growth < filters.min_growth:
+                continue
+        if filters.min_margin is not None:
+            if entry.operating_margin is None or entry.operating_margin < filters.min_margin:
+                continue
+        if filters.min_market_cap is not None:
+            if entry.market_cap is None or entry.market_cap < filters.min_market_cap:
+                continue
+        if filters.max_market_cap is not None:
+            if entry.market_cap is None or entry.market_cap > filters.max_market_cap:
                 continue
         if stale_threshold is not None:
             refresh_at = entry.last_universe_refresh_at
@@ -752,6 +796,11 @@ def _with_watchlist_scope(filters: UniverseScreeningFilters) -> UniverseScreenin
         sector=filters.sector,
         min_total_score=filters.min_total_score,
         min_data_quality_score=filters.min_data_quality_score,
+        max_pe=filters.max_pe,
+        min_growth=filters.min_growth,
+        min_margin=filters.min_margin,
+        min_market_cap=filters.min_market_cap,
+        max_market_cap=filters.max_market_cap,
         stale_only=filters.stale_only,
         scored_only=filters.scored_only,
         watchlist_scope="watchlist_only",

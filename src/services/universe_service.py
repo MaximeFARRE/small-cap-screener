@@ -8,7 +8,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from src.models.company import Company
-from src.repositories import company_repository, seed_universe_repository
+from src.repositories import company_repository, euronext_discovery_repository, seed_universe_repository
 from src.repositories.database import get_session
 
 SessionScopeFactory = Callable[[], AbstractContextManager[Session]]
@@ -19,6 +19,14 @@ class CompanyUniverseSummary:
     total_companies: int
     filtered_companies: int
     exclusions: dict[str, int]
+
+
+@dataclass(frozen=True)
+class EuronextUniverseImportResult:
+    discovered_count: int
+    upserted_count: int
+    discovered_tickers: list[str]
+    upserted_company_ids: list[int]
 
 
 @dataclass
@@ -32,6 +40,23 @@ class UniverseService:
         entries = seed_universe_repository.read_seed_universe(csv_path)
         with self.session_scope_factory() as session:
             return company_repository.bulk_upsert_from_seed(session, entries)
+
+    def load_euronext_france_universe(self) -> list[Company]:
+        entries = euronext_discovery_repository.discover_french_listed_companies()
+        with self.session_scope_factory() as session:
+            return company_repository.bulk_upsert_from_seed(session, entries)
+
+    def import_euronext_france_universe(self) -> EuronextUniverseImportResult:
+        entries = euronext_discovery_repository.discover_french_listed_companies()
+        discovered_tickers = [entry.ticker for entry in entries if entry.ticker.strip()]
+        with self.session_scope_factory() as session:
+            upserted = company_repository.bulk_upsert_from_seed(session, entries)
+        return EuronextUniverseImportResult(
+            discovered_count=len(entries),
+            upserted_count=len(upserted),
+            discovered_tickers=discovered_tickers,
+            upserted_company_ids=[company.id for company in upserted],
+        )
 
     def refresh_investable_universe(
         self,

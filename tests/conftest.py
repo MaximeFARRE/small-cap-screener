@@ -3,6 +3,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 import src.models.company  # noqa: F401
+import src.models.company_executive  # noqa: F401
+import src.models.company_holder  # noqa: F401
+import src.models.company_insider_transaction  # noqa: F401
 import src.models.dividend  # noqa: F401
 import src.models.financial_statement  # noqa: F401
 import src.models.kpi_snapshot  # noqa: F401

@@ -178,34 +178,30 @@ class TickerIngestionService:
         return self._resolver.resolve(normalized_identifier)
 
     def _resolve_isin(self, normalized_isin: str) -> TickerResolutionResult:
-        try:
-            profile = self.financial_data_service.provider.get_company_profile(normalized_isin)
-        except Exception as exc:  # pragma: no cover - provider wrapper is defensive
+        resolved_ticker = None
+        if hasattr(self.financial_data_service.provider, "search_by_isin"):
+            resolved_ticker = self.financial_data_service.provider.search_by_isin(normalized_isin)
+
+        if resolved_ticker is None:
             return TickerResolutionResult(
                 original_input=normalized_isin,
                 resolved_ticker=None,
                 suffix_added=None,
                 profile=None,
-                error=f"ISIN '{normalized_isin}' introuvable chez le fournisseur : {exc}",
+                error=f"ISIN '{normalized_isin}' introuvable via la recherche du fournisseur.",
                 error_kind=TickerErrorKind.NOT_FOUND,
             )
-        resolved_ticker = profile.ticker.strip().upper() if isinstance(profile.ticker, str) else ""
-        if validate_ticker_format(resolved_ticker) is not None:
-            return TickerResolutionResult(
-                original_input=normalized_isin,
-                resolved_ticker=None,
-                suffix_added=None,
-                profile=None,
-                error=f"ISIN '{normalized_isin}' résolu sans ticker exploitable.",
-                error_kind=TickerErrorKind.DATA_INCONSISTENT,
-            )
+
+        # Une fois le ticker trouvé, on le résout normalement pour valider et récupérer le profile
+        resolution = self._resolver.resolve(resolved_ticker)
+        # On garde l'input original (ISIN) pour la clarté du résultat
         return TickerResolutionResult(
             original_input=normalized_isin,
-            resolved_ticker=resolved_ticker,
-            suffix_added=None,
-            profile=profile,
-            error=None,
-            error_kind=None,
+            resolved_ticker=resolution.resolved_ticker,
+            suffix_added=resolution.suffix_added,
+            profile=resolution.profile,
+            error=resolution.error,
+            error_kind=resolution.error_kind,
         )
 
     def _find_or_create_company(

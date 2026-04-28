@@ -34,5 +34,9 @@ class FinancialStatement(Base):
     net_debt: Mapped[float | None]
     free_cash_flow: Mapped[float | None]
     shares_outstanding: Mapped[float | None]
+    gross_profit: Mapped[float | None] = mapped_column(default=None)
+    current_assets: Mapped[float | None] = mapped_column(default=None)
+    current_liabilities: Mapped[float | None] = mapped_column(default=None)
+    interest_expense: Mapped[float | None] = mapped_column(default=None)
 
     company: Mapped["Company"] = relationship(back_populates="financial_statements")

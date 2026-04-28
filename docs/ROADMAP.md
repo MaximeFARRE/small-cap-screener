@@ -33,6 +33,9 @@ Target universe:
 * Backtesting and ranking validation service: delivered.
 * Provider redundancy layer (`ChainedProvider`, `NoOpProvider`, `YFinanceProvider`): delivered.
 * Error feedback polish (clean user-facing messages in French): delivered.
+* Database & Data Maintenance (backup, vacuum, data reset UI, schema migration strategy): delivered.
+* Performance & Scalability (QThread worker pattern for background refreshes): delivered.
+* UI Polish & Usability (improved spacing, empty states, loading cursor, data quality badges): delivered.
 * Reliability layer (retry/fallback, offline mode, data quality score): delivered.
 * Desktop packaging baseline (PyInstaller): delivered.
 * Recruiter-ready documentation and demo assets: in progress.
@@ -130,82 +133,15 @@ Target universe:
 * Add vacuum/cleanup maintenance command if useful
 * Document DB location and recovery process
 
-## Phase 33 — Performance and scalability
+### Phase 33 — Performance and scalability
 
-* Test with a larger universe size
-* Optimize slow screens and refresh operations
-* Avoid blocking UI during long refreshes
-* Add background worker pattern for provider calls if needed
-* Keep service logic testable outside UI
+* `Worker` QThread pattern implemented to prevent UI blocking during slow network tasks.
+* Background offloading for single company refresh, batch universe refresh, and watchlist refresh.
+* Active worker lifecycle management to prevent premature garbage collection.
 
-## Phase 34 — UI polish and usability
+### Phase 34 — UI polish and usability
 
-* Improve layout and spacing
-* Improve table formatting for numbers, percentages and missing values
-* Add loading states
-* Add empty states with useful actions
-* Add consistent badges for status, exclusion and data quality
-* Make the app feel like an analyst tool, not a raw dev UI
-
-## Phase 35 — Demo mode and screenshots
-
-* Finalize stable demo dataset
-* Add demo launch instructions
-* Capture screenshots:
-  * main screener
-  * add ticker workflow
-  * company detail page
-  * watchlist workflow
-  * export/snapshot workflow
-* Add screenshots to README
-* Keep screenshots updated with final UI
-
-## Phase 36 — Packaging and installer polish
-
-* Confirm PyInstaller build works from clean environment
-* Add versioned build output
-* Add icon if available
-* Add installer or zipped executable distribution
-* Document Windows build process clearly
-* Add smoke test checklist after build
-
-## Phase 37 — Final test hardening
-
-* Expand tests on critical user workflows
-* Add integration test for ticker ingestion pipeline
-* Add integration test for refresh → KPI → score → UI-ready output
-* Add regression tests for watchlist/exclusion persistence
-* Keep full suite passing with `pytest`, `ruff`, `black --check`
-
-## Phase 38 — Final documentation
-
-* Finalize README for recruiter/investor reader
-* Finalize architecture documentation
-* Finalize development guide
-* Finalize known limitations
-* Add “How to demo in 5 minutes”
-* Add “What I would improve next” section
-
-## Phase 39 — Recruiter-ready GitHub release
-
-* Clean repository structure
-* Remove obsolete files or clearly mark dev-only assets
-* Ensure branch/main history is clean enough
-* Add release notes for V1
-* Add screenshots and demo instructions
-* Make the project understandable in under 2 minutes
-
-## Phase 40 — Final V1 acceptance checklist
-
-* User can add a ticker from the app without CSV
-* App fetches real provider data
-* App computes ratios, KPI, scores and ranking
-* App displays useful financial detail page
-* App supports watchlist, notes, status and exclusions
-* App exports filtered/triaged results
-* App can refresh selected company, watchlist or universe
-* App handles missing data and provider errors cleanly
-* App works offline with local data
-* App can be packaged as desktop executable
-* README demonstrates the product clearly
-* Project is credible for buy-side / AM / PE recruiters
+* Table formatting improved for numbers, percentages and missing values (data quality indicators).
+* Global loading state (WaitCursor) implemented for long-running network operations.
+* Empty states visually separated with italic/muted styling for an analyst tool feel.
+* Alert panels and alerts clearly delineated with distinct warning colors.

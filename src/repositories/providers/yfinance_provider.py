@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import copy
 import datetime as dt
+import json
 import logging
 import time
+import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TypeVar
@@ -13,12 +15,16 @@ import yfinance as yf
 
 from src.models.financial_statement import PeriodType
 from src.repositories.providers.base import (
+    AnalystData,
     BaseProvider,
     CompanyInfo,
     CompanyProfile,
     DataFetchError,
     DividendData,
+    ExecutiveData,
     FinancialData,
+    HolderData,
+    InsiderTransactionData,
     MarketData,
     PriceHistory,
     SplitData,
@@ -93,6 +99,15 @@ def _to_int(value: object) -> int | None:
     return int(value)
 
 
+def _parse_info_date(val: object) -> dt.datetime | None:
+    if val is None or pd.isna(val):
+        return None
+    try:
+        return dt.datetime.fromtimestamp(int(val), dt.UTC)
+    except (ValueError, TypeError, OverflowError):
+        return None
+
+
 def _get_ticker_info(ticker: str) -> dict:
     return _with_retry(lambda: yf.Ticker(ticker).info, operation=f"ticker_info:{ticker}")
 
@@ -107,6 +122,7 @@ def _get_company_profile(ticker: str) -> CompanyProfile:
     if not name:
         raise TickerNotFoundError(f"No data found for ticker '{ticker}'")
     fetched_at = _fetched_at_now()
+    raw_employees = info.get("fullTimeEmployees")
     return CompanyProfile(
         ticker=ticker,
         name=name,
@@ -116,7 +132,11 @@ def _get_company_profile(ticker: str) -> CompanyProfile:
         country=info.get("country"),
         currency=info.get("currency", "EUR"),
         website=info.get("website"),
+        business_summary=info.get("longBusinessSummary") or None,
         isin=info.get("isin") or None,
+        full_time_employees=_to_int(raw_employees) if raw_employees is not None else None,
+        city=info.get("city") or None,
+        phone=info.get("phone") or None,
         source=_SOURCE_NAME,
         fetched_at=fetched_at,
     )
@@ -152,6 +172,16 @@ def _df_float(df: pd.DataFrame, row: str, col: object) -> float | None:
         return None
 
 
+def _df_float_multi(df: pd.DataFrame, rows: list[str], col: object) -> float | None:
+    if df is None:
+        return None
+    for row in rows:
+        val = _df_float(df, row, col)
+        if val is not None:
+            return val
+    return None
+
+
 def _parse_statement(
     col: pd.Timestamp,
     income: pd.DataFrame,
@@ -159,20 +189,40 @@ def _parse_statement(
     cashflow: pd.DataFrame | None,
     shares: float | None,
 ) -> FinancialData:
-    ebit = _df_float(income, "EBIT", col)
+    ebit = _df_float_multi(income, ["EBIT", "Operating Income"], col)
     ebitda = _df_float(income, "EBITDA", col)
     if ebitda is None and ebit is not None and cashflow is not None:
-        da = _df_float(cashflow, "Depreciation And Amortization", col)
+        da = _df_float_multi(cashflow, ["Depreciation And Amortization", "Depreciation & Amortization"], col)
         if da is not None:
             ebitda = ebit + da
+
     total_debt = _df_float(balance, "Total Debt", col) if balance is not None else None
-    cash = _df_float(balance, "Cash And Cash Equivalents", col) if balance is not None else None
+    cash = (
+        _df_float_multi(balance, ["Cash And Cash Equivalents", "Cash Cash Equivalents And Short Term Investments"], col)
+        if balance is not None
+        else None
+    )
     net_debt = (total_debt - cash) if total_debt is not None and cash is not None else None
     equity = _df_float(balance, "Stockholders Equity", col) if balance is not None else None
+    current_assets = _df_float(balance, "Current Assets", col) if balance is not None else None
+    current_liabilities = _df_float(balance, "Current Liabilities", col) if balance is not None else None
+
+    gross_profit = _df_float(income, "Gross Profit", col)
+    revenue = _df_float(income, "Total Revenue", col)
+    if gross_profit is None and revenue is not None:
+        cost_of_rev = _df_float(income, "Cost Of Revenue", col)
+        if cost_of_rev is not None:
+            gross_profit = revenue - cost_of_rev
+
+    # Interest expense - some providers use negative values
+    interest = _df_float_multi(income, ["Interest Expense", "Interest Expense Non Operating"], col)
+    if interest is not None:
+        interest = abs(interest)
+
     return FinancialData(
         fiscal_year=col.year,
         period_type=PeriodType.ANNUAL,
-        revenue=_df_float(income, "Total Revenue", col),
+        revenue=revenue,
         ebit=ebit,
         ebitda=ebitda,
         net_income=_df_float(income, "Net Income", col),
@@ -182,6 +232,10 @@ def _parse_statement(
         net_debt=net_debt,
         free_cash_flow=(_df_float(cashflow, "Free Cash Flow", col) if cashflow is not None else None),
         shares_outstanding=shares,
+        gross_profit=gross_profit,
+        current_assets=current_assets,
+        current_liabilities=current_liabilities,
+        interest_expense=interest,
     )
 
 
@@ -287,6 +341,246 @@ def _get_splits(ticker: str) -> list[SplitData]:
     return records
 
 
+def _get_analyst_data(ticker: str) -> AnalystData:
+    info = _get_ticker_info(ticker)
+    fetched_at = _fetched_at_now()
+    raw_opinions = info.get("numberOfAnalystOpinions")
+    return AnalystData(
+        ticker=ticker,
+        enterprise_value=_to_float(info.get("enterpriseValue")),
+        beta=_to_float(info.get("beta")),
+        forward_pe=_to_float(info.get("forwardPE")),
+        target_price_mean=_to_float(info.get("targetMeanPrice")),
+        target_price_high=_to_float(info.get("targetHighPrice")),
+        target_price_low=_to_float(info.get("targetLowPrice")),
+        recommendation_key=info.get("recommendationKey") or None,
+        number_of_analyst_opinions=(_to_int(raw_opinions) if raw_opinions is not None else None),
+        # Fundamentals
+        gross_margins=_to_float(info.get("grossMargins")),
+        operating_margins=_to_float(info.get("operatingMargins")),
+        profit_margins=_to_float(info.get("profitMargins")),
+        roe=_to_float(info.get("returnOnEquity")),
+        roa=_to_float(info.get("returnOnAssets")),
+        current_ratio=_to_float(info.get("currentRatio")),
+        quick_ratio=_to_float(info.get("quickRatio")),
+        payout_ratio=_to_float(info.get("payoutRatio")),
+        # Shares & Volume
+        shares_outstanding=_to_float(info.get("sharesOutstanding")),
+        float_shares=_to_float(info.get("floatShares")),
+        average_volume=_to_float(info.get("averageVolume")),
+        # Dividends
+        dividend_rate=_to_float(info.get("dividendRate")),
+        dividend_yield=_to_float(info.get("dividendYield")),
+        ex_dividend_date=_parse_info_date(info.get("exDividendDate")),
+        five_year_avg_dividend_yield=_to_float(info.get("fiveYearAvgDividendYield")),
+        source=_SOURCE_NAME,
+        fetched_at=fetched_at,
+    )
+
+
+def _parse_table_date(value: object) -> dt.date | None:
+    if value is None or pd.isna(value):
+        return None
+    timestamp = pd.to_datetime(value, errors="coerce")
+    if pd.isna(timestamp):
+        return None
+    return pd.Timestamp(timestamp).date()
+
+
+def _parse_ratio_or_float(value: object) -> float | None:
+    if value is None or pd.isna(value):
+        return None
+    if isinstance(value, str):
+        cleaned = value.strip().replace(",", "")
+        if cleaned.endswith("%"):
+            try:
+                return float(cleaned[:-1]) / 100.0
+            except ValueError:
+                return None
+        try:
+            return float(cleaned)
+        except ValueError:
+            return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_int_like(value: object) -> int | None:
+    if value is None or pd.isna(value):
+        return None
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _looks_numeric_label(value: object) -> bool:
+    if value is None:
+        return False
+    text = str(value).strip()
+    if not text:
+        return False
+    return _parse_ratio_or_float(text) is not None
+
+
+def _parse_major_holders(ticker: str) -> list[HolderData]:
+    major_holders_raw = _with_retry(
+        lambda: yf.Ticker(ticker).major_holders,
+        operation=f"major_holders:{ticker}",
+    )
+    if not isinstance(major_holders_raw, pd.DataFrame) or major_holders_raw.empty:
+        _ensure_ticker_exists(ticker)
+        return []
+    fetched_at = _fetched_at_now()
+    records: list[HolderData] = []
+    for _, row in major_holders_raw.iterrows():
+        raw_values = [value for value in row.tolist() if value is not None and not pd.isna(value)]
+        if len(raw_values) < 2:
+            continue
+        first_value, second_value = raw_values[0], raw_values[1]
+        if _looks_numeric_label(first_value) and not _looks_numeric_label(second_value):
+            holder_name = str(second_value).strip()
+            weight = _parse_ratio_or_float(first_value)
+        else:
+            holder_name = str(first_value).strip()
+            weight = _parse_ratio_or_float(second_value)
+        if not holder_name:
+            continue
+        records.append(
+            HolderData(
+                ticker=ticker,
+                holder_type="major",
+                holder_name=holder_name,
+                weight=weight,
+                source=_SOURCE_NAME,
+                fetched_at=fetched_at,
+            )
+        )
+    return records
+
+
+def _parse_holders_table(
+    ticker: str,
+    *,
+    holder_type: str,
+    operation: str,
+    fetch_fn: Callable[[], object],
+) -> list[HolderData]:
+    holders_raw = _with_retry(fetch_fn, operation=operation)
+    if not isinstance(holders_raw, pd.DataFrame) or holders_raw.empty:
+        _ensure_ticker_exists(ticker)
+        return []
+    fetched_at = _fetched_at_now()
+    records: list[HolderData] = []
+    for _, row in holders_raw.iterrows():
+        holder_name = row.get("Holder")
+        if holder_name is None or pd.isna(holder_name):
+            continue
+        records.append(
+            HolderData(
+                ticker=ticker,
+                holder_type=holder_type,
+                holder_name=str(holder_name).strip(),
+                weight=_parse_ratio_or_float(row.get("% Out")),
+                shares=_to_float(row.get("Shares")),
+                market_value=_to_float(row.get("Value")),
+                date_reported=_parse_table_date(row.get("Date Reported")),
+                source=_SOURCE_NAME,
+                fetched_at=fetched_at,
+            )
+        )
+    return records
+
+
+def _parse_insider_transactions(ticker: str) -> list[InsiderTransactionData]:
+    insider_raw = _with_retry(
+        lambda: yf.Ticker(ticker).insider_transactions,
+        operation=f"insider_transactions:{ticker}",
+    )
+    if not isinstance(insider_raw, pd.DataFrame) or insider_raw.empty:
+        _ensure_ticker_exists(ticker)
+        return []
+    fetched_at = _fetched_at_now()
+    records: list[InsiderTransactionData] = []
+    for _, row in insider_raw.iterrows():
+        insider_name = row.get("Insider")
+        relation = row.get("Position")
+        transaction_text = row.get("Text")
+        records.append(
+            InsiderTransactionData(
+                ticker=ticker,
+                insider_name=(
+                    str(insider_name).strip() if insider_name is not None and not pd.isna(insider_name) else None
+                ),
+                relation=(str(relation).strip() if relation is not None and not pd.isna(relation) else None),
+                transaction_text=(
+                    str(transaction_text).strip()
+                    if transaction_text is not None and not pd.isna(transaction_text)
+                    else None
+                ),
+                ownership=(
+                    str(row.get("Ownership")).strip()
+                    if row.get("Ownership") is not None and not pd.isna(row.get("Ownership"))
+                    else None
+                ),
+                shares=_to_float(row.get("Shares")),
+                market_value=_to_float(row.get("Value")),
+                start_date=_parse_table_date(row.get("Start Date")),
+                source=_SOURCE_NAME,
+                fetched_at=fetched_at,
+            )
+        )
+    return records
+
+
+def _parse_key_executives(ticker: str) -> list[ExecutiveData]:
+    info = _get_ticker_info(ticker)
+    officers_raw = info.get("companyOfficers")
+    if officers_raw is None:
+        _ensure_ticker_exists(ticker)
+        return []
+    if not isinstance(officers_raw, list):
+        return []
+    fetched_at = _fetched_at_now()
+    records: list[ExecutiveData] = []
+    for officer in officers_raw:
+        if not isinstance(officer, dict):
+            continue
+        name = officer.get("name")
+        if name is None:
+            continue
+        records.append(
+            ExecutiveData(
+                ticker=ticker,
+                name=str(name).strip(),
+                title=(str(officer.get("title")).strip() if officer.get("title") is not None else None),
+                age=_parse_int_like(officer.get("age")),
+                total_pay=_to_float(officer.get("totalPay")),
+                year_born=_parse_int_like(officer.get("yearBorn")),
+                fiscal_year=_parse_int_like(officer.get("fiscalYear")),
+                source=_SOURCE_NAME,
+                fetched_at=fetched_at,
+            )
+        )
+    return records
+
+
+def _search_by_isin(isin: str) -> str | None:
+    url = f"https://query2.finance.yahoo.com/v1/finance/search?q={isin}"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode())
+            quotes = data.get("quotes", [])
+            if quotes and "symbol" in quotes[0]:
+                return quotes[0]["symbol"]
+    except Exception as exc:
+        _LOGGER.warning("ISIN search failed for %s: %s", isin, exc)
+    return None
+
+
 class YFinanceProvider(BaseProvider):
     def __init__(self, cache_max_age: dt.timedelta | None = None) -> None:
         self._cache_max_age = _DEFAULT_CACHE_MAX_AGE if cache_max_age is None else cache_max_age
@@ -368,5 +662,71 @@ class YFinanceProvider(BaseProvider):
             fetch_fn=lambda: _get_financial_statements(ticker, years),
         )
 
+    def get_analyst_data(self, ticker: str) -> AnalystData:
+        return self._get_cached_or_fetch(
+            ticker=ticker,
+            data_type="analyst_data",
+            variant="default",
+            fetch_fn=lambda: _get_analyst_data(ticker),
+        )
+
+    def get_major_holders(self, ticker: str) -> list[HolderData]:
+        return self._get_cached_or_fetch(
+            ticker=ticker,
+            data_type="major_holders",
+            variant="default",
+            fetch_fn=lambda: _parse_major_holders(ticker),
+        )
+
+    def get_institutional_holders(self, ticker: str) -> list[HolderData]:
+        return self._get_cached_or_fetch(
+            ticker=ticker,
+            data_type="institutional_holders",
+            variant="default",
+            fetch_fn=lambda: _parse_holders_table(
+                ticker,
+                holder_type="institutional",
+                operation=f"institutional_holders:{ticker}",
+                fetch_fn=lambda: yf.Ticker(ticker).institutional_holders,
+            ),
+        )
+
+    def get_mutualfund_holders(self, ticker: str) -> list[HolderData]:
+        return self._get_cached_or_fetch(
+            ticker=ticker,
+            data_type="mutualfund_holders",
+            variant="default",
+            fetch_fn=lambda: _parse_holders_table(
+                ticker,
+                holder_type="mutual_fund",
+                operation=f"mutualfund_holders:{ticker}",
+                fetch_fn=lambda: yf.Ticker(ticker).mutualfund_holders,
+            ),
+        )
+
+    def get_insider_transactions(self, ticker: str) -> list[InsiderTransactionData]:
+        return self._get_cached_or_fetch(
+            ticker=ticker,
+            data_type="insider_transactions",
+            variant="default",
+            fetch_fn=lambda: _parse_insider_transactions(ticker),
+        )
+
+    def get_key_executives(self, ticker: str) -> list[ExecutiveData]:
+        return self._get_cached_or_fetch(
+            ticker=ticker,
+            data_type="key_executives",
+            variant="default",
+            fetch_fn=lambda: _parse_key_executives(ticker),
+        )
+
     def get_current_price(self, ticker: str) -> float:
         return self.get_current_market_data(ticker).current_price
+
+    def search_by_isin(self, isin: str) -> str | None:
+        return self._get_cached_or_fetch(
+            ticker=isin,
+            data_type="isin_search",
+            variant="default",
+            fetch_fn=lambda: _search_by_isin(isin),
+        )

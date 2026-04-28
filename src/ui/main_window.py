@@ -3,7 +3,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QDockWidget, QFileDialog, QInputDialog, QMainWindow, QMessageBox, QSplitter
+from PySide6.QtWidgets import QDockWidget, QFileDialog, QInputDialog, QMainWindow, QMessageBox, QStackedWidget
 
 from src.repositories.providers.yfinance_provider import YFinanceProvider
 from src.services.backtesting_service import BacktestingService
@@ -11,10 +11,14 @@ from src.services.company_charts_service import CompanyChartsService, ScoreBreak
 from src.services.company_detail_service import CompanyDetailService
 from src.services.financial_data_service import FinancialDataService
 from src.services.kpi_snapshot_service import KpiSnapshotService
+from src.services.maintenance_service import MaintenanceService
 from src.services.peer_comparison_service import PeerComparisonService
+from src.services.scoring_service import ScoringService
 from src.services.screening_service import ScreeningService, ScreeningSnapshotSummary, UniverseScreeningFilters
+from src.services.settings_service import AppSettings, SettingsService
 from src.services.ticker_ingestion_service import TickerIngestionService
 from src.services.universe_discovery_service import UniverseDiscoveryService
+from src.services.universe_service import UniverseService
 from src.services.watchlist_service import AnalystMemo, CompanyAnalystDetail, WatchlistService
 from src.ui.add_ticker_dialog import AddTickerDialog
 from src.ui.backtesting_validation_dialog import BacktestingValidationDialog
@@ -24,59 +28,76 @@ from src.ui.error_formatter import format_batch_summary, format_refresh_error
 from src.ui.filter_widget import FilterWidget
 from src.ui.screener_widget import ScreenerWidget
 from src.ui.screening_snapshot_dialog import ScreeningSnapshotDialog
+from src.ui.settings_dialog import SettingsDialog
+from src.ui.universe_import_dialog import (
+    MODE_DISCOVERY_ONLY,
+    MODE_RESUME_LAST_FAILURES,
+    UniverseImportDialog,
+    UniverseImportOptions,
+)
+from src.ui.worker import Worker
 
 WINDOW_TITLE = "Small Cap Screener"
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 800
-_SPLITTER_RATIO = (2, 1)
 _FILTER_DOCK_WIDTH = 220
+_STACK_SCREENER_INDEX = 0
+_STACK_DETAIL_INDEX = 1
 
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self._screening_service = ScreeningService()
+        self._settings_service = SettingsService()
+        self._settings = self._settings_service.load()
+        self._maintenance_service = MaintenanceService()
+        self._scoring_service = ScoringService(sub_score_weights=self._settings.scoring_weights())
+        self._screening_service = ScreeningService(scoring_service=self._scoring_service)
         self._watchlist_service = WatchlistService()
         self._company_detail_service = CompanyDetailService()
         self._company_charts_service = CompanyChartsService()
         self._peer_comparison_service = PeerComparisonService()
-        self._backtesting_service = BacktestingService()
-        _financial_data_service = FinancialDataService(provider=YFinanceProvider())
-        _kpi_snapshot_service = KpiSnapshotService()
+        self._backtesting_service = BacktestingService(scoring_service=self._scoring_service)
+        self._universe_service = UniverseService()
+        self._financial_data_service = self._build_financial_data_service(self._settings)
+        _kpi_snapshot_service = KpiSnapshotService(scoring_service=self._scoring_service)
         self._ticker_ingestion_service = TickerIngestionService(
-            financial_data_service=_financial_data_service,
+            financial_data_service=self._financial_data_service,
             kpi_snapshot_service=_kpi_snapshot_service,
         )
         self._universe_discovery_service = UniverseDiscoveryService(
-            financial_data_service=_financial_data_service,
+            financial_data_service=self._financial_data_service,
             kpi_snapshot_service=_kpi_snapshot_service,
         )
         self._current_filters = UniverseScreeningFilters()
         self._selected_company_id: int | None = None
+        self._last_import_failed_company_ids: list[int] = []
+        self._last_import_failed_tickers: list[str] = []
+        self._active_workers: set[Worker] = set()
         self.setWindowTitle(WINDOW_TITLE)
         self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
         self._setup_ui()
         self._load_scored_universe()
 
     def _setup_ui(self) -> None:
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._stack = QStackedWidget()
 
         self._screener = ScreenerWidget()
         self._detail = CompanyDetailWidget()
 
-        splitter.addWidget(self._screener)
-        splitter.addWidget(self._detail)
-        splitter.setStretchFactor(0, _SPLITTER_RATIO[0])
-        splitter.setStretchFactor(1, _SPLITTER_RATIO[1])
+        self._stack.addWidget(self._screener)
+        self._stack.addWidget(self._detail)
+        self._stack.setCurrentIndex(_STACK_SCREENER_INDEX)
 
         self._screener.row_selected.connect(self._on_row_selected)
         self._screener.selection_cleared.connect(self._on_selection_cleared)
+        self._detail.back_requested.connect(self._on_back_requested)
         self._detail.add_watchlist_requested.connect(self._on_add_watchlist_requested)
         self._detail.remove_watchlist_requested.connect(self._on_remove_watchlist_requested)
         self._detail.save_watchlist_requested.connect(self._on_save_watchlist_requested)
         self._detail.refresh_company_requested.connect(self._on_refresh_company_requested)
 
-        self.setCentralWidget(splitter)
+        self.setCentralWidget(self._stack)
         self._setup_filter_dock()
         self._setup_menu()
 
@@ -94,6 +115,9 @@ class MainWindow(QMainWindow):
     def _setup_menu(self) -> None:
         file_menu = self.menuBar().addMenu("Fichier")
         file_menu.addAction("Ajouter un ticker…", self._open_add_ticker_dialog)
+        self._import_france_universe_action = QAction("Importer univers France…", self)
+        self._import_france_universe_action.triggered.connect(self._open_import_france_dialog)
+        file_menu.addAction(self._import_france_universe_action)
         file_menu.addSeparator()
         self._refresh_universe_action = QAction("Actualiser l'univers", self)
         self._refresh_universe_action.triggered.connect(self._refresh_universe)
@@ -109,6 +133,15 @@ class MainWindow(QMainWindow):
         file_menu.addAction("Exporter CSV…", self._export_csv)
         file_menu.addAction("Exporter Excel…", self._export_excel)
         file_menu.addAction("Exporter watchlist CSV…", self._export_watchlist_csv)
+        file_menu.addSeparator()
+        file_menu.addAction("Paramètres…", self._open_settings_dialog)
+
+        maintenance_menu = self.menuBar().addMenu("Maintenance")
+        maintenance_menu.addAction("Sauvegarder la base de données…", self._backup_database)
+        maintenance_menu.addAction("Nettoyer/Optimiser (VACUUM)", self._vacuum_database)
+        maintenance_menu.addSeparator()
+        maintenance_menu.addAction("Réinitialiser les données…", self._reset_demo_data)
+        maintenance_menu.addAction("Afficher l'emplacement de la base", self._show_database_location)
 
     def _load_scored_universe(self, selected_company_id: int | None = None) -> None:
         rows = self._screening_service.filter_universe_with_scores(self._current_filters)
@@ -116,6 +149,7 @@ class MainWindow(QMainWindow):
         if not rows:
             self._selected_company_id = None
             self._detail.clear()
+            self._stack.setCurrentIndex(_STACK_SCREENER_INDEX)
             self.statusBar().showMessage("Aucune société ne correspond aux filtres.")
             return
         if selected_company_id is not None and self._screener.select_company(selected_company_id):
@@ -123,6 +157,7 @@ class MainWindow(QMainWindow):
             return
         self._selected_company_id = None
         self._detail.clear()
+        self._stack.setCurrentIndex(_STACK_SCREENER_INDEX)
         self.statusBar().clearMessage()
 
     def _on_filters_applied(self, filters: UniverseScreeningFilters) -> None:
@@ -141,6 +176,10 @@ class MainWindow(QMainWindow):
         )
         peer_comparison = self._peer_comparison_service.get_company_peer_comparison(row.company_id)
         self._detail.load(row, analyst_detail, financial_detail, chart_data, peer_comparison)
+        self._stack.setCurrentIndex(_STACK_DETAIL_INDEX)
+
+    def _on_back_requested(self) -> None:
+        self._stack.setCurrentIndex(_STACK_SCREENER_INDEX)
 
     def _on_selection_cleared(self) -> None:
         self._selected_company_id = None
@@ -214,11 +253,201 @@ class MainWindow(QMainWindow):
         self._load_scored_universe(selected_company_id=company_id)
         self.statusBar().showMessage("Ticker importé et screener mis à jour.", 5000)
 
+    def _open_import_france_dialog(self) -> None:
+        dialog = UniverseImportDialog(can_resume=bool(self._last_import_failed_company_ids), parent=self)
+        if dialog.exec() == 0 or dialog.options is None:
+            return
+        options = dialog.options
+        if options.mode == MODE_RESUME_LAST_FAILURES:
+            self._start_resume_last_failed_enrichment(options)
+            return
+        self._start_euronext_discovery(options)
+
+    def _start_euronext_discovery(self, options: UniverseImportOptions) -> None:
+        self._set_refresh_actions_enabled(False)
+        self.statusBar().showMessage("Discovery Euronext France en cours…")
+
+        worker = Worker(self._universe_service.import_euronext_france_universe)
+        worker.signals.finished.connect(lambda result: self._on_euronext_discovery_finished(result, options, worker))
+        worker.signals.error.connect(lambda exc: self._on_worker_error("Échec discovery Euronext", exc, worker))
+        self._active_workers.add(worker)
+        worker.start()
+
+    def _on_euronext_discovery_finished(self, result, options: UniverseImportOptions, worker: Worker) -> None:
+        self._active_workers.discard(worker)
+        self._load_scored_universe(selected_company_id=self._selected_company_id)
+
+        discovered = result.discovered_count
+        upserted = result.upserted_count
+        if options.mode == MODE_DISCOVERY_ONLY:
+            self._set_refresh_actions_enabled(True)
+            self.statusBar().showMessage(f"Discovery terminée: {discovered} société(s) détectée(s).", 7000)
+            QMessageBox.information(
+                self,
+                "Importer univers France",
+                (
+                    "Discovery terminée.\n\n"
+                    f"Sociétés découvertes: {discovered}\n"
+                    f"Sociétés importées/mises à jour: {upserted}\n\n"
+                    "Aucun enrichissement Yahoo n'a été lancé (mode discovery only)."
+                ),
+            )
+            return
+
+        confirm = QMessageBox.question(
+            self,
+            "Confirmer enrichissement massif",
+            (
+                "Discovery terminée.\n\n"
+                f"Sociétés découvertes: {discovered}\n"
+                f"Sociétés importées/mises à jour: {upserted}\n\n"
+                "Lancer maintenant l'enrichissement Yahoo de ces sociétés ?\n"
+                "Cette opération peut être longue et générer de nombreux appels fournisseur."
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            self._set_refresh_actions_enabled(True)
+            self.statusBar().showMessage("Discovery terminée. Enrichissement annulé.", 7000)
+            return
+
+        self._start_enrichment_for_company_ids(
+            company_ids=result.upserted_company_ids,
+            options=options,
+            run_label="Import univers France",
+            skip_recently_refreshed=False,
+        )
+
+    def _start_resume_last_failed_enrichment(self, options: UniverseImportOptions) -> None:
+        if not self._last_import_failed_company_ids:
+            QMessageBox.information(self, "Reprise enrichissement", "Aucun échec précédent à reprendre.")
+            return
+        confirm = QMessageBox.question(
+            self,
+            "Reprendre les échecs",
+            (
+                "Vous allez relancer l'enrichissement des échecs précédents.\n\n"
+                f"Sociétés concernées: {len(self._last_import_failed_company_ids)}"
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        self._start_enrichment_for_company_ids(
+            company_ids=self._last_import_failed_company_ids,
+            options=options,
+            run_label="Reprise enrichissement",
+            skip_recently_refreshed=True,
+        )
+
+    def _start_enrichment_for_company_ids(
+        self,
+        *,
+        company_ids: list[int],
+        options: UniverseImportOptions,
+        run_label: str,
+        skip_recently_refreshed: bool,
+    ) -> None:
+        if not company_ids:
+            self._set_refresh_actions_enabled(True)
+            QMessageBox.information(self, "Enrichissement", "Aucune société à enrichir.")
+            return
+
+        self._set_refresh_actions_enabled(False)
+        self.statusBar().showMessage(f"{run_label} — préparation de l'enrichissement…")
+        self._last_import_failed_company_ids = []
+        self._last_import_failed_tickers = []
+
+        worker = Worker(
+            self._universe_discovery_service.refresh_companies_by_ids,
+            company_id_list=company_ids,
+            pacing_seconds=options.pacing_seconds,
+            batch_size=options.batch_size,
+            skip_recently_refreshed=skip_recently_refreshed,
+        )
+        worker.signals.progress.connect(lambda payload: self._on_universe_enrichment_progress(payload, run_label))
+        worker.signals.finished.connect(lambda result: self._on_universe_enrichment_finished(result, run_label, worker))
+        worker.signals.error.connect(lambda exc: self._on_worker_error("Échec enrichissement univers", exc, worker))
+        self._active_workers.add(worker)
+        worker.start()
+
+    def _on_universe_enrichment_progress(self, payload: dict, run_label: str) -> None:
+        phase = payload.get("phase")
+        if phase == "batch_start":
+            batch_number = payload.get("batch_number", 0)
+            total_batches = payload.get("total_batches", 0)
+            processed = payload.get("processed", 0)
+            total = payload.get("total", 0)
+            self.statusBar().showMessage(
+                f"{run_label} — lot {batch_number}/{total_batches} (traitées: {processed}/{total})"
+            )
+            return
+        if phase == "company_start":
+            ticker = payload.get("ticker", "")
+            processed = payload.get("processed", 0)
+            total = payload.get("total", 0)
+            self.statusBar().showMessage(f"{run_label} — {processed + 1}/{total} en cours: {ticker}")
+            return
+        if phase == "company_result":
+            ticker = payload.get("ticker", "")
+            processed = payload.get("processed", 0)
+            total = payload.get("total", 0)
+            status = payload.get("status")
+            if status == "failed":
+                self.statusBar().showMessage(f"{run_label} — {processed}/{total} échec: {ticker}")
+            elif status == "skipped":
+                self.statusBar().showMessage(f"{run_label} — {processed}/{total} ignoré: {ticker}")
+            else:
+                self.statusBar().showMessage(f"{run_label} — {processed}/{total} ok: {ticker}")
+
+    def _on_universe_enrichment_finished(self, result, run_label: str, worker: Worker) -> None:
+        self._active_workers.discard(worker)
+        self._set_refresh_actions_enabled(True)
+        self._load_scored_universe(selected_company_id=self._selected_company_id)
+
+        failed_results = [entry for entry in result.results if not entry.success]
+        self._last_import_failed_company_ids = [entry.company_id for entry in failed_results]
+        self._last_import_failed_tickers = [entry.ticker for entry in failed_results if entry.ticker]
+
+        failed_preview = ", ".join(self._last_import_failed_tickers[:10]) if self._last_import_failed_tickers else "—"
+        skipped_preview = ", ".join(result.skipped_tickers[:10]) if result.skipped_tickers else "—"
+        summary = (
+            f"{run_label} terminé.\n\n"
+            f"Total: {result.total}\n"
+            f"Succès: {result.succeeded}\n"
+            f"Échecs: {result.failed}\n"
+            f"Ignorés: {result.skipped}\n"
+            f"Tickers en échec: {failed_preview}\n"
+            f"Tickers ignorés: {skipped_preview}"
+        )
+        if result.failed > 0:
+            QMessageBox.warning(self, run_label, summary)
+        else:
+            QMessageBox.information(self, run_label, summary)
+        self.statusBar().showMessage(
+            (
+                f"{run_label} — succès {result.succeeded}/{result.total}, "
+                f"échecs {result.failed}, ignorés {result.skipped}."
+            ),
+            9000,
+        )
+
     def _on_refresh_company_requested(self, company_id: int) -> None:
         self._set_refresh_actions_enabled(False)
         self.statusBar().showMessage("Actualisation en cours…")
-        self.repaint()
-        result = self._universe_discovery_service.refresh_company(company_id)
+
+        worker = Worker(self._universe_discovery_service.refresh_company, company_id)
+        worker.signals.finished.connect(
+            lambda result, cid=company_id: self._on_refresh_company_finished(result, cid, worker)
+        )
+        worker.signals.error.connect(lambda exc: self._on_worker_error("Actualisation échouée", exc, worker))
+        self._active_workers.add(worker)
+        worker.start()
+
+    def _on_refresh_company_finished(self, result, company_id: int, worker: Worker) -> None:
+        self._active_workers.discard(worker)
         self._set_refresh_actions_enabled(True)
         if not result.success:
             QMessageBox.warning(
@@ -235,10 +464,26 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(msg, 6000)
 
     def _refresh_universe(self) -> None:
+        confirm = QMessageBox.question(
+            self,
+            "Confirmer actualisation univers",
+            ("Cette action va relancer l'actualisation de toutes les sociétés actives.\n" "Voulez-vous continuer ?"),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
         self._set_refresh_actions_enabled(False)
         self.statusBar().showMessage("Actualisation de l'univers en cours…")
-        self.repaint()
-        result = self._universe_discovery_service.batch_refresh_universe()
+
+        worker = Worker(self._universe_discovery_service.batch_refresh_universe)
+        worker.signals.finished.connect(lambda result: self._on_refresh_universe_finished(result, worker))
+        worker.signals.error.connect(lambda exc: self._on_worker_error("Échec actualisation univers", exc, worker))
+        self._active_workers.add(worker)
+        worker.start()
+
+    def _on_refresh_universe_finished(self, result, worker: Worker) -> None:
+        self._active_workers.discard(worker)
         self._set_refresh_actions_enabled(True)
         self._load_scored_universe(selected_company_id=self._selected_company_id)
         failed_tickers = [r.ticker for r in result.results if not r.success]
@@ -248,8 +493,15 @@ class MainWindow(QMainWindow):
     def _refresh_watchlist(self) -> None:
         self._set_refresh_actions_enabled(False)
         self.statusBar().showMessage("Actualisation de la watchlist en cours…")
-        self.repaint()
-        result = self._universe_discovery_service.refresh_watchlist()
+
+        worker = Worker(self._universe_discovery_service.refresh_watchlist)
+        worker.signals.finished.connect(lambda result: self._on_refresh_watchlist_finished(result, worker))
+        worker.signals.error.connect(lambda exc: self._on_worker_error("Échec actualisation watchlist", exc, worker))
+        self._active_workers.add(worker)
+        worker.start()
+
+    def _on_refresh_watchlist_finished(self, result, worker: Worker) -> None:
+        self._active_workers.discard(worker)
         self._set_refresh_actions_enabled(True)
         self._load_scored_universe(selected_company_id=self._selected_company_id)
         failed_tickers = [r.ticker for r in result.results if not r.success]
@@ -258,9 +510,25 @@ class MainWindow(QMainWindow):
         )
         self.statusBar().showMessage(msg, 8000)
 
+    def _on_worker_error(self, title: str, exc: Exception, worker: Worker) -> None:
+        self._active_workers.discard(worker)
+        self._set_refresh_actions_enabled(True)
+        self.statusBar().clearMessage()
+        QMessageBox.critical(self, title, f"Une erreur est survenue :\n{exc}")
+
     def _set_refresh_actions_enabled(self, enabled: bool) -> None:
         self._refresh_universe_action.setEnabled(enabled)
         self._refresh_watchlist_action.setEnabled(enabled)
+        self._import_france_universe_action.setEnabled(enabled)
+        self._detail._refresh_btn.setEnabled(enabled)
+        if enabled:
+            from PySide6.QtCore import Qt
+
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+        else:
+            from PySide6.QtCore import Qt
+
+            self.setCursor(Qt.CursorShape.WaitCursor)
 
     def _export_csv(self) -> None:
         rows = self._screener.rows()
@@ -369,6 +637,73 @@ class MainWindow(QMainWindow):
             return
         dialog = BacktestingValidationDialog(analysis, parent=self)
         dialog.exec()
+
+    def _open_settings_dialog(self) -> None:
+        dialog = SettingsDialog(self._settings_service, parent=self)
+        dialog.settings_saved.connect(self._on_settings_saved)
+        dialog.exec()
+
+    def _on_settings_saved(self, settings: AppSettings) -> None:
+        self._settings = settings
+        self._financial_data_service.offline_mode = settings.offline_mode
+        self._financial_data_service.provider_call_max_attempts = settings.provider_retry_attempts
+        self._scoring_service.sub_score_weights = settings.scoring_weights()
+        self._load_scored_universe(selected_company_id=self._selected_company_id)
+        self.statusBar().showMessage("Paramètres appliqués.", 4000)
+
+    def _backup_database(self) -> None:
+        try:
+            backup_path = self._maintenance_service.backup_database()
+            QMessageBox.information(
+                self,
+                "Sauvegarde réussie",
+                f"Base de données sauvegardée dans :\n{backup_path.resolve()}",
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur de sauvegarde", f"Impossible de sauvegarder la base de données :\n{e}")
+
+    def _vacuum_database(self) -> None:
+        try:
+            self._maintenance_service.vacuum_database()
+            QMessageBox.information(
+                self,
+                "Optimisation terminée",
+                "La base de données a été nettoyée et optimisée avec succès.",
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur", f"Impossible d'optimiser la base de données :\n{e}")
+
+    def _reset_demo_data(self) -> None:
+        reply = QMessageBox.question(
+            self,
+            "Réinitialisation",
+            "Attention : cette action supprimera TOUTES les données en base "
+            "(entreprises, ratios, watchlists, etc.).\n\nVoulez-vous continuer ?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                self._maintenance_service.reset_demo_data()
+                self._load_scored_universe()
+                QMessageBox.information(self, "Réinitialisation", "Toutes les données ont été effacées avec succès.")
+            except Exception as e:
+                QMessageBox.critical(self, "Erreur", f"Impossible de réinitialiser la base :\n{e}")
+
+    def _show_database_location(self) -> None:
+        path = self._maintenance_service.get_database_path()
+        if path is not None:
+            QMessageBox.information(self, "Emplacement", f"La base de données se trouve ici :\n{path.resolve()}")
+        else:
+            QMessageBox.warning(self, "Emplacement", "Emplacement indisponible (la base n'est peut-être pas locale).")
+
+    @staticmethod
+    def _build_financial_data_service(settings: AppSettings) -> FinancialDataService:
+        return FinancialDataService(
+            provider=YFinanceProvider(),
+            offline_mode=settings.offline_mode,
+            provider_call_max_attempts=settings.provider_retry_attempts,
+        )
 
 
 def _parse_next_review_at(value: str) -> datetime | None:

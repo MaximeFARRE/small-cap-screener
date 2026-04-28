@@ -2,7 +2,51 @@
 
 # Small Cap Screener
 
-**Local-first desktop research platform for French listed small and mid-cap equities**
+Local-first desktop application to screen French listed small-cap companies with a deterministic and auditable workflow.
+
+## Problem Solved
+
+Analysts often lose time between scattered data pulls, ad-hoc spreadsheets, and non-reproducible scoring logic.
+This project provides one coherent workflow: ingest data, compute KPIs, score companies, rank the universe, and keep analyst decisions traceable.
+
+## Why This Project Matters
+
+* Reduces manual screening overhead on French small/mid-cap coverage.
+* Makes ranking decisions reproducible with explicit scoring rules.
+* Keeps analyst judgment in the loop (watchlist notes, status, exclusions).
+* Produces operational outputs directly usable in research workflow (CSV/Excel exports, saved snapshots).
+
+## What Is Implemented
+
+* KPI pipeline (valuation, quality, growth, risk metrics)
+* Deterministic scoring V1 (quality/value/growth/risk + total score)
+* Score transparency (weighted decomposition, deterministic positive/negative drivers)
+* Simple sub-score weight configuration (`src/services/scoring_config.py`)
+* Global and sector ranking on the scored universe
+* Real ticker and ISIN ingestion from the app (no CSV workflow required)
+* Automatic Euronext France universe discovery (XPAR/ALXP/XMLI) with no manual seed CSV
+* Automatic ticker resolution with exchange suffix probing (`.PA`, `.AL`, etc.)
+* One-click refresh for single company, watchlist, or full universe
+* Analyst workflow (watchlist, notes, status, exclusions)
+* Analyst memo workflow (investment thesis, key risks, catalysts, valuation notes, next action)
+* Historical fundamentals in company detail (multi-year table, CAGR, trend flags)
+* Charts: price history, revenue/EBITDA, margin evolution, score breakdown
+* Sector peer comparison (valuation, quality/growth/risk ratios vs sector median)
+* Backtesting and ranking validation (bucket forward returns, hit rate, top-vs-bottom spread)
+* Screening filters/sorting + CSV and Excel exports
+* Screening snapshots to freeze and compare filtered/ranked results
+* Provider redundancy (`ChainedProvider`, `NoOpProvider`, `YFinanceProvider`)
+* Error feedback: clean French-language user messages with `error_kind` propagation
+* Reliability features (retry, fallback, offline mode, data quality score)
+* Desktop UI (PySide6) connected to service layer only
+
+## Analyst Workflow (End-to-End Demo)
+
+1. Refresh company financial data and KPI snapshots.
+2. Apply scoring service to compute sub-scores and total score.
+3. Rank the universe globally and by sector.
+4. Filter screener output and review company analyst detail.
+5. Update watchlist notes/status/exclusion, then export or save a screening snapshot.
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![PySide6](https://img.shields.io/badge/UI-PySide6-41CD52?style=flat-square&logo=qt&logoColor=white)](https://doc.qt.io/qtforpython/)

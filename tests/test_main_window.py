@@ -7,13 +7,16 @@ import pytest
 from PySide6.QtWidgets import QApplication
 
 import src.ui.main_window as main_window_module
+from src.services.company_detail_service import CompanyFinancialDetail
 from src.services.screening_service import (
     ScreeningSnapshotComparisonRow,
     ScreeningSnapshotRow,
     ScreeningSnapshotSummary,
     ScreeningSnapshotView,
+    UniverseScreeningEntry,
     UniverseScreeningFilters,
 )
+from src.ui.main_window import _STACK_DETAIL_INDEX, _STACK_SCREENER_INDEX
 
 
 @pytest.fixture
@@ -26,7 +29,7 @@ def qapp():
 
 
 class FakeScreeningService:
-    def __init__(self) -> None:
+    def __init__(self, **_kwargs) -> None:
         self.filter_calls: list[UniverseScreeningFilters] = []
         self.save_calls: list[tuple[UniverseScreeningFilters, str]] = []
         self.view_calls: list[int] = []
@@ -84,6 +87,9 @@ class FakePeerComparisonService:
 
 
 class FakeBacktestingService:
+    def __init__(self, **_kwargs) -> None:
+        pass
+
     def analyze_ranking_validation(self, **_kwargs):
         return SimpleNamespace(total_snapshots=0)
 
@@ -219,3 +225,134 @@ def test_open_recent_screening_snapshots_loads_view_and_comparison(monkeypatch, 
     assert compared_filters == window._current_filters
     assert FakeSnapshotDialog.last_instance is not None
     assert FakeSnapshotDialog.last_instance.exec_called is True
+
+
+def _make_screener_row(company_id: int = 1) -> UniverseScreeningEntry:
+    return UniverseScreeningEntry(
+        company_id=company_id,
+        ticker="TST.PA",
+        name="Test Corp",
+        sector="Tech",
+        total_score=75.0,
+        quality_score=70.0,
+        value_score=72.0,
+        growth_score=68.0,
+        risk_score=65.0,
+        rank=1,
+        sector_rank=1,
+    )
+
+
+def test_row_selected_navigates_to_detail_page(monkeypatch, qapp):
+    window = _build_window(monkeypatch, qapp)
+    assert window._stack.currentIndex() == _STACK_SCREENER_INDEX
+
+    window._on_row_selected(_make_screener_row())
+
+    assert window._stack.currentIndex() == _STACK_DETAIL_INDEX
+
+
+def test_back_requested_returns_to_screener(monkeypatch, qapp):
+    window = _build_window(monkeypatch, qapp)
+    window._on_row_selected(_make_screener_row())
+    assert window._stack.currentIndex() == _STACK_DETAIL_INDEX
+
+    window._on_back_requested()
+
+    assert window._stack.currentIndex() == _STACK_SCREENER_INDEX
+
+
+def test_load_scored_universe_with_no_rows_shows_screener(monkeypatch, qapp):
+    window = _build_window(monkeypatch, qapp)
+    window._stack.setCurrentIndex(_STACK_DETAIL_INDEX)
+
+    window._load_scored_universe()
+
+    assert window._stack.currentIndex() == _STACK_SCREENER_INDEX
+
+
+def test_detail_widget_loads_with_none_data_without_crash(monkeypatch, qapp):
+    window = _build_window(monkeypatch, qapp)
+    row = _make_screener_row()
+
+    window._detail.load(row, analyst_detail=None, financial_detail=None, chart_data=None, peer_comparison=None)
+
+    assert window._detail._current_row is not None
+
+
+def test_detail_widget_loads_with_empty_ownership_data_without_crash(monkeypatch, qapp):
+    window = _build_window(monkeypatch, qapp)
+    row = _make_screener_row()
+    detail = CompanyFinancialDetail(company_id=row.company_id, ticker=row.ticker, name=row.name, currency="EUR")
+
+    window._detail.load(row, analyst_detail=None, financial_detail=detail, chart_data=None, peer_comparison=None)
+
+    assert window._detail._current_row is not None
+    assert "Ownership data is currently unavailable" in window._detail._lbl_ownership_status.text()
+
+
+class FakeWatchlistServiceWithSpies(FakeWatchlistService):
+    def __init__(self):
+        self.update_notes_calls = []
+        self.update_status_calls = []
+        self.update_exclusion_calls = []
+        self.update_review_calls = []
+        self.update_memo_calls = []
+
+    def update_company_notes(self, company_id, notes):
+        self.update_notes_calls.append((company_id, notes))
+        return SimpleNamespace()
+
+    def update_company_status(self, company_id, status):
+        self.update_status_calls.append((company_id, status))
+        return SimpleNamespace()
+
+    def update_company_exclusion(self, company_id, is_excluded):
+        self.update_exclusion_calls.append((company_id, is_excluded))
+        return SimpleNamespace()
+
+    def update_company_next_review(self, company_id, date):
+        self.update_review_calls.append((company_id, date))
+        return SimpleNamespace()
+
+    def update_company_memo(self, company_id, memo):
+        self.update_memo_calls.append((company_id, memo))
+        return SimpleNamespace()
+
+
+def test_on_save_watchlist_requested_updates_service(monkeypatch, qapp):
+    window = _build_window(monkeypatch, qapp)
+
+    spy_service = FakeWatchlistServiceWithSpies()
+    window._watchlist_service = spy_service
+
+    # Mock load scored universe to avoid side effects
+    window._load_scored_universe = lambda *args, **kwargs: None
+
+    window._on_save_watchlist_requested(
+        company_id=42,
+        status="conviction",
+        notes="Some note",
+        is_excluded=True,
+        investment_thesis="Thesis",
+        key_risks="Risks",
+        catalysts="Cat",
+        valuation_notes="Val",
+        next_action="Action",
+        next_review_at_text="2026-05-01",
+    )
+
+    svc = window._watchlist_service
+    assert svc.update_status_calls == [(42, "conviction")]
+    assert svc.update_exclusion_calls == [(42, True)]
+    assert svc.update_notes_calls == [(42, "Some note")]
+    assert svc.update_review_calls[0][0] == 42
+    assert svc.update_review_calls[0][1].strftime("%Y-%m-%d") == "2026-05-01"
+
+    assert len(svc.update_memo_calls) == 1
+    memo = svc.update_memo_calls[0][1]
+    assert memo.investment_thesis == "Thesis"
+    assert memo.key_risks == "Risks"
+    assert memo.catalysts == "Cat"
+    assert memo.valuation_notes == "Val"
+    assert memo.next_action == "Action"

@@ -1,6 +1,336 @@
 # CHANGELOG
 
+## v1.0.0 (2026-04-28)
+
+### Breaking
+
+* feat!: trigger v1 major release
+
+BREAKING CHANGE: release baseline moves to v1.0.0. ([`1f0ac6d`](https://github.com/MaximeFARRE/small-cap-screener/commit/1f0ac6dbc7cb0e179852fa453dc87be8b74a75c8))
+
+### Unknown
+
+* Merge pull request #48 from MaximeFARRE/feat/euronext-discovery-provider
+
+feat!: trigger v1 major release ([`3a07221`](https://github.com/MaximeFARRE/small-cap-screener/commit/3a07221c3ad43c80e4058003ed29b7cca33ceb47))
+
+## v0.34.0 (2026-04-28)
+
+### Chore
+
+* chore(release): 0.34.0 [skip ci] ([`b925a15`](https://github.com/MaximeFARRE/small-cap-screener/commit/b925a1533e568d85504fddf835bd4d77b647bed1))
+
+### Feature
+
+* feat: add peer comparison tab in company detail view ([`f867b8a`](https://github.com/MaximeFARRE/small-cap-screener/commit/f867b8a7986c3798eabd88deeb20711707965f34))
+
+* feat: extend peer comparison analytics and peer set selection ([`62b2668`](https://github.com/MaximeFARRE/small-cap-screener/commit/62b2668798397392b441b3ccc5c8aa2ac46e341d))
+
+* feat: add euronext import progress support ([`88f3aff`](https://github.com/MaximeFARRE/small-cap-screener/commit/88f3aff34b5ea0c8b33e80055102c1f2a6dc5cb0))
+
+* feat: add euronext france universe import ([`69d0453`](https://github.com/MaximeFARRE/small-cap-screener/commit/69d0453c79878b7dc0ed6bad9b7e70841715f82d))
+
+### Fix
+
+* fix: avoid resolving frozen executable path for sqlite default ([`c2bea67`](https://github.com/MaximeFARRE/small-cap-screener/commit/c2bea672f5044832b71ae21fbd0e0bf155b8e859))
+
+### Unknown
+
+* Merge pull request #47 from MaximeFARRE/feat/euronext-discovery-provider
+
+Feat/euronext discovery provider ([`d5aaaab`](https://github.com/MaximeFARRE/small-cap-screener/commit/d5aaaab2a3da04194dbd7d0040f02ecff5aa46f3))
+
+* release: v1 ([`6967ea2`](https://github.com/MaximeFARRE/small-cap-screener/commit/6967ea2fe88e87314ef0d60fc8803f8d53d17178))
+
+## v0.33.0 (2026-04-28)
+
+### Chore
+
+* chore(release): 0.33.0 [skip ci] ([`993d05a`](https://github.com/MaximeFARRE/small-cap-screener/commit/993d05a6448483500e67af9ceea4f04ad851dc1b))
+
+### Feature
+
+* feat: add yahoo ownership data to company details ([`ce5dfd7`](https://github.com/MaximeFARRE/small-cap-screener/commit/ce5dfd7608caa9205c268a13e65d5a06c944747f))
+
+### Fix
+
+* fix: resolve AttributeError by adding country to detail and screening DTOs ([`4f42481`](https://github.com/MaximeFARRE/small-cap-screener/commit/4f424816f01c258dd88da3c8434a885d735b930c))
+
+### Unknown
+
+* Merge pull request #46 from MaximeFARRE/feat/phase37-company-profile-enrichment
+
+Feat/phase37 company profile enrichment ([`11ea2e1`](https://github.com/MaximeFARRE/small-cap-screener/commit/11ea2e1c5e6818c644b8e6bd125fe4aab5b04f1c))
+
+## v0.32.0 (2026-04-28)
+
+### Chore
+
+* chore(release): 0.32.0 [skip ci] ([`eb6a2b8`](https://github.com/MaximeFARRE/small-cap-screener/commit/eb6a2b8a4f0ac2a4e9c719abf68fc555d41bf46c))
+
+* chore: update chart color palette and increase default chart height ([`651f42e`](https://github.com/MaximeFARRE/small-cap-screener/commit/651f42e6f4359a067670075308058741f7d491dd))
+
+### Feature
+
+* feat: improve financial statement parsing with multi-label support and fallbacks ([`d7ec4a6`](https://github.com/MaximeFARRE/small-cap-screener/commit/d7ec4a6da5befc2488a16375a442795caf74619f))
+
+* feat: persist, expose and display new fundamental and dividend metrics in UI ([`557d01c`](https://github.com/MaximeFARRE/small-cap-screener/commit/557d01cec7ac5d63c4d3419f36b636abce545e8b))
+
+* feat: add fundamental and dividend columns to Company model and DB migration ([`2da3996`](https://github.com/MaximeFARRE/small-cap-screener/commit/2da3996569e9c4ff4021f4a3e0e21424a27ea072))
+
+* feat: fetch extended fundamental and dividend metrics from yfinance ticker.info ([`66680b1`](https://github.com/MaximeFARRE/small-cap-screener/commit/66680b19c424cdc6221720488a141473d61ea50c))
+
+* feat: add Company Profile card to UI and populate with enriched Yahoo data ([`bfe982e`](https://github.com/MaximeFARRE/small-cap-screener/commit/bfe982e729b2cb5feaaa1199ee1f14e08a9821b4))
+
+* feat: expose industry, website, business_summary, full_time_employees, city, phone in CompanyFinancialDetail ([`5b3a264`](https://github.com/MaximeFARRE/small-cap-screener/commit/5b3a2642ddf70c3bc2d0f6986cdc4ac4521c222a))
+
+* feat: persist full_time_employees, city, phone in _apply_company_metadata and normalize pipeline ([`cd2c832`](https://github.com/MaximeFARRE/small-cap-screener/commit/cd2c832fd7fde5910f3d8aab59aff1dfc44984a7))
+
+* feat: add full_time_employees, city, phone to Company model and DB migration ([`ac173c9`](https://github.com/MaximeFARRE/small-cap-screener/commit/ac173c9d8ebd0c0ca4f7c5c4e8a86d4bda4d388f))
+
+* feat: fetch fullTimeEmployees, city, phone from yfinance ticker.info ([`4a50d65`](https://github.com/MaximeFARRE/small-cap-screener/commit/4a50d6565e69d4b9c9ab3880cef43d13c4041ee3))
+
+* feat: add full_time_employees, city, phone to CompanyProfile dataclass ([`d01cecd`](https://github.com/MaximeFARRE/small-cap-screener/commit/d01cecd83ec981913a31e9b5e4f84a2b3ee633a7))
+
+* feat: restore and wire up full analyst memo actions in company detail UI ([`546fe7e`](https://github.com/MaximeFARRE/small-cap-screener/commit/546fe7e41a4172abf1f45874b654ccaa1b3187c1))
+
+* feat: add tabbed navigation and restore charts/drivers in company detail UI ([`471b46c`](https://github.com/MaximeFARRE/small-cap-screener/commit/471b46c1b67731fe6fbfe25d148467291cbcb232))
+
+* feat: refactor company detail UI to terminal style ([`ecb10b3`](https://github.com/MaximeFARRE/small-cap-screener/commit/ecb10b3f4f2aed18eb405681554249127ada19c7))
+
+* feat: replace text peer comparison with styled QTableWidget ([`82dc602`](https://github.com/MaximeFARRE/small-cap-screener/commit/82dc602944c5734690b2d6e3a912ba5c136d4a1a))
+
+* feat: refactor charts with base-100 price, ME scale, debt chart, score colors ([`6ba2c85`](https://github.com/MaximeFARRE/small-cap-screener/commit/6ba2c85ffd5b6a70ed83f43fa27f5aaaa6dcbef4))
+
+* feat: styled empty chart state with placeholder axes ([`df4a0a4`](https://github.com/MaximeFARRE/small-cap-screener/commit/df4a0a489f14b05248e267b22bed4bb8c7ee55d0))
+
+* feat: true historical financials table with formatting ([`0d43996`](https://github.com/MaximeFARRE/small-cap-screener/commit/0d439961b66d3d3cff2d5fe5ade9d1a80b5eb36a))
+
+* feat: refonte UX fiche entreprise (analyst dashboard) ([`5759bd9`](https://github.com/MaximeFARRE/small-cap-screener/commit/5759bd98f6113ddfd9bfcf621675b208c82d0656))
+
+* feat(ui): replace side-panel detail with full-screen QStackedWidget navigation
+
+Clicking a company row now navigates to a full-screen detail page instead of
+populating a side panel. A back button returns to the screener. QSplitter
+replaced with QStackedWidget (index 0 = screener, index 1 = detail page).
+
+Co-Authored-By: Claude Sonnet 4.6 &lt;noreply@anthropic.com&gt; ([`1ded99d`](https://github.com/MaximeFARRE/small-cap-screener/commit/1ded99ddc72da91924177c360243b82dcf465fe8))
+
+### Fix
+
+* fix: use correct properties from CompanyAnalystDetail in UI ([`b2be9e9`](https://github.com/MaximeFARRE/small-cap-screener/commit/b2be9e9916c0944508ee040c46edc4f8ba2c1a70))
+
+* fix: make historical financials table full block height ([`518d903`](https://github.com/MaximeFARRE/small-cap-screener/commit/518d903774276eaed7a4667a322723c350a37e53))
+
+### Test
+
+* test: add UI test for saving watchlist and analyst memo data ([`8ee5a07`](https://github.com/MaximeFARRE/small-cap-screener/commit/8ee5a072090c387d5605e8bfe68030c64d776053))
+
+### Unknown
+
+* Merge pull request #45 from MaximeFARRE/feat/phase36-company-detail-page
+
+Feat/phase36 company detail page ([`5035a99`](https://github.com/MaximeFARRE/small-cap-screener/commit/5035a99ce576ea018d663ad7a7bc68d398610630))
+
+## v0.31.0 (2026-04-27)
+
+### Chore
+
+* chore(release): 0.31.0 [skip ci] ([`14a6ecc`](https://github.com/MaximeFARRE/small-cap-screener/commit/14a6ecc6362def4c86500a36ea2e746d6ee12c0f))
+
+### Feature
+
+* feat(services): fetch analyst_data and apply industry, website, business_summary, beta, target_price, recommendation to Company on refresh ([`71b2b48`](https://github.com/MaximeFARRE/small-cap-screener/commit/71b2b48cb890b6204fd981928283e88fa9919f26))
+
+* feat(repository): persist gross_profit, current_assets, current_liabilities, interest_expense in FinancialStatement ([`e557b2b`](https://github.com/MaximeFARRE/small-cap-screener/commit/e557b2b4cf72ebda377a832ac8abce110702a28e))
+
+* feat(normalization): pass-through gross_profit, current_assets, current_liabilities, interest_expense through normalization pipeline ([`c822083`](https://github.com/MaximeFARRE/small-cap-screener/commit/c82208311f45a3e82ae933985f0e18dd5e88256b))
+
+* feat(db): add migrations for new Company enrichment columns and FinancialStatement fields ([`e1e6c24`](https://github.com/MaximeFARRE/small-cap-screener/commit/e1e6c24bdb97f23ad7d3c097ace26f7ac4db3459))
+
+* feat(models): add industry, website, business_summary, beta, analyst_target_price, analyst_recommendation, analyst_count, forward_pe to Company ([`9bcb3fc`](https://github.com/MaximeFARRE/small-cap-screener/commit/9bcb3fcbe83404f28a64c145d2e77cc28949706a))
+
+* feat(models): add gross_profit, current_assets, current_liabilities, interest_expense to FinancialStatement ([`ca65a0a`](https://github.com/MaximeFARRE/small-cap-screener/commit/ca65a0ac84275269fa75cf86ae0c8b7dc2a42536))
+
+* feat(providers): parse gross_profit, current_assets, current_liabilities, interest_expense from Yahoo statements; add business_summary to profile; add get_analyst_data ([`6a6f3dc`](https://github.com/MaximeFARRE/small-cap-screener/commit/6a6f3dcdf76a2906b95a343e7b74c508b9277fc8))
+
+* feat(providers): enrich FinancialData DTO with gross_profit, current_assets, current_liabilities, interest_expense; add business_summary to CompanyProfile; add AnalystData DTO ([`c51a009`](https://github.com/MaximeFARRE/small-cap-screener/commit/c51a009dd1690db9cec98c6a5a203bdbd908adc7))
+
+### Fix
+
+* fix(kpi): pass gross_profit, current_assets, current_liabilities, interest_expense to compute_all; add analyst metrics to snapshot payload ([`43556dd`](https://github.com/MaximeFARRE/small-cap-screener/commit/43556ddf551eb0f8cf565f9786a0c34244cb7183))
+
+### Test
+
+* test: add tests for enriched Yahoo parsing, fixed ratios, analyst metrics; fix mock missing get_analyst_data ([`a7b90ff`](https://github.com/MaximeFARRE/small-cap-screener/commit/a7b90ff4fa71af108e322996a439e29092024dbc))
+
+### Unknown
+
+* Merge pull request #44 from MaximeFARRE/feat/phase35-yahoo-data-enrichment
+
+Feat/phase35 yahoo data enrichment ([`90a0792`](https://github.com/MaximeFARRE/small-cap-screener/commit/90a07923298bc241a5f4ede2eb02f503e4dec2e9))
+
+## v0.30.0 (2026-04-27)
+
+### Chore
+
+* chore(release): 0.30.0 [skip ci] ([`4d1a6b5`](https://github.com/MaximeFARRE/small-cap-screener/commit/4d1a6b5df4d1554370623a5192663542f02644e4))
+
+### Documentation
+
+* docs: add real user audit report with diagnostic and 3-stage plan ([`0d63ccd`](https://github.com/MaximeFARRE/small-cap-screener/commit/0d63ccd236fda81a40d3fc0704855a1d42edae33))
+
+### Feature
+
+* feat(ui): display fundamental data columns in screener table ([`a8b512a`](https://github.com/MaximeFARRE/small-cap-screener/commit/a8b512a0425c831296b34912ddb23b8e1fe7f110))
+
+* feat(screening): add fundamental filters to screener (Market Cap, P/E, Growth, Margins) ([`cd05ee2`](https://github.com/MaximeFARRE/small-cap-screener/commit/cd05ee2617ab54aad6ec184a136e46ca4dbc20bc))
+
+### Fix
+
+* fix(ingestion): make financial statements optional to tolerate missing data ([`1a00b0b`](https://github.com/MaximeFARRE/small-cap-screener/commit/1a00b0b0c3813e71b89f1916fccb6263819e2ea8))
+
+* fix(ingestion): add rate-limiting pacing to batch universe refresh ([`0d95818`](https://github.com/MaximeFARRE/small-cap-screener/commit/0d95818a540d22aad26d09c5f2b6cf4db6d2323a))
+
+* fix(ingestion): resolve ISIN using Yahoo Finance search endpoint ([`a7e896f`](https://github.com/MaximeFARRE/small-cap-screener/commit/a7e896f8b432c950322be51fba3aee476da3ee7d))
+
+### Refactor
+
+* refactor(ui): convert company detail view to tabbed layout ([`fa41816`](https://github.com/MaximeFARRE/small-cap-screener/commit/fa41816d63968946ad77f09555574797dc062e34))
+
+### Unknown
+
+* Merge pull request #43 from MaximeFARRE/chore/audit
+
+Chore/audit ([`446571e`](https://github.com/MaximeFARRE/small-cap-screener/commit/446571e5af73304f58fc64d9c136a0ee69740ff5))
+
+## v0.29.1 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.29.1 [skip ci] ([`98f0b24`](https://github.com/MaximeFARRE/small-cap-screener/commit/98f0b24808f47cc32efb8f54250217c6308951bc))
+
+### Fix
+
+* fix(ui): correct QDateTime constructor arguments in chart builder ([`36c9c84`](https://github.com/MaximeFARRE/small-cap-screener/commit/36c9c84eaec83fdd20aa49837b095a0118138772))
+
+### Unknown
+
+* Merge pull request #42 from MaximeFARRE/feat/phase34-ui-polish
+
+fix(ui): correct QDateTime constructor arguments in chart builder ([`d97f6ff`](https://github.com/MaximeFARRE/small-cap-screener/commit/d97f6ff4f32352f2284317b515c2706265d0d919))
+
+## v0.29.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.29.0 [skip ci] ([`e8c3d5b`](https://github.com/MaximeFARRE/small-cap-screener/commit/e8c3d5b4b008d7f7e02a97f527d3dd0c2764fd7e))
+
+### Documentation
+
+* docs: mark Phase 34 as delivered in ROADMAP ([`641b2a6`](https://github.com/MaximeFARRE/small-cap-screener/commit/641b2a62e21887cfbe71a5aa72c0e987c167ee26))
+
+### Feature
+
+* feat(ui): add WaitCursor loading state during network tasks ([`0402606`](https://github.com/MaximeFARRE/small-cap-screener/commit/040260684be68779a317373730d33c289f70b60c))
+
+* feat(ui): add data quality column with color badges to screener table ([`555b38b`](https://github.com/MaximeFARRE/small-cap-screener/commit/555b38bb1b106b663ae14bbd8f68b1b38a20956e))
+
+### Style
+
+* style(ui): improve detail panel empty state and alert styling ([`dbe6a0c`](https://github.com/MaximeFARRE/small-cap-screener/commit/dbe6a0caab797473da8cbfb18725ff1c796ff401))
+
+### Unknown
+
+* Merge pull request #41 from MaximeFARRE/feat/phase34-ui-polish
+
+Feat/phase34 UI polish ([`e21e9f3`](https://github.com/MaximeFARRE/small-cap-screener/commit/e21e9f32907b3b809a9436b6139aba19255a0532))
+
+## v0.28.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.28.0 [skip ci] ([`f71d19c`](https://github.com/MaximeFARRE/small-cap-screener/commit/f71d19c8ceef0ad81c651ba72e256ee81fe10326))
+
+### Feature
+
+* feat: implement Phase 33 performance and scalability with background worker pattern ([`b1c8c92`](https://github.com/MaximeFARRE/small-cap-screener/commit/b1c8c92a44fbd5a85c8bb562bcceb09964c5252f))
+
+### Unknown
+
+* Merge pull request #40 from MaximeFARRE/feat/phase33-performance
+
+feat: implement Phase 33 performance and scalability with background … ([`8385044`](https://github.com/MaximeFARRE/small-cap-screener/commit/8385044f804d81ad6636563c21898e9370521e6d))
+
+## v0.27.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.27.0 [skip ci] ([`a9b7a10`](https://github.com/MaximeFARRE/small-cap-screener/commit/a9b7a10d79e03e629db58d420124723a783963ea))
+
+### Feature
+
+* feat: implement Phase 32 database maintenance with backup, vacuum, and reset actions ([`b995bac`](https://github.com/MaximeFARRE/small-cap-screener/commit/b995bacc94a4753aac098c420ace6fbe667da715))
+
+### Unknown
+
+* Merge pull request #39 from MaximeFARRE/feat/phase32-database-maintenance
+
+feat: implement Phase 32 database maintenance with backup, vacuum, an… ([`4ae8239`](https://github.com/MaximeFARRE/small-cap-screener/commit/4ae8239b851b30bf0a1a7f557cff1d3bdc069916))
+
+## v0.26.0 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.26.0 [skip ci] ([`458eff5`](https://github.com/MaximeFARRE/small-cap-screener/commit/458eff5ae9c028defdc5f43a7589b6accabc2a32))
+
+### Documentation
+
+* docs: mark Phase 31 Settings &amp; Configuration as delivered ([`54df860`](https://github.com/MaximeFARRE/small-cap-screener/commit/54df86014e312cdb57a1111831d8f3dada08b0fc))
+
+* docs: remove black from STACK, ruff handles both linting and formatting ([`6293341`](https://github.com/MaximeFARRE/small-cap-screener/commit/62933419f4dd97ab90883527f9521e2666bbdd26))
+
+* docs: replace black --check with ruff format --check in DEVELOPMENT guide ([`2f70afc`](https://github.com/MaximeFARRE/small-cap-screener/commit/2f70afcad36174b02c0903b16515c44af22f4b4a))
+
+* docs: update README implemented features and fix stack (remove black, add yfinance) ([`782712b`](https://github.com/MaximeFARRE/small-cap-screener/commit/782712b5485b78aadb58aad1583f5292a13a0eb0))
+
+* docs: add missing services and provider layer to ARCHITECTURE ([`b70a617`](https://github.com/MaximeFARRE/small-cap-screener/commit/b70a617dc30f17f43095251cfb8e890a77f8f7fe))
+
+* docs: update ROADMAP to reflect phases 14-30 as delivered ([`bbd1857`](https://github.com/MaximeFARRE/small-cap-screener/commit/bbd185780eabe527af4be166555ce8f0ace391a3))
+
+### Feature
+
+* feat: wire SettingsService into MainWindow, applying configuration to services at startup and runtime ([`de5cd4d`](https://github.com/MaximeFARRE/small-cap-screener/commit/de5cd4d4381e71c491f6fa29948d6015cbd7b8fd))
+
+* feat: add SettingsDialog UI with connectivity and scoring weight sections ([`7ebb1b3`](https://github.com/MaximeFARRE/small-cap-screener/commit/7ebb1b37144522dfcecb23100058ac08f2fbd6de))
+
+* feat: add AppSettings dataclass and SettingsService with JSON persistence ([`8079a1c`](https://github.com/MaximeFARRE/small-cap-screener/commit/8079a1c7103271e34ff847abcac0ed5b8d459400))
+
+### Fix
+
+* fix(ci): install libegl1 and set QT_QPA_PLATFORM for headless PySide6 tests ([`6cf8145`](https://github.com/MaximeFARRE/small-cap-screener/commit/6cf8145b3a9d70726299cdcd1f416e20472484a1))
+
+### Test
+
+* test: fix FakeScreeningService and FakeBacktestingService to accept kwargs in tests ([`5cd7e3d`](https://github.com/MaximeFARRE/small-cap-screener/commit/5cd7e3df13bd9e42333fc18ed26fc7bb30144022))
+
+* test: add unit tests for SettingsService and AppSettings validation ([`ce32d67`](https://github.com/MaximeFARRE/small-cap-screener/commit/ce32d67feddb09ddd0d46731e86047182d567935))
+
+### Unknown
+
+* Merge pull request #38 from MaximeFARRE/feat/phase31-settings-configuration
+
+Feat/phase31 settings configuration ([`b6cb91f`](https://github.com/MaximeFARRE/small-cap-screener/commit/b6cb91f79d0ca5a2fc2735855a7c12c30d8429be))
+
+* Merge pull request #37 from MaximeFARRE/docs/update-docs
+
+Docs/update docs ([`b7b86be`](https://github.com/MaximeFARRE/small-cap-screener/commit/b7b86be97914c6fbec8ed04f0f99cadc9e331399))
+
 ## v0.25.1 (2026-04-26)
+
+### Chore
+
+* chore(release): 0.25.1 [skip ci] ([`6219dc2`](https://github.com/MaximeFARRE/small-cap-screener/commit/6219dc250658bfb6091281eec47f833fdfcd8869))
 
 ### Unknown
 

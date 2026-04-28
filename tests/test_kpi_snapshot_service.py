@@ -3,6 +3,8 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import date
 
+import pytest
+
 from src.models.company import Company
 from src.models.financial_statement import FinancialStatement, PeriodType
 from src.models.kpi_snapshot import KpiSnapshot
@@ -561,3 +563,121 @@ def test_rank_universe_by_total_score_computes_sector_rank(db_session):
     assert [entry.company_id for entry in ranking] == [no_sector.id, energy_top.id, tech_only.id, energy_second.id]
     assert [entry.rank for entry in ranking] == [1, 2, 3, 4]
     assert [entry.sector_rank for entry in ranking] == [None, 1, 1, 2]
+
+
+# --- Phase 35: fixed ratios and analyst metrics ---
+
+
+def _create_company_with_enriched_financials(db_session, isin: str, ticker: str) -> Company:
+    company = company_repository.create(
+        db_session,
+        Company(
+            isin=isin,
+            ticker=ticker,
+            name="Enriched Corp",
+            country="France",
+            sector="Healthcare",
+            market="PAR",
+            currency="EUR",
+            is_active=True,
+            market_cap=200_000_000.0,
+            average_daily_volume=100_000.0,
+            beta=0.85,
+            analyst_target_price=72.0,
+            analyst_recommendation="buy",
+            analyst_count=6,
+            forward_pe=14.5,
+        ),
+    )
+    financial_statement_repository.create(
+        db_session,
+        FinancialStatement(
+            company_id=company.id,
+            fiscal_year=2023,
+            period_type=PeriodType.ANNUAL,
+            revenue=100_000_000.0,
+            ebit=12_000_000.0,
+            ebitda=18_000_000.0,
+            net_income=9_000_000.0,
+            total_assets=250_000_000.0,
+            total_equity=80_000_000.0,
+            total_debt=40_000_000.0,
+            net_debt=25_000_000.0,
+            free_cash_flow=10_000_000.0,
+            shares_outstanding=3_000_000.0,
+            gross_profit=45_000_000.0,
+            current_assets=60_000_000.0,
+            current_liabilities=30_000_000.0,
+            interest_expense=1_500_000.0,
+        ),
+    )
+    price_history_repository.create(
+        db_session,
+        PriceHistory(
+            company_id=company.id,
+            date=date(2024, 1, 2),
+            open=60.0,
+            high=62.0,
+            low=59.0,
+            close=61.0,
+            adjusted_close=61.0,
+            volume=100_000,
+        ),
+    )
+    return company
+
+
+def test_gross_margin_is_computed_when_gross_profit_present(db_session):
+    company = _create_company_with_enriched_financials(db_session, "FR0000P35001", "ENRICH1.PA")
+    service = _make_service(db_session)
+
+    result = service.compute_and_upsert_for_company(company.id, snapshot_date=date(2024, 1, 31))
+
+    assert result.success is True
+    assert result.metrics["gross_margin"] == pytest.approx(45_000_000.0 / 100_000_000.0)
+
+
+def test_current_ratio_is_computed_when_assets_and_liabilities_present(db_session):
+    company = _create_company_with_enriched_financials(db_session, "FR0000P35002", "ENRICH2.PA")
+    service = _make_service(db_session)
+
+    result = service.compute_and_upsert_for_company(company.id, snapshot_date=date(2024, 1, 31))
+
+    assert result.success is True
+    assert result.metrics["current_ratio"] == pytest.approx(60_000_000.0 / 30_000_000.0)
+
+
+def test_interest_coverage_is_computed_when_interest_expense_present(db_session):
+    company = _create_company_with_enriched_financials(db_session, "FR0000P35003", "ENRICH3.PA")
+    service = _make_service(db_session)
+
+    result = service.compute_and_upsert_for_company(company.id, snapshot_date=date(2024, 1, 31))
+
+    assert result.success is True
+    assert result.metrics["interest_coverage"] == pytest.approx(12_000_000.0 / 1_500_000.0)
+
+
+def test_analyst_metrics_appear_in_snapshot(db_session):
+    company = _create_company_with_enriched_financials(db_session, "FR0000P35004", "ENRICH4.PA")
+    service = _make_service(db_session)
+
+    result = service.compute_and_upsert_for_company(company.id, snapshot_date=date(2024, 1, 31))
+
+    assert result.success is True
+    assert result.metrics["beta"] == pytest.approx(0.85)
+    assert result.metrics["analyst_target_price"] == pytest.approx(72.0)
+    assert result.metrics["analyst_recommendation"] == "buy"
+    assert result.metrics["analyst_count"] == 6
+    assert result.metrics["forward_pe"] == pytest.approx(14.5)
+
+
+def test_ratios_remain_none_when_inputs_absent(db_session):
+    company = _create_company_with_financials(db_session, isin="FR0000P35005", ticker="ENRICH5.PA")
+    service = _make_service(db_session)
+
+    result = service.compute_and_upsert_for_company(company.id, snapshot_date=date(2024, 1, 31))
+
+    assert result.success is True
+    assert result.metrics["gross_margin"] is None
+    assert result.metrics["current_ratio"] is None
+    assert result.metrics["interest_coverage"] is None

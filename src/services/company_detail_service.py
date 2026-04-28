@@ -4,15 +4,21 @@ import logging
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
 from src.models.company import Company
+from src.models.company_executive import CompanyExecutive
+from src.models.company_holder import CompanyHolder
+from src.models.company_insider_transaction import CompanyInsiderTransaction
 from src.models.financial_statement import FinancialStatement, PeriodType
 from src.models.kpi_snapshot import KpiSnapshot
 from src.models.price_history import PriceHistory
 from src.repositories import (
+    company_executive_repository,
+    company_holder_repository,
+    company_insider_transaction_repository,
     company_repository,
     financial_statement_repository,
     kpi_snapshot_repository,
@@ -52,57 +58,146 @@ class HistoricalFundamentalsTrends:
 
 @dataclass(frozen=True)
 class HistoricalFundamentals:
-    revenue_history: list[HistoricalMetricPoint]
-    operating_income_history: list[HistoricalMetricPoint]
-    net_income_history: list[HistoricalMetricPoint]
-    free_cash_flow_history: list[HistoricalMetricPoint]
-    net_debt_history: list[HistoricalMetricPoint]
-    trends: HistoricalFundamentalsTrends
+    revenue_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    ebitda_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    ebit_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    operating_income_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    net_income_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    free_cash_flow_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    net_debt_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    eps_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    shares_outstanding_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    trends: HistoricalFundamentalsTrends = field(
+        default_factory=lambda: HistoricalFundamentalsTrends(
+            revenue_cagr=None,
+            operating_income_cagr=None,
+            net_income_cagr=None,
+            free_cash_flow_cagr=None,
+            revenue_direction=None,
+            margin_direction=None,
+            net_debt_direction=None,
+        )
+    )
+
+
+@dataclass(frozen=True)
+class OwnershipHolderItem:
+    holder_name: str
+    holder_type: str
+    weight: float | None = None
+    shares: float | None = None
+    market_value: float | None = None
+    date_reported: date | None = None
+
+
+@dataclass(frozen=True)
+class OwnershipExecutiveItem:
+    name: str
+    title: str | None = None
+    age: int | None = None
+    total_pay: float | None = None
+
+
+@dataclass(frozen=True)
+class OwnershipInsiderItem:
+    insider_name: str | None
+    relation: str | None
+    transaction_text: str | None
+    ownership: str | None
+    shares: float | None
+    market_value: float | None
+    start_date: date | None = None
 
 
 @dataclass(frozen=True)
 class CompanyFinancialDetail:
     company_id: int
-    ticker: str | None
-    name: str
-    sector: str | None
-    currency: str
+    name: str = ""
+    ticker: str | None = None
+    sector: str | None = None
+    country: str | None = None
+    currency: str = "EUR"
+    # Company profile
+    industry: str | None = None
+    website: str | None = None
+    business_summary: str | None = None
+    full_time_employees: int | None = None
+    city: str | None = None
+    phone: str | None = None
+    # Fundamental Metrics (Latest from provider)
+    latest_gross_margins: float | None = None
+    latest_operating_margins: float | None = None
+    latest_profit_margins: float | None = None
+    latest_roe: float | None = None
+    latest_roa: float | None = None
+    latest_current_ratio: float | None = None
+    latest_quick_ratio: float | None = None
+    latest_payout_ratio: float | None = None
+    # Shares and Volume
+    float_shares: float | None = None
+    # Dividend Info
+    latest_dividend_rate: float | None = None
+    latest_dividend_yield: float | None = None
+    ex_dividend_date: date | None = None
+    latest_five_year_avg_dividend_yield: float | None = None
     # Market data
-    current_price: float | None
-    market_cap: float | None
-    enterprise_value: float | None
+    current_price: float | None = None
+    market_cap: float | None = None
+    enterprise_value: float | None = None
+    enterprise_value_yahoo: float | None = None
+    last_refresh_at: datetime | None = None
+    # Analyst summary
+    analyst_target_price: float | None = None
+    analyst_target_upside: float | None = None
+    analyst_target_downside: float | None = None
+    analyst_recommendation: str | None = None
+    analyst_count: int | None = None
+    forward_pe: float | None = None
+    beta: float | None = None
+    average_daily_volume: float | None = None
+    confidence_level: str | None = None
+    provider_source: str | None = None
+    snapshot_source: str | None = None
+    missing_fields: tuple[str, ...] = ()
     # Latest financial period
-    fiscal_year: int | None
-    period_type: str | None
+    fiscal_year: int | None = None
+    period_type: str | None = None
     # Raw financials
-    revenue: float | None
-    ebitda: float | None
-    ebit: float | None
-    net_income: float | None
-    free_cash_flow: float | None
-    net_debt: float | None
-    shares_outstanding: float | None
+    revenue: float | None = None
+    ebitda: float | None = None
+    ebit: float | None = None
+    net_income: float | None = None
+    free_cash_flow: float | None = None
+    net_debt: float | None = None
+    shares_outstanding: float | None = None
     # Valuation ratios
-    pe_ratio: float | None
-    pb_ratio: float | None
-    ev_ebitda: float | None
-    ev_sales: float | None
-    fcf_yield: float | None
+    pe_ratio: float | None = None
+    pb_ratio: float | None = None
+    ev_ebitda: float | None = None
+    ev_sales: float | None = None
+    fcf_yield: float | None = None
     # Quality ratios
-    gross_margin: float | None
-    operating_margin: float | None
-    net_margin: float | None
-    roe: float | None
-    roic: float | None
+    gross_margin: float | None = None
+    operating_margin: float | None = None
+    net_margin: float | None = None
+    roe: float | None = None
+    roic: float | None = None
     # Growth
-    revenue_growth: float | None
-    ebitda_growth: float | None
+    revenue_growth: float | None = None
+    ebitda_growth: float | None = None
     # Risk
-    net_debt_to_ebitda: float | None
+    net_debt_to_ebitda: float | None = None
     # Data quality
-    data_quality_score: float | None
-    snapshot_date: date | None
-    historical_fundamentals: HistoricalFundamentals
+    data_quality_score: float | None = None
+    snapshot_date: date | None = None
+    historical_fundamentals: HistoricalFundamentals = field(default_factory=HistoricalFundamentals)
+    ceo_name: str | None = None
+    cfo_name: str | None = None
+    management_team: tuple[OwnershipExecutiveItem, ...] = ()
+    major_holders: tuple[OwnershipHolderItem, ...] = ()
+    top_shareholders: tuple[OwnershipHolderItem, ...] = ()
+    institutional_holders: tuple[OwnershipHolderItem, ...] = ()
+    insider_activity: tuple[OwnershipInsiderItem, ...] = ()
 
 
 @dataclass
@@ -121,8 +216,20 @@ class CompanyDetailService:
             selected_statements = _select_historical_statements(statements)
             latest_stmt = selected_statements[0] if selected_statements else None
             snapshot = kpi_snapshot_repository.get_latest_by_company(session, company_id)
+            executives = company_executive_repository.get_by_company(session, company_id)
+            holders = company_holder_repository.get_by_company(session, company_id)
+            insider_transactions = company_insider_transaction_repository.get_by_company(session, company_id)
 
-            return _build_detail(company, latest_price, latest_stmt, snapshot, selected_statements)
+            return _build_detail(
+                company,
+                latest_price,
+                latest_stmt,
+                snapshot,
+                selected_statements,
+                executives,
+                holders,
+                insider_transactions,
+            )
 
 
 def _select_historical_statements(statements: list[FinancialStatement]) -> list[FinancialStatement]:
@@ -194,10 +301,109 @@ def _net_margin(net_income: float | None, revenue: float | None) -> float | None
     return net_income / revenue
 
 
+def _target_move_ratio(current_price: float | None, target_price: float | None) -> float | None:
+    if current_price is None or target_price is None:
+        return None
+    if abs(current_price) < _ZERO:
+        return None
+    return (target_price - current_price) / current_price
+
+
+def _confidence_level(analyst_count: int | None, data_quality_score: float | None) -> str | None:
+    if analyst_count is None and data_quality_score is None:
+        return None
+    if analyst_count is None:
+        return "medium" if (data_quality_score or 0.0) >= 60.0 else "low"
+    if analyst_count >= 12:
+        return "high"
+    if analyst_count >= 5:
+        return "medium"
+    return "low"
+
+
+def _missing_fields(
+    *,
+    analyst_target_price: float | None,
+    analyst_count: int | None,
+    forward_pe: float | None,
+    beta: float | None,
+    current_ratio: float | None,
+    quick_ratio: float | None,
+    dividend_yield: float | None,
+    average_volume: float | None,
+    shares_outstanding: float | None,
+    float_shares: float | None,
+    data_quality_score: float | None,
+) -> tuple[str, ...]:
+    field_values = {
+        "target_price": analyst_target_price,
+        "analyst_count": analyst_count,
+        "forward_pe": forward_pe,
+        "beta": beta,
+        "current_ratio": current_ratio,
+        "quick_ratio": quick_ratio,
+        "dividend_yield": dividend_yield,
+        "average_volume": average_volume,
+        "shares_outstanding": shares_outstanding,
+        "float_shares": float_shares,
+        "data_quality_score": data_quality_score,
+    }
+    return tuple(field_name for field_name, value in field_values.items() if value is None)
+
+
+def _executive_matches_role(executive: CompanyExecutive, role_keywords: tuple[str, ...]) -> bool:
+    if executive.title is None:
+        return False
+    title = executive.title.lower()
+    return any(keyword in title for keyword in role_keywords)
+
+
+def _map_executive_item(executive: CompanyExecutive) -> OwnershipExecutiveItem:
+    return OwnershipExecutiveItem(
+        name=executive.name,
+        title=executive.title,
+        age=executive.age,
+        total_pay=executive.total_pay,
+    )
+
+
+def _map_holder_item(holder: CompanyHolder) -> OwnershipHolderItem:
+    return OwnershipHolderItem(
+        holder_name=holder.holder_name,
+        holder_type=holder.holder_type,
+        weight=holder.weight,
+        shares=holder.shares,
+        market_value=holder.market_value,
+        date_reported=holder.date_reported,
+    )
+
+
+def _map_insider_item(insider: CompanyInsiderTransaction) -> OwnershipInsiderItem:
+    return OwnershipInsiderItem(
+        insider_name=insider.insider_name,
+        relation=insider.relation,
+        transaction_text=insider.transaction_text,
+        ownership=insider.ownership,
+        shares=insider.shares,
+        market_value=insider.market_value,
+        start_date=insider.start_date,
+    )
+
+
+def _holder_sort_weight(holder: CompanyHolder) -> float:
+    if holder.weight is None:
+        return -1.0
+    return holder.weight
+
+
 def _operating_income(statement: FinancialStatement) -> float | None:
     if statement.ebitda is not None:
         return statement.ebitda
     return statement.ebit
+
+
+def _eps(statement: FinancialStatement) -> float | None:
+    return _ratio(statement.net_income, statement.shares_outstanding)
 
 
 def _build_metric_history(
@@ -279,10 +485,14 @@ def _net_debt_direction(net_debt_history: list[HistoricalMetricPoint]) -> str | 
 
 def _build_historical_fundamentals(statements: list[FinancialStatement]) -> HistoricalFundamentals:
     revenue_history = _build_metric_history(statements, lambda s: s.revenue)
+    ebitda_history = _build_metric_history(statements, lambda s: s.ebitda)
+    ebit_history = _build_metric_history(statements, lambda s: s.ebit)
     operating_income_history = _build_metric_history(statements, _operating_income)
     net_income_history = _build_metric_history(statements, lambda s: s.net_income)
     free_cash_flow_history = _build_metric_history(statements, lambda s: s.free_cash_flow)
     net_debt_history = _build_metric_history(statements, lambda s: s.net_debt)
+    eps_history = _build_metric_history(statements, _eps)
+    shares_outstanding_history = _build_metric_history(statements, lambda s: s.shares_outstanding)
     margin_history = _margin_history(statements)
 
     trends = HistoricalFundamentalsTrends(
@@ -297,10 +507,14 @@ def _build_historical_fundamentals(statements: list[FinancialStatement]) -> Hist
 
     return HistoricalFundamentals(
         revenue_history=revenue_history,
+        ebitda_history=ebitda_history,
+        ebit_history=ebit_history,
         operating_income_history=operating_income_history,
         net_income_history=net_income_history,
         free_cash_flow_history=free_cash_flow_history,
         net_debt_history=net_debt_history,
+        eps_history=eps_history,
+        shares_outstanding_history=shares_outstanding_history,
         trends=trends,
     )
 
@@ -311,11 +525,18 @@ def _build_detail(
     latest_stmt: FinancialStatement | None,
     snapshot: KpiSnapshot | None,
     selected_statements: list[FinancialStatement],
+    executives: list[CompanyExecutive],
+    holders: list[CompanyHolder],
+    insider_transactions: list[CompanyInsiderTransaction],
 ) -> CompanyFinancialDetail:
     current_price = latest_price.close if latest_price is not None else None
 
     market_cap = _metric(snapshot, "market_cap") or company.market_cap
     enterprise_value = _metric(snapshot, "enterprise_value")
+    data_quality_score = _metric(snapshot, "data_quality_score")
+    target_upside = _target_move_ratio(current_price, company.analyst_target_price)
+    target_downside = None if target_upside is None else min(target_upside, 0.0)
+    confidence = _confidence_level(company.analyst_count, data_quality_score)
 
     revenue = latest_stmt.revenue if latest_stmt is not None else None
     ebitda = latest_stmt.ebitda if latest_stmt is not None else None
@@ -324,16 +545,76 @@ def _build_detail(
     free_cash_flow = latest_stmt.free_cash_flow if latest_stmt is not None else None
     net_debt = latest_stmt.net_debt if latest_stmt is not None else None
     shares_outstanding = latest_stmt.shares_outstanding if latest_stmt is not None else None
+    missing_fields = _missing_fields(
+        analyst_target_price=company.analyst_target_price,
+        analyst_count=company.analyst_count,
+        forward_pe=company.forward_pe,
+        beta=company.beta,
+        current_ratio=company.current_ratio,
+        quick_ratio=company.quick_ratio,
+        dividend_yield=company.dividend_yield,
+        average_volume=company.average_daily_volume,
+        shares_outstanding=shares_outstanding or company.shares_outstanding,
+        float_shares=company.float_shares,
+        data_quality_score=data_quality_score,
+    )
+    management_team = tuple(_map_executive_item(executive) for executive in executives[:12])
+    ceo = next((item for item in executives if _executive_matches_role(item, ("chief executive", "ceo"))), None)
+    cfo = next((item for item in executives if _executive_matches_role(item, ("chief financial", "cfo"))), None)
+
+    major_holders = tuple(_map_holder_item(holder) for holder in holders if holder.holder_type == "major")
+    institutional_holders_raw = [holder for holder in holders if holder.holder_type == "institutional"]
+    institutional_holders = tuple(_map_holder_item(holder) for holder in institutional_holders_raw[:15])
+    top_shareholder_candidates = [
+        holder for holder in holders if holder.holder_type in {"institutional", "mutual_fund"}
+    ]
+    top_shareholder_candidates.sort(key=_holder_sort_weight, reverse=True)
+    top_shareholders = tuple(_map_holder_item(holder) for holder in top_shareholder_candidates[:15])
+    insider_activity = tuple(_map_insider_item(item) for item in insider_transactions[:20])
 
     return CompanyFinancialDetail(
         company_id=company.id,
         ticker=company.ticker,
         name=company.name,
         sector=company.sector,
+        country=company.country,
         currency=company.currency,
+        industry=company.industry,
+        website=company.website,
+        business_summary=company.business_summary,
+        full_time_employees=company.full_time_employees,
+        city=company.city,
+        phone=company.phone,
+        latest_gross_margins=company.gross_margins,
+        latest_operating_margins=company.operating_margins,
+        latest_profit_margins=company.profit_margins,
+        latest_roe=company.roe,
+        latest_roa=company.roa,
+        latest_current_ratio=company.current_ratio,
+        latest_quick_ratio=company.quick_ratio,
+        latest_payout_ratio=company.payout_ratio,
+        float_shares=company.float_shares,
+        latest_dividend_rate=company.dividend_rate,
+        latest_dividend_yield=company.dividend_yield,
+        ex_dividend_date=company.ex_dividend_date.date() if company.ex_dividend_date else None,
+        latest_five_year_avg_dividend_yield=company.five_year_avg_dividend_yield,
         current_price=current_price,
         market_cap=market_cap,
         enterprise_value=enterprise_value,
+        enterprise_value_yahoo=company.enterprise_value_yahoo,
+        last_refresh_at=company.last_universe_refresh_at,
+        analyst_target_price=company.analyst_target_price,
+        analyst_target_upside=target_upside,
+        analyst_target_downside=target_downside,
+        analyst_recommendation=company.analyst_recommendation,
+        analyst_count=company.analyst_count,
+        forward_pe=company.forward_pe,
+        beta=company.beta,
+        average_daily_volume=company.average_daily_volume,
+        confidence_level=confidence,
+        provider_source=company.source_origin,
+        snapshot_source=snapshot.source if snapshot is not None else None,
+        missing_fields=missing_fields,
         fiscal_year=latest_stmt.fiscal_year if latest_stmt is not None else None,
         period_type=latest_stmt.period_type if latest_stmt is not None else None,
         revenue=revenue,
@@ -356,7 +637,14 @@ def _build_detail(
         revenue_growth=_metric(snapshot, "revenue_growth"),
         ebitda_growth=_metric(snapshot, "ebitda_growth"),
         net_debt_to_ebitda=_metric(snapshot, "net_debt_to_ebitda"),
-        data_quality_score=_metric(snapshot, "data_quality_score"),
+        data_quality_score=data_quality_score,
         snapshot_date=snapshot.snapshot_date if snapshot is not None else None,
         historical_fundamentals=_build_historical_fundamentals(selected_statements),
+        ceo_name=ceo.name if ceo is not None else None,
+        cfo_name=cfo.name if cfo is not None else None,
+        management_team=management_team,
+        major_holders=major_holders,
+        top_shareholders=top_shareholders,
+        institutional_holders=institutional_holders,
+        insider_activity=insider_activity,
     )

@@ -46,6 +46,7 @@ class FundamentalChartsData:
     revenue_points: list[YearlyChartPoint]
     operating_income_points: list[YearlyChartPoint]
     margin_points: list[YearlyChartPoint]
+    debt_points: list[YearlyChartPoint]
 
 
 @dataclass(frozen=True)
@@ -94,15 +95,22 @@ class CompanyChartsService:
 
     def prepare_fundamentals(self, financial_detail: CompanyFinancialDetail | None) -> FundamentalChartsData:
         if financial_detail is None:
-            return FundamentalChartsData(revenue_points=[], operating_income_points=[], margin_points=[])
+            return FundamentalChartsData(
+                revenue_points=[],
+                operating_income_points=[],
+                margin_points=[],
+                debt_points=[],
+            )
 
         revenue_points = _to_yearly_points(financial_detail.historical_fundamentals.revenue_history)
         operating_income_points = _to_yearly_points(financial_detail.historical_fundamentals.operating_income_history)
+        debt_points = _to_yearly_points(financial_detail.historical_fundamentals.net_debt_history)
         margin_points = _build_margin_points(revenue_points, operating_income_points)
         return FundamentalChartsData(
             revenue_points=revenue_points,
             operating_income_points=operating_income_points,
             margin_points=margin_points,
+            debt_points=debt_points,
         )
 
     def prepare_score_breakdown(self, score_breakdown: ScoreBreakdownInput | None) -> list[ScoreBreakdownPoint]:
