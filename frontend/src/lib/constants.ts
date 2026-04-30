@@ -18,7 +18,5 @@ export const COLORS = {
 export const SCORE_THRESHOLDS = {
   HIGH: 70,
   MID: 45,
+  LOW: 0,
 } as const;
-
-// API base URL — proxied by Vite in dev, real origin in production
-export const API_BASE_URL = "/api";
