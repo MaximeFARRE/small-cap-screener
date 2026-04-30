@@ -1,0 +1,194 @@
+import { useQuery } from "@tanstack/react-query";
+import { ApiError, api } from "@/lib/api";
+
+export interface HistoricalMetricPoint {
+  fiscal_year: number;
+  period_type: string;
+  value: number;
+}
+
+export interface HistoricalFundamentals {
+  revenue_history: HistoricalMetricPoint[];
+  ebitda_history: HistoricalMetricPoint[];
+  ebit_history: HistoricalMetricPoint[];
+  net_income_history: HistoricalMetricPoint[];
+  free_cash_flow_history: HistoricalMetricPoint[];
+  net_debt_history: HistoricalMetricPoint[];
+  eps_history: HistoricalMetricPoint[];
+  revenue_cagr: number | null;
+  operating_income_cagr: number | null;
+  net_income_cagr: number | null;
+  free_cash_flow_cagr: number | null;
+  revenue_direction: string | null;
+  margin_direction: string | null;
+  net_debt_direction: string | null;
+}
+
+export interface CompanyDetail {
+  company_id: number;
+  name: string;
+  ticker: string | null;
+  sector: string | null;
+  country: string | null;
+  currency: string;
+  industry: string | null;
+  website: string | null;
+  business_summary: string | null;
+  full_time_employees: number | null;
+  city: string | null;
+  current_price: number | null;
+  market_cap: number | null;
+  enterprise_value: number | null;
+  forward_pe: number | null;
+  beta: number | null;
+  average_daily_volume: number | null;
+  analyst_target_price: number | null;
+  analyst_target_upside: number | null;
+  analyst_recommendation: string | null;
+  analyst_count: number | null;
+  pe_ratio: number | null;
+  pb_ratio: number | null;
+  ev_ebitda: number | null;
+  fcf_yield: number | null;
+  gross_margin: number | null;
+  operating_margin: number | null;
+  net_margin: number | null;
+  roe: number | null;
+  roic: number | null;
+  revenue_growth: number | null;
+  ebitda_growth: number | null;
+  net_debt_to_ebitda: number | null;
+  revenue: number | null;
+  ebitda: number | null;
+  net_income: number | null;
+  free_cash_flow: number | null;
+  net_debt: number | null;
+  latest_dividend_yield: number | null;
+  latest_dividend_rate: number | null;
+  data_quality_score: number | null;
+  last_refresh_at: string | null;
+  snapshot_date: string | null;
+  historical_fundamentals: HistoricalFundamentals;
+}
+
+export interface ScoreWeightEntry {
+  category: string;
+  weight: number;
+}
+
+export interface ScoreCategoryContribution {
+  category: string;
+  sub_score: number;
+  weight: number;
+  weighted_points: number;
+}
+
+export interface ScoreMetricDriver {
+  category: string;
+  metric: string;
+  raw_value: number;
+  metric_score: number;
+  weighted_points: number;
+  impact_points: number;
+}
+
+export interface CompanyScore {
+  total_score: number | null;
+  quality: number | null;
+  value: number | null;
+  growth: number | null;
+  risk: number | null;
+  weights: ScoreWeightEntry[];
+  category_contributions: ScoreCategoryContribution[];
+  positive_drivers: ScoreMetricDriver[];
+  negative_drivers: ScoreMetricDriver[];
+  strengths: string[];
+  weaknesses: string[];
+  summary: string;
+}
+
+export interface PeerMetric {
+  key: string;
+  label: string;
+  company_value: number | null;
+  sector_median: number | null;
+  percentile_rank: number | null;
+  premium_discount_vs_peers: number | null;
+  is_lower_better: boolean;
+}
+
+export interface PeerCompanyRow {
+  company_id: number;
+  ticker: string | null;
+  name: string;
+  sector_rank: number | null;
+  total_score: number | null;
+  market_cap: number | null;
+  ev_ebitda: number | null;
+  pe_ratio: number | null;
+  fcf_yield: number | null;
+  revenue_growth: number | null;
+  ebitda_margin: number | null;
+  roic: number | null;
+  roe: number | null;
+  net_debt_to_ebitda: number | null;
+}
+
+export interface PeerComparison {
+  sector: string | null;
+  market: string | null;
+  market_cap_bucket: string | null;
+  company_sector_rank: number | null;
+  sector_company_count: number;
+  sector_scored_count: number;
+  peer_count: number;
+  metrics: PeerMetric[];
+  peer_rows: PeerCompanyRow[];
+}
+
+function getCompanyPath(ticker: string, suffix = ""): string {
+  return `/companies/${encodeURIComponent(ticker)}${suffix}`;
+}
+
+export function useCompanyDetail(ticker: string | null) {
+  return useQuery({
+    queryKey: ["companies", "detail", ticker],
+    enabled: ticker !== null,
+    queryFn: () => api.get<CompanyDetail>(getCompanyPath(ticker ?? "")),
+  });
+}
+
+export function useCompanyScore(ticker: string | null) {
+  return useQuery({
+    queryKey: ["companies", "score", ticker],
+    enabled: ticker !== null,
+    queryFn: () => api.get<CompanyScore>(getCompanyPath(ticker ?? "", "/score")),
+  });
+}
+
+export function useFinancialHistory(ticker: string | null) {
+  return useQuery({
+    queryKey: ["companies", "history", ticker],
+    enabled: ticker !== null,
+    queryFn: async () => {
+      const safeTicker = ticker ?? "";
+      try {
+        return await api.get<HistoricalFundamentals>(getCompanyPath(safeTicker, "/history"));
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          const detail = await api.get<CompanyDetail>(getCompanyPath(safeTicker));
+          return detail.historical_fundamentals;
+        }
+        throw error;
+      }
+    },
+  });
+}
+
+export function useCompanyPeers(ticker: string | null) {
+  return useQuery({
+    queryKey: ["companies", "peers", ticker],
+    enabled: ticker !== null,
+    queryFn: () => api.get<PeerComparison>(getCompanyPath(ticker ?? "", "/peers")),
+  });
+}
