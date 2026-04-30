@@ -1,2 +1,1 @@
-// Phase 5 — WatchlistPanel implementation
-export {};
+export { WatchlistPanel } from "./WatchlistPanel";

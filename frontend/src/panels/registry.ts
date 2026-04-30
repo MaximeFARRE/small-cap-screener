@@ -1,6 +1,7 @@
 import { createElement, type ComponentType } from "react";
 import { ScreenerPanel } from "./ScreenerPanel";
 import { TearsheetPanel } from "./TearsheetPanel";
+import { WatchlistPanel } from "./WatchlistPanel";
 
 export const PANEL_TYPES = [
   "screener",
@@ -44,7 +45,7 @@ export const PANEL_REGISTRY: Record<PanelType, PanelDefinition> = {
   },
   watchlist: {
     label: "Watchlist",
-    component: createPlaceholderPanel("Watchlist"),
+    component: WatchlistPanel,
   },
   signals: {
     label: "Signals",
