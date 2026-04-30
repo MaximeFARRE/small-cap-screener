@@ -1,3 +1,5 @@
+import { Plus, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import type { CompanyDetail, CompanyScore, ScoreMetricDriver } from "@/hooks";
 import { formatMarketCap, formatNumber, formatPercent, formatRatio } from "@/lib/formatters";
@@ -5,6 +7,10 @@ import { formatMarketCap, formatNumber, formatPercent, formatRatio } from "@/lib
 interface TearsheetHeroProps {
   detail: CompanyDetail;
   score: CompanyScore;
+  isInWatchlist: boolean;
+  watchlistActionPending: boolean;
+  onAddToWatchlist: () => void;
+  onRemoveFromWatchlist: () => void;
 }
 
 interface DriverCard {
@@ -65,8 +71,16 @@ function buildDriverCards(score: CompanyScore): DriverCard[] {
   });
 }
 
-export function TearsheetHero({ detail, score }: TearsheetHeroProps) {
+export function TearsheetHero({
+  detail,
+  score,
+  isInWatchlist,
+  watchlistActionPending,
+  onAddToWatchlist,
+  onRemoveFromWatchlist,
+}: TearsheetHeroProps) {
   const driverCards = buildDriverCards(score);
+  const hasTicker = detail.ticker !== null;
 
   return (
     <section className="space-y-4 border-b border-[var(--color-border)] p-4">
@@ -88,7 +102,7 @@ export function TearsheetHero({ detail, score }: TearsheetHeroProps) {
           </div>
         </div>
 
-        <div className="text-right">
+        <div className="text-right space-y-2">
           <div className="mb-2">
             <p className="font-mono text-xs uppercase text-[var(--color-text-muted)]">Score</p>
             <ScoreBadge score={score.total_score} />
@@ -99,6 +113,34 @@ export function TearsheetHero({ detail, score }: TearsheetHeroProps) {
           <p className="font-mono text-xs text-[var(--color-text-muted)]">
             Market cap: {formatMarketCap(detail.market_cap)}
           </p>
+
+          {hasTicker ? (
+            isInWatchlist ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                className="w-full justify-center font-mono text-xs"
+                disabled={watchlistActionPending}
+                onClick={onRemoveFromWatchlist}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Remove from watchlist
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="w-full justify-center font-mono text-xs"
+                disabled={watchlistActionPending}
+                onClick={onAddToWatchlist}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add to watchlist
+              </Button>
+            )
+          ) : null}
         </div>
       </div>
 

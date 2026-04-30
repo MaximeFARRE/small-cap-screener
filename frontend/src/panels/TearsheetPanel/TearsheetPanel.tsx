@@ -1,10 +1,13 @@
 import { useMemo, useState } from "react";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import {
+  useAddToWatchlist,
   useCompanyDetail,
   useCompanyPeers,
   useCompanyScore,
   useFinancialHistory,
+  useRemoveFromWatchlist,
+  useWatchlist,
 } from "@/hooks";
 import { cn } from "@/lib/utils";
 import { FinancialsTable } from "./FinancialsTable";
@@ -30,6 +33,9 @@ export function TearsheetPanel() {
   const scoreQuery = useCompanyScore(activeTicker);
   const historyQuery = useFinancialHistory(activeTicker);
   const peersQuery = useCompanyPeers(activeTicker);
+  const watchlistQuery = useWatchlist();
+  const addToWatchlist = useAddToWatchlist();
+  const removeFromWatchlist = useRemoveFromWatchlist();
 
   const isPendingAny =
     detailQuery.isPending || scoreQuery.isPending || historyQuery.isPending || peersQuery.isPending;
@@ -79,9 +85,29 @@ export function TearsheetPanel() {
     );
   }
 
+  const ticker = detail.ticker;
+  const isInWatchlist =
+    ticker !== null &&
+    (watchlistQuery.data ?? []).some((entry) => entry.ticker === ticker);
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-[var(--color-bg-panel)]">
-      <TearsheetHero detail={detail} score={score} />
+      <TearsheetHero
+        detail={detail}
+        score={score}
+        isInWatchlist={isInWatchlist}
+        watchlistActionPending={addToWatchlist.isPending || removeFromWatchlist.isPending}
+        onAddToWatchlist={() => {
+          if (ticker) {
+            addToWatchlist.mutate({ ticker });
+          }
+        }}
+        onRemoveFromWatchlist={() => {
+          if (ticker) {
+            removeFromWatchlist.mutate({ ticker });
+          }
+        }}
+      />
 
       <nav className="flex items-center gap-1 border-b border-[var(--color-border)] px-3 py-2">
         {TABS.map((tab) => (
