@@ -33,5 +33,6 @@ class SignalsSchema(BaseModel):
     movers_down: list[ScoreMoverSchema]
     top_quality: list[TopCompanySchema]
     top_value: list[TopCompanySchema]
+    watchlist_alerts: list[ScoreMoverSchema]
     snapshot_name: str | None
     has_snapshot: bool
