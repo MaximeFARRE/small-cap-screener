@@ -78,3 +78,18 @@ class TestGetCompanyPeers:
         assert "peer_rows" in data
         assert "metrics" in data
         assert "analyst_assessment" in data
+
+
+class TestExportCompanyTearsheet:
+    def test_unknown_ticker_returns_404(self, api_client: TestClient) -> None:
+        response = api_client.get("/api/companies/UNKNOWN.PA/export")
+        assert response.status_code == 404
+
+    def test_export_returns_csv(self, api_client: TestClient, db_session) -> None:
+        _seed_company(db_session)
+        response = api_client.get("/api/companies/TEST.PA/export")
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/csv")
+        assert "Content-Disposition" in response.headers
+        assert "section,metric,value" in response.text
+        assert "profile,ticker,TEST.PA" in response.text
