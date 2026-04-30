@@ -1,6 +1,5 @@
 """Integration tests for the /api/screening endpoints."""
 
-import pytest
 from fastapi.testclient import TestClient
 
 from src.models.company import Company
