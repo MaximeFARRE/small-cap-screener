@@ -1,6 +1,36 @@
 # CHANGELOG
 
+## v1.6.0 (2026-04-30)
+
+### Feature
+
+* feat: register signals panel in workspace ([`497c2c0`](https://github.com/MaximeFARRE/small-cap-screener/commit/497c2c077b4b0d58c96fdbd1dd3dcb6f313518d4))
+
+* feat: add signals panel section layout ([`ee2989a`](https://github.com/MaximeFARRE/small-cap-screener/commit/ee2989a7ece9ccb7816346a6601e09a6dcbc6b00))
+
+* feat: add reusable signals list row components ([`0e5f66e`](https://github.com/MaximeFARRE/small-cap-screener/commit/0e5f66e5a0469d9445f4fb2276997d75d008909b))
+
+* feat: add signals polling hook ([`b7c52a9`](https://github.com/MaximeFARRE/small-cap-screener/commit/b7c52a921e6f4d99a2407a42f8ec0ee5605407fc))
+
+* feat: add watchlist alerts to signals api ([`b02f179`](https://github.com/MaximeFARRE/small-cap-screener/commit/b02f1794bbac6c3a8b4a2ce408ee3138a84281bd))
+
+### Test
+
+* test: skip main window tests when pyside6 is unavailable ([`9958b34`](https://github.com/MaximeFARRE/small-cap-screener/commit/9958b34f159d914cb50dca7e5a8cffebc5fd479c))
+
+* test: cover watchlist alerts in signals response ([`5177f8b`](https://github.com/MaximeFARRE/small-cap-screener/commit/5177f8b5595a9be67272dd1283c8478efa5765d7))
+
+### Unknown
+
+* Merge pull request #59 from MaximeFARRE/feat/panel-signals
+
+Feat/panel signals ([`d8e7317`](https://github.com/MaximeFARRE/small-cap-screener/commit/d8e73173e3ada1dbebc81c4796d80881f361c20a))
+
 ## v1.5.0 (2026-04-30)
+
+### Chore
+
+* chore(release): 1.5.0 [skip ci] ([`b88f680`](https://github.com/MaximeFARRE/small-cap-screener/commit/b88f68001855584ccec906f9094ef960b4442262))
 
 ### Feature
 
