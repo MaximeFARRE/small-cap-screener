@@ -8,6 +8,7 @@ import {
   useWorkspace,
   type WorkspacePanel as WorkspacePanelState,
 } from "@/context/WorkspaceContext";
+import { PanelHeader } from "./PanelHeader";
 import { WorkspacePanel } from "./Panel";
 
 function ResizeHandle() {
@@ -101,12 +102,15 @@ export function Workspace() {
   }
 
   return (
-    <main className="h-full w-full bg-[var(--color-bg-base)] p-2">
-      {content ?? (
-        <div className="flex h-full items-center justify-center font-mono text-sm text-[var(--color-text-muted)]">
-          No panel layout available.
-        </div>
-      )}
+    <main className="flex h-full w-full flex-col gap-2 bg-[var(--color-bg-base)] p-2">
+      <PanelHeader />
+      <div className="min-h-0 flex-1">
+        {content ?? (
+          <div className="flex h-full items-center justify-center font-mono text-sm text-[var(--color-text-muted)]">
+            No panel layout available.
+          </div>
+        )}
+      </div>
     </main>
   );
 }
