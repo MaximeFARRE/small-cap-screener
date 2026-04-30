@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "sonner";
 import { WorkspaceProvider } from "@/context/WorkspaceContext";
 import { Workspace } from "@/workspace";
 
@@ -16,6 +17,20 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <WorkspaceProvider>
         <Workspace />
+        <Toaster
+          position="bottom-right"
+          theme="dark"
+          richColors
+          closeButton
+          toastOptions={{
+            style: {
+              border: "1px solid var(--color-border)",
+              background: "var(--color-bg-elevated)",
+              color: "var(--color-text-primary)",
+              fontFamily: "var(--font-mono)",
+            },
+          }}
+        />
       </WorkspaceProvider>
     </QueryClientProvider>
   );
