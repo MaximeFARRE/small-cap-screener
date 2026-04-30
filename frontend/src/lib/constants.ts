@@ -20,3 +20,19 @@ export const SCORE_THRESHOLDS = {
   MID: 45,
   LOW: 0,
 } as const;
+
+export type MetricDirection = "higher_is_better" | "lower_is_better";
+
+export interface MetricThresholdRule {
+  direction: MetricDirection;
+  good: number;
+  warning: number;
+}
+
+export const METRIC_THRESHOLDS = {
+  pe_ratio: { direction: "lower_is_better", good: 15, warning: 25 },
+  ev_ebitda: { direction: "lower_is_better", good: 10, warning: 14 },
+  net_debt_to_ebitda: { direction: "lower_is_better", good: 2.5, warning: 4 },
+  roe: { direction: "higher_is_better", good: 12, warning: 7 },
+  revenue_growth: { direction: "higher_is_better", good: 8, warning: 0 },
+} as const satisfies Record<string, MetricThresholdRule>;
