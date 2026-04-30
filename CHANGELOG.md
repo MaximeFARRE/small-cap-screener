@@ -1,6 +1,38 @@
 # CHANGELOG
 
+## v1.2.0 (2026-04-30)
+
+### Feature
+
+* feat: use env-based base url in api client ([`fbb0156`](https://github.com/MaximeFARRE/small-cap-screener/commit/fbb0156d78a3059a1f3af45e182579f68fbf827b))
+
+* feat: add low score threshold constant ([`fc45efa`](https://github.com/MaximeFARRE/small-cap-screener/commit/fc45efa2267665b389a65efb7e7221f5e95eaabe))
+
+* feat: render workspace shell as app root ([`1c5b51e`](https://github.com/MaximeFARRE/small-cap-screener/commit/1c5b51e241c7a2df53290f26aa80fba580e8d75a))
+
+* feat: add workspace layout preset toolbar ([`4729122`](https://github.com/MaximeFARRE/small-cap-screener/commit/47291225f57eae574e7870737d7e20908db51eeb))
+
+* feat: add typed workspace layout presets ([`5ecef81`](https://github.com/MaximeFARRE/small-cap-screener/commit/5ecef81a7659f45f6dfe88b723230d9e13fb0cdc))
+
+* feat: register panel types with placeholder components ([`ad9cf24`](https://github.com/MaximeFARRE/small-cap-screener/commit/ad9cf249960f3089f5d23d0e8dc55e715c2fef56))
+
+* feat: add workspace panel shell component ([`3f826d0`](https://github.com/MaximeFARRE/small-cap-screener/commit/3f826d0f9b02d0ae23c46ad79d84edc4217c1b40))
+
+* feat: add workspace panel layout renderer ([`52542ab`](https://github.com/MaximeFARRE/small-cap-screener/commit/52542aba4ebf093bba920435e385a0ddd9687f3a))
+
+* feat: implement workspace layout state context ([`b41840c`](https://github.com/MaximeFARRE/small-cap-screener/commit/b41840c411f4374ba218133fd08e2277deaf41e0))
+
+### Unknown
+
+* Merge pull request #55 from MaximeFARRE/feat/fastapi-layer
+
+Feat/fastapi layer ([`18eaf19`](https://github.com/MaximeFARRE/small-cap-screener/commit/18eaf191699c9726091f0cfc2c3dcc23610bba4f))
+
 ## v1.1.0 (2026-04-30)
+
+### Chore
+
+* chore(release): 1.1.0 [skip ci] ([`cd1ce3d`](https://github.com/MaximeFARRE/small-cap-screener/commit/cd1ce3daa9f2b31479352f373be2a8d4584e2c1e))
 
 ### Feature
 
