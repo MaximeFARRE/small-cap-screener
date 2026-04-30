@@ -1,6 +1,34 @@
 # CHANGELOG
 
+## v1.5.0 (2026-04-30)
+
+### Feature
+
+* feat: add watchlist toggle button in tearsheet hero ([`c4ea660`](https://github.com/MaximeFARRE/small-cap-screener/commit/c4ea6608746ddca2a95e8cc9785149348c800b8f))
+
+* feat: register watchlist panel in workspace ([`a7ad663`](https://github.com/MaximeFARRE/small-cap-screener/commit/a7ad66386c31e05781aec30d1747fada79aa5aa0))
+
+* feat: add watchlist panel container ([`278c901`](https://github.com/MaximeFARRE/small-cap-screener/commit/278c901659592bf3fb5b95461f33ff21cd84484e))
+
+* feat: add analyst memo editor with autosave ([`f329f4d`](https://github.com/MaximeFARRE/small-cap-screener/commit/f329f4d6bcf11ba9542ba1f2f6a045c978a6fa9c))
+
+* feat: add watchlist row component ([`cf50c71`](https://github.com/MaximeFARRE/small-cap-screener/commit/cf50c71b144c3acccc6b1b27f9d4264ea89e6264))
+
+* feat: add watchlist status select control ([`0720875`](https://github.com/MaximeFARRE/small-cap-screener/commit/072087524ce08866f30ea0dc37ad1f54da057e60))
+
+* feat: add watchlist query and mutation hooks ([`f132561`](https://github.com/MaximeFARRE/small-cap-screener/commit/f132561034b49565038805be01fc7939d483a88a))
+
+### Unknown
+
+* Merge pull request #58 from MaximeFARRE/feat/panel-watchlist
+
+Feat/panel watchlist ([`d78bf19`](https://github.com/MaximeFARRE/small-cap-screener/commit/d78bf1920bf232c70413062fa3967e77e19773fc))
+
 ## v1.4.0 (2026-04-30)
+
+### Chore
+
+* chore(release): 1.4.0 [skip ci] ([`fc03be7`](https://github.com/MaximeFARRE/small-cap-screener/commit/fc03be72ff2a303a2b79c996379d32d7fc71a6e1))
 
 ### Feature
 
