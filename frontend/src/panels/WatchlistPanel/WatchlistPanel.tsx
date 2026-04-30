@@ -1,5 +1,8 @@
 import { useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
+import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
+import { LoadingState } from "@/components/LoadingState";
 import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import {
@@ -104,19 +107,14 @@ export function WatchlistPanel() {
       </header>
 
       {watchlistQuery.isError ? (
-        <div className="flex flex-1 items-center justify-center">
-          <p className="font-mono text-sm text-[var(--color-negative)]">{errorMessage}</p>
-        </div>
+        <ErrorState message={errorMessage} onRetry={() => void watchlistQuery.refetch()} />
       ) : watchlistQuery.isPending && !watchlistQuery.data ? (
-        <div className="flex flex-1 items-center justify-center">
-          <p className="font-mono text-sm text-[var(--color-text-muted)]">Loading watchlist…</p>
-        </div>
+        <LoadingState label="Loading watchlist…" />
       ) : (rows ?? []).length === 0 ? (
-        <div className="flex flex-1 items-center justify-center p-4">
-          <p className="font-mono text-sm text-[var(--color-text-muted)]">
-            Watchlist is empty. Add a ticker from Screener or Tearsheet.
-          </p>
-        </div>
+        <EmptyState
+          title="Watchlist is empty."
+          description="Add a ticker from Screener or Tearsheet."
+        />
       ) : (
         <div className="flex min-h-0 flex-1">
           <div className="w-[45%] min-w-80 space-y-2 overflow-auto p-3">
@@ -133,23 +131,22 @@ export function WatchlistPanel() {
 
           {selectedTicker === null ? (
             <div className="flex flex-1 items-center justify-center border-l border-[var(--color-border)]">
-              <p className="font-mono text-sm text-[var(--color-text-muted)]">
-                Select a company to edit memo.
-              </p>
+              <EmptyState title="Select a company to edit memo." />
             </div>
           ) : selectedDetailQuery.isError ? (
             <div className="flex flex-1 items-center justify-center border-l border-[var(--color-border)]">
-              <p className="font-mono text-sm text-[var(--color-negative)]">
-                {selectedDetailQuery.error instanceof Error
-                  ? selectedDetailQuery.error.message
-                  : "Failed to load watchlist detail."}
-              </p>
+              <ErrorState
+                message={
+                  selectedDetailQuery.error instanceof Error
+                    ? selectedDetailQuery.error.message
+                    : "Failed to load watchlist detail."
+                }
+                onRetry={() => void selectedDetailQuery.refetch()}
+              />
             </div>
           ) : selectedDetailQuery.isPending || !selectedDetailQuery.data ? (
             <div className="flex flex-1 items-center justify-center border-l border-[var(--color-border)]">
-              <p className="font-mono text-sm text-[var(--color-text-muted)]">
-                Loading memo…
-              </p>
+              <LoadingState label="Loading memo…" />
             </div>
           ) : (
             <div className="min-h-0 flex-1">

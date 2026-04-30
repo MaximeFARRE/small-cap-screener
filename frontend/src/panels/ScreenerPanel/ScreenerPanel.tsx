@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
+import { LoadingState } from "@/components/LoadingState";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import {
   DEFAULT_SCREENING_FILTERS,
@@ -120,13 +123,14 @@ export function ScreenerPanel() {
         </header>
 
         {universeQuery.isError ? (
-          <div className="flex flex-1 items-center justify-center p-4">
-            <p className="font-mono text-sm text-[var(--color-negative)]">{errorMessage}</p>
-          </div>
+          <ErrorState message={errorMessage} onRetry={() => void universeQuery.refetch()} />
         ) : universeQuery.isPending && !universeQuery.data ? (
-          <div className="flex flex-1 items-center justify-center p-4">
-            <p className="font-mono text-sm text-[var(--color-text-muted)]">Loading universe…</p>
-          </div>
+          <LoadingState label="Loading universe…" />
+        ) : rows.length === 0 ? (
+          <EmptyState
+            title="No companies match current filters."
+            description="Adjust filters or reset them to repopulate the universe."
+          />
         ) : (
           <div className="min-h-0 flex-1 overflow-auto">
             <ScreenerTable

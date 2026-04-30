@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
+import { LoadingState } from "@/components/LoadingState";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import {
   useAddToWatchlist,
@@ -52,21 +55,23 @@ export function TearsheetPanel() {
 
   if (activeTicker === null) {
     return (
-      <div className="flex h-full items-center justify-center p-4">
-        <p className="font-mono text-sm text-[var(--color-text-muted)]">
-          Select a company from the screener or watchlist.
-        </p>
-      </div>
+      <EmptyState
+        title="Select a company from the screener or watchlist."
+      />
     );
   }
 
   if (firstError) {
     return (
-      <div className="flex h-full items-center justify-center p-4">
-        <p className="font-mono text-sm text-[var(--color-negative)]">
-          {firstError instanceof Error ? firstError.message : "Failed to load company data."}
-        </p>
-      </div>
+      <ErrorState
+        message={firstError instanceof Error ? firstError.message : "Failed to load company data."}
+        onRetry={() => {
+          void detailQuery.refetch();
+          void scoreQuery.refetch();
+          void historyQuery.refetch();
+          void peersQuery.refetch();
+        }}
+      />
     );
   }
 
@@ -77,11 +82,11 @@ export function TearsheetPanel() {
 
   if (!detail || !score || !historical || !peers) {
     return (
-      <div className="flex h-full items-center justify-center p-4">
-        <p className="font-mono text-sm text-[var(--color-text-muted)]">
-          {isPendingAny ? "Loading tearsheet…" : "No data available for selected company."}
-        </p>
-      </div>
+      isPendingAny ? (
+        <LoadingState label="Loading tearsheet…" />
+      ) : (
+        <EmptyState title="No data available for selected company." />
+      )
     );
   }
 
