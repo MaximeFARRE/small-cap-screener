@@ -1,8 +1,52 @@
 # CHANGELOG
 
+## v1.1.0 (2026-04-30)
+
+### Feature
+
+* feat: wire all routers in main.py (screening, companies, watchlist, data_refresh, signals) ([`7fcf12c`](https://github.com/MaximeFARRE/small-cap-screener/commit/7fcf12c8dc7f879034d11f7b2d14c803ca538066))
+
+* feat: add data_refresh (SSE universe stream) and signals routers ([`da7143f`](https://github.com/MaximeFARRE/small-cap-screener/commit/da7143fb74eb736fdb274defd336257cd3ecb057))
+
+* feat: add screening, companies, and watchlist routers with full CRUD and score breakdown ([`f5ff52e`](https://github.com/MaximeFARRE/small-cap-screener/commit/f5ff52ede51eeeefb037a93f5012f68126601651))
+
+* feat: add service dependencies and Pydantic schemas (screening, company, scoring, watchlist, signals, refresh) ([`6d1984e`](https://github.com/MaximeFARRE/small-cap-screener/commit/6d1984e473de6351765ba73443ef6396fb2cb8fd))
+
+### Test
+
+* test: remove unused pytest import in screening api tests ([`d4aeb5a`](https://github.com/MaximeFARRE/small-cap-screener/commit/d4aeb5aa23049020bb6169b461a9b3ba94535aea))
+
+* test: add integration tests for api endpoints ([`198b29e`](https://github.com/MaximeFARRE/small-cap-screener/commit/198b29e38da7020fa85cbc636091b9ab9e3581c5))
+
+* test: fix API test suite — 26/26 passing
+
+Three root causes resolved:
+
+1. SQLite in-memory pool isolation: added StaticPool so TestClient threads
+   share the same connection (and thus the same in-memory schema).
+
+2. get_company_id bypassed DI: refactored as a proper FastAPI dependency
+   via get_db_session, which tests can override with the test session.
+
+3. NameError on ticker in error messages: restored ticker path param to
+   watchlist route functions that still reference it in HTTPException details.
+
+Also add B008/E402 per-file-ignores to pyproject.toml for Depends() in
+api/dependencies.py and sys.path manipulation in tests/api/conftest.py.
+
+Co-Authored-By: Claude Sonnet 4.6 &lt;noreply@anthropic.com&gt; ([`174b7ba`](https://github.com/MaximeFARRE/small-cap-screener/commit/174b7bae9c16789475a9f4df9d5e849d63d461c5))
+
+### Unknown
+
+* Merge pull request #54 from MaximeFARRE/feat/fastapi-layer
+
+Feat/fastapi layer ([`7dc3477`](https://github.com/MaximeFARRE/small-cap-screener/commit/7dc34776d7e120eb0b7323e67bd5693f27761f59))
+
 ## v1.0.1 (2026-04-30)
 
 ### Chore
+
+* chore(release): 1.0.1 [skip ci] ([`237da17`](https://github.com/MaximeFARRE/small-cap-screener/commit/237da1714b61801c7bef970dab15f6434d862823))
 
 * chore: add FastAPI/Uvicorn/Pydantic deps, update .env.example, .gitignore, and STACK.md for web stack ([`ca8e3a1`](https://github.com/MaximeFARRE/small-cap-screener/commit/ca8e3a1d80cd2fdb062f87586d5d3b53881de319))
 
