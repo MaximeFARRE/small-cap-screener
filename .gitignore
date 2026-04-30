@@ -59,6 +59,11 @@ out/
 release/
 target/
 
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
 # Keep placeholder files
 !assets/.gitkeep
 !tests/.gitkeep
