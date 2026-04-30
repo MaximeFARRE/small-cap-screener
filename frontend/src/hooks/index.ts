@@ -23,3 +23,16 @@ export {
   type PeerMetric,
   type ScoreMetricDriver,
 } from "./useCompany";
+
+export {
+  useAddToWatchlist,
+  useRemoveFromWatchlist,
+  useUpdateMemo,
+  useUpdateWatchlistStatus,
+  useWatchlist,
+  useWatchlistDetail,
+  type AnalystMemo,
+  type WatchlistDetail,
+  type WatchlistEntry,
+  type WatchlistStatus,
+} from "./useWatchlist";
