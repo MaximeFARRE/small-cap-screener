@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.dependencies import get_settings
+from api.routers import companies, data_refresh, screening, signals, watchlist
 
 
 @asynccontextmanager
@@ -28,6 +29,12 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    app.include_router(screening.router, prefix="/api")
+    app.include_router(companies.router, prefix="/api")
+    app.include_router(watchlist.router, prefix="/api")
+    app.include_router(data_refresh.router, prefix="/api")
+    app.include_router(signals.router, prefix="/api")
 
     return app
 
