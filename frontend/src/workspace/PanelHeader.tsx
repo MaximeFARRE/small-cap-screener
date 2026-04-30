@@ -1,4 +1,4 @@
-import { Columns2, Grid2x2, RefreshCcw, Rows2, Square } from "lucide-react";
+import { Columns2, Grid2x2, HelpCircle, RefreshCcw, Rows2, Square } from "lucide-react";
 import { useState, type ComponentType } from "react";
 import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/context/WorkspaceContext";
@@ -18,7 +18,11 @@ const LAYOUT_PRESET_OPTIONS: readonly LayoutPresetOption[] = [
   { preset: "quad", label: "Quad", icon: Grid2x2 },
 ];
 
-export function PanelHeader() {
+interface PanelHeaderProps {
+  onShowShortcuts: () => void;
+}
+
+export function PanelHeader({ onShowShortcuts }: PanelHeaderProps) {
   const { layout, setLayout } = useWorkspace();
   const [showRefreshModal, setShowRefreshModal] = useState(false);
 
@@ -29,6 +33,16 @@ export function PanelHeader() {
           Workspace
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="font-mono text-xs"
+            onClick={onShowShortcuts}
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+            Shortcuts
+          </Button>
           <Button
             type="button"
             size="sm"

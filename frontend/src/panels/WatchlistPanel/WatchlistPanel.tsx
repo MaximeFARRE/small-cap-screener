@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/EmptyState";
@@ -18,7 +18,7 @@ import { AnalystMemo } from "./AnalystMemo";
 import { WatchlistRow } from "./WatchlistRow";
 
 export function WatchlistPanel() {
-  const { activeTicker, setActiveTicker } = useWorkspace();
+  const { activeTicker, focusedPanelType, setActiveTicker } = useWorkspace();
   const watchlistQuery = useWatchlist();
   const addToWatchlist = useAddToWatchlist();
   const removeFromWatchlist = useRemoveFromWatchlist();
@@ -69,6 +69,40 @@ export function WatchlistPanel() {
   const handleSaveMemo = async (ticker: string, memo: AnalystMemoValue): Promise<void> => {
     await updateMemo.mutateAsync({ ticker, memo });
   };
+
+  useEffect(() => {
+    const onNavigateRows = (event: Event) => {
+      if (focusedPanelType !== "watchlist") {
+        return;
+      }
+      const detail = (event as CustomEvent<{ panel: string | null; direction: 1 | -1 }>).detail;
+      if (detail.panel !== "watchlist") {
+        return;
+      }
+      const tickers = (rows ?? [])
+        .map((entry) => entry.ticker)
+        .filter((ticker): ticker is string => ticker !== null);
+      if (tickers.length === 0) {
+        return;
+      }
+
+      const currentIndex = selectedTicker ? tickers.indexOf(selectedTicker) : -1;
+      const fallback = detail.direction === 1 ? 0 : tickers.length - 1;
+      const targetIndex =
+        currentIndex < 0
+          ? fallback
+          : Math.max(0, Math.min(tickers.length - 1, currentIndex + detail.direction));
+      const ticker = tickers[targetIndex];
+      if (!ticker) {
+        return;
+      }
+      setSelectedTickerOverride(ticker);
+      setActiveTicker(ticker);
+    };
+
+    window.addEventListener("workspace:navigate-rows", onNavigateRows);
+    return () => window.removeEventListener("workspace:navigate-rows", onNavigateRows);
+  }, [focusedPanelType, rows, selectedTicker, setActiveTicker]);
 
   const errorMessage =
     watchlistQuery.error instanceof Error

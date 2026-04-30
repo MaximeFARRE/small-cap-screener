@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { LoadingState } from "@/components/LoadingState";
@@ -50,10 +50,21 @@ function toApiFilters(filters: ScreenerFilterState): ScreeningFilters {
 }
 
 export function ScreenerPanel() {
-  const { activeTicker, setActiveTicker } = useWorkspace();
+  const { activeTicker, focusedPanelType, setActiveTicker } = useWorkspace();
 
   const [filters, setFilters] = useState<ScreenerFilterState>(DEFAULT_UI_FILTERS);
   const [debouncedFilters, setDebouncedFilters] = useState<ScreenerFilterState>(DEFAULT_UI_FILTERS);
+  const sectorFilterRef = useRef<HTMLSelectElement | null>(null);
+
+  useEffect(() => {
+    const onFocusScreenerFilter = () => {
+      sectorFilterRef.current?.focus();
+    };
+    window.addEventListener("workspace:focus-screener-filter", onFocusScreenerFilter);
+    return () => {
+      window.removeEventListener("workspace:focus-screener-filter", onFocusScreenerFilter);
+    };
+  }, []);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -104,6 +115,7 @@ export function ScreenerPanel() {
         sectors={sectors}
         onChange={(next) => setFilters((current) => ({ ...current, ...next }))}
         onReset={() => setFilters(DEFAULT_UI_FILTERS)}
+        focusTargetRef={sectorFilterRef}
       />
 
       <section className="flex min-w-0 flex-1 flex-col bg-[var(--color-bg-panel)]">
@@ -136,6 +148,7 @@ export function ScreenerPanel() {
             <ScreenerTable
               rows={rows}
               activeTicker={activeTicker}
+              panelFocused={focusedPanelType === "screener"}
               onSelectTicker={setActiveTicker}
             />
           </div>

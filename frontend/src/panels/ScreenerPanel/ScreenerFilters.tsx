@@ -20,6 +20,7 @@ interface ScreenerFiltersProps {
   sectors: string[];
   onChange: (next: Partial<ScreenerFilterState>) => void;
   onReset: () => void;
+  focusTargetRef?: React.RefObject<HTMLSelectElement | null>;
 }
 
 const SORT_OPTIONS: Array<{ value: UniverseSortBy; label: string }> = [
@@ -37,6 +38,7 @@ export function ScreenerFilters({
   sectors,
   onChange,
   onReset,
+  focusTargetRef,
 }: ScreenerFiltersProps) {
   const [collapsed, setCollapsed] = React.useState(false);
 
@@ -68,6 +70,7 @@ export function ScreenerFilters({
           <label className="block space-y-1">
             <span className="font-mono text-[11px] uppercase text-[var(--color-text-muted)]">Sector</span>
             <select
+              ref={focusTargetRef}
               className="w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-2 py-1.5 text-xs text-[var(--color-text-primary)]"
               value={filters.sector}
               onChange={(event) => onChange({ sector: event.target.value })}

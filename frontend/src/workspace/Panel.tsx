@@ -11,7 +11,7 @@ function toLabel(type: PanelType): string {
 }
 
 export function WorkspacePanel({ panel }: WorkspacePanelProps) {
-  const { layout, setLayout, closePanel } = useWorkspace();
+  const { layout, setLayout, closePanel, setFocusedPanelType } = useWorkspace();
   const definition = PANEL_REGISTRY[panel.type];
   const PanelComponent = definition?.component;
   const panelLabel = definition?.label ?? toLabel(panel.type);
@@ -37,7 +37,13 @@ export function WorkspacePanel({ panel }: WorkspacePanelProps) {
   };
 
   return (
-    <section className="flex h-full w-full flex-col border border-[var(--color-border)] bg-[var(--color-bg-panel)]">
+    <section
+      className="flex h-full w-full flex-col border border-[var(--color-border)] bg-[var(--color-bg-panel)]"
+      data-panel-type={panel.type}
+      tabIndex={0}
+      onFocus={() => setFocusedPanelType(panel.type)}
+      onMouseDown={() => setFocusedPanelType(panel.type)}
+    >
       <header className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 py-2">
         <span className="font-mono text-xs tracking-wide text-[var(--color-text-primary)] uppercase">
           {panelLabel}
