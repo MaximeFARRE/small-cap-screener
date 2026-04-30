@@ -1,0 +1,117 @@
+import { useMemo, useState } from "react";
+import { useWorkspace } from "@/context/WorkspaceContext";
+import {
+  useCompanyDetail,
+  useCompanyPeers,
+  useCompanyScore,
+  useFinancialHistory,
+} from "@/hooks";
+import { cn } from "@/lib/utils";
+import { FinancialsTable } from "./FinancialsTable";
+import { PeersTable } from "./PeersTable";
+import { ScoreBreakdown } from "./ScoreBreakdown";
+import { TearsheetCharts } from "./TearsheetCharts";
+import { TearsheetHero } from "./TearsheetHero";
+
+type TearsheetTab = "summary" | "financials" | "charts" | "peers";
+
+const TABS: Array<{ key: TearsheetTab; label: string }> = [
+  { key: "summary", label: "Summary" },
+  { key: "financials", label: "Financials" },
+  { key: "charts", label: "Charts" },
+  { key: "peers", label: "Peers" },
+];
+
+export function TearsheetPanel() {
+  const { activeTicker } = useWorkspace();
+  const [activeTab, setActiveTab] = useState<TearsheetTab>("summary");
+
+  const detailQuery = useCompanyDetail(activeTicker);
+  const scoreQuery = useCompanyScore(activeTicker);
+  const historyQuery = useFinancialHistory(activeTicker);
+  const peersQuery = useCompanyPeers(activeTicker);
+
+  const isPendingAny =
+    detailQuery.isPending || scoreQuery.isPending || historyQuery.isPending || peersQuery.isPending;
+
+  const firstError = useMemo(
+    () =>
+      detailQuery.error ??
+      scoreQuery.error ??
+      historyQuery.error ??
+      peersQuery.error ??
+      null,
+    [detailQuery.error, historyQuery.error, peersQuery.error, scoreQuery.error],
+  );
+
+  if (activeTicker === null) {
+    return (
+      <div className="flex h-full items-center justify-center p-4">
+        <p className="font-mono text-sm text-[var(--color-text-muted)]">
+          Select a company from the screener or watchlist.
+        </p>
+      </div>
+    );
+  }
+
+  if (firstError) {
+    return (
+      <div className="flex h-full items-center justify-center p-4">
+        <p className="font-mono text-sm text-[var(--color-negative)]">
+          {firstError instanceof Error ? firstError.message : "Failed to load company data."}
+        </p>
+      </div>
+    );
+  }
+
+  const detail = detailQuery.data;
+  const score = scoreQuery.data;
+  const historical = historyQuery.data;
+  const peers = peersQuery.data;
+
+  if (!detail || !score || !historical || !peers) {
+    return (
+      <div className="flex h-full items-center justify-center p-4">
+        <p className="font-mono text-sm text-[var(--color-text-muted)]">
+          {isPendingAny ? "Loading tearsheet…" : "No data available for selected company."}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-[var(--color-bg-panel)]">
+      <TearsheetHero detail={detail} score={score} />
+
+      <nav className="flex items-center gap-1 border-b border-[var(--color-border)] px-3 py-2">
+        {TABS.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setActiveTab(tab.key)}
+            className={cn(
+              "rounded-sm border px-2 py-1 font-mono text-xs transition-colors",
+              activeTab === tab.key
+                ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-white"
+                : "border-[var(--color-border)] bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]",
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
+      <div className="min-h-0 flex-1 overflow-auto">
+        {activeTab === "summary" ? (
+          <ScoreBreakdown score={score} />
+        ) : activeTab === "financials" ? (
+          <FinancialsTable historical={historical} />
+        ) : activeTab === "charts" ? (
+          <TearsheetCharts historical={historical} />
+        ) : (
+          <PeersTable peers={peers} activeTicker={activeTicker} />
+        )}
+      </div>
+    </div>
+  );
+}
