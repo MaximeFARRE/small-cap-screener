@@ -1,14 +1,6 @@
-import { useMemo, type ChangeEvent } from "react";
+import type { ChangeEvent } from "react";
 import { useWorkspace, type WorkspacePanel as WorkspacePanelState } from "@/context/WorkspaceContext";
-import { PANEL_REGISTRY, type PanelType } from "@/panels/registry";
-
-const PANEL_TYPE_OPTIONS: readonly PanelType[] = [
-  "screener",
-  "tearsheet",
-  "watchlist",
-  "signals",
-  "charts",
-];
+import { PANEL_REGISTRY, PANEL_TYPES, type PanelType } from "@/panels/registry";
 
 interface WorkspacePanelProps {
   panel: WorkspacePanelState;
@@ -24,14 +16,10 @@ export function WorkspacePanel({ panel }: WorkspacePanelProps) {
   const PanelComponent = definition?.component;
   const panelLabel = definition?.label ?? toLabel(panel.type);
 
-  const options = useMemo(
-    () =>
-      PANEL_TYPE_OPTIONS.map((type) => ({
-        type,
-        label: PANEL_REGISTRY[type]?.label ?? toLabel(type),
-      })),
-    [],
-  );
+  const options = PANEL_TYPES.map((type) => ({
+    type,
+    label: PANEL_REGISTRY[type].label ?? toLabel(type),
+  }));
 
   const handleTypeChange = (event: ChangeEvent<HTMLSelectElement>) => {
     const nextType = event.target.value as PanelType;
