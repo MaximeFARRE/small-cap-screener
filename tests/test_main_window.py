@@ -5,8 +5,10 @@ from types import SimpleNamespace
 
 import pytest
 
-pytest.importorskip("PySide6")
-from PySide6.QtWidgets import QApplication
+try:
+    from PySide6.QtWidgets import QApplication
+except ModuleNotFoundError:
+    pytest.skip("PySide6 is not installed in this environment", allow_module_level=True)
 
 import src.ui.main_window as main_window_module
 from src.services.company_detail_service import CompanyFinancialDetail
