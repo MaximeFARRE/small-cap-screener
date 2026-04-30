@@ -1,6 +1,28 @@
 # CHANGELOG
 
+## v1.3.0 (2026-04-30)
+
+### Feature
+
+* feat: implement screener panel with filters and sorting ([`ab20ce8`](https://github.com/MaximeFARRE/small-cap-screener/commit/ab20ce8ed418f157e502277472330a28145064a3))
+
+* feat: add reusable table ui primitive ([`bb192f7`](https://github.com/MaximeFARRE/small-cap-screener/commit/bb192f764145cfaaa9dd04250f0b3ac9f180fe87))
+
+* feat: add score and metric display components ([`18e8e61`](https://github.com/MaximeFARRE/small-cap-screener/commit/18e8e6180b95eb0537c5efa1b9c66125240477be))
+
+* feat: add typed screening query hooks ([`d9fb8ab`](https://github.com/MaximeFARRE/small-cap-screener/commit/d9fb8ab03c1b4aa332a85eff1d480eaf95d8cc4b))
+
+### Unknown
+
+* Merge pull request #56 from MaximeFARRE/feat/fastapi-layer
+
+Feat/fastapi layer ([`8966158`](https://github.com/MaximeFARRE/small-cap-screener/commit/89661588884514bc5954daecc5075dd04df38780))
+
 ## v1.2.0 (2026-04-30)
+
+### Chore
+
+* chore(release): 1.2.0 [skip ci] ([`d86f03f`](https://github.com/MaximeFARRE/small-cap-screener/commit/d86f03f52d664ce72716937fa436b22d086456dc))
 
 ### Feature
 
