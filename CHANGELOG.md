@@ -1,6 +1,24 @@
 # CHANGELOG
 
+## v1.4.0 (2026-04-30)
+
+### Feature
+
+* feat: implement tearsheet panel views ([`6bd8d9d`](https://github.com/MaximeFARRE/small-cap-screener/commit/6bd8d9dc84126bfd27c2beb888c5bced9274b45e))
+
+* feat: add company data hooks for tearsheet ([`71c58de`](https://github.com/MaximeFARRE/small-cap-screener/commit/71c58de3af28c9038e811aca8f1793e860c6645a))
+
+### Unknown
+
+* Merge pull request #57 from MaximeFARRE/feat/panel-tearsheet
+
+Feat/panel tearsheet ([`f259df8`](https://github.com/MaximeFARRE/small-cap-screener/commit/f259df88d2e2e01e423c2993209d3b4a01b385de))
+
 ## v1.3.0 (2026-04-30)
+
+### Chore
+
+* chore(release): 1.3.0 [skip ci] ([`462b9f1`](https://github.com/MaximeFARRE/small-cap-screener/commit/462b9f1d3101e28ca7d86c32a9b6102a39439105))
 
 ### Feature
 
