@@ -1,4 +1,5 @@
 import { createElement, type ComponentType } from "react";
+import { ScreenerPanel } from "./ScreenerPanel";
 
 export const PANEL_TYPES = [
   "screener",
@@ -34,7 +35,7 @@ function createPlaceholderPanel(label: string): ComponentType {
 export const PANEL_REGISTRY: Record<PanelType, PanelDefinition> = {
   screener: {
     label: "Screener",
-    component: createPlaceholderPanel("Screener"),
+    component: ScreenerPanel,
   },
   tearsheet: {
     label: "Tearsheet",
