@@ -1,6 +1,6 @@
 import {
   Group as PanelGroup,
-  Panel,
+  Panel as ResizablePanel,
   Separator as PanelResizeHandle,
 } from "react-resizable-panels";
 import type { ReactNode } from "react";
@@ -8,29 +8,7 @@ import {
   useWorkspace,
   type WorkspacePanel as WorkspacePanelState,
 } from "@/context/WorkspaceContext";
-import { PANEL_REGISTRY } from "@/panels/registry";
-
-interface PanelSlotProps {
-  panel: WorkspacePanelState;
-}
-
-function PanelSlot({ panel }: PanelSlotProps) {
-  const definition = PANEL_REGISTRY[panel.type];
-  const PanelComponent = definition?.component;
-  const label = definition?.label ?? panel.type;
-
-  return (
-    <div className="h-full w-full border border-[var(--color-border)] bg-[var(--color-bg-panel)]">
-      {PanelComponent ? (
-        <PanelComponent />
-      ) : (
-        <div className="flex h-full items-center justify-center font-mono text-sm text-[var(--color-text-muted)]">
-          Panel: {label}
-        </div>
-      )}
-    </div>
-  );
-}
+import { WorkspacePanel } from "./Panel";
 
 function ResizeHandle() {
   return (
@@ -51,13 +29,13 @@ function renderSplitLayout(
 
   return (
     <PanelGroup orientation={direction}>
-      <Panel defaultSize={50} minSize={20}>
-        <PanelSlot panel={firstPanel} />
-      </Panel>
+      <ResizablePanel defaultSize={50} minSize={20}>
+        <WorkspacePanel panel={firstPanel} />
+      </ResizablePanel>
       <ResizeHandle />
-      <Panel defaultSize={50} minSize={20}>
-        <PanelSlot panel={secondPanel} />
-      </Panel>
+      <ResizablePanel defaultSize={50} minSize={20}>
+        <WorkspacePanel panel={secondPanel} />
+      </ResizablePanel>
     </PanelGroup>
   );
 }
@@ -71,29 +49,29 @@ function renderQuadLayout(panels: WorkspacePanelState[]) {
 
   return (
     <PanelGroup orientation="vertical">
-      <Panel defaultSize={50} minSize={20}>
+      <ResizablePanel defaultSize={50} minSize={20}>
         <PanelGroup orientation="horizontal">
-          <Panel defaultSize={50} minSize={20}>
-            <PanelSlot panel={topLeft} />
-          </Panel>
+          <ResizablePanel defaultSize={50} minSize={20}>
+            <WorkspacePanel panel={topLeft} />
+          </ResizablePanel>
           <ResizeHandle />
-          <Panel defaultSize={50} minSize={20}>
-            <PanelSlot panel={topRight} />
-          </Panel>
+          <ResizablePanel defaultSize={50} minSize={20}>
+            <WorkspacePanel panel={topRight} />
+          </ResizablePanel>
         </PanelGroup>
-      </Panel>
+      </ResizablePanel>
       <ResizeHandle />
-      <Panel defaultSize={50} minSize={20}>
+      <ResizablePanel defaultSize={50} minSize={20}>
         <PanelGroup orientation="horizontal">
-          <Panel defaultSize={50} minSize={20}>
-            <PanelSlot panel={bottomLeft} />
-          </Panel>
+          <ResizablePanel defaultSize={50} minSize={20}>
+            <WorkspacePanel panel={bottomLeft} />
+          </ResizablePanel>
           <ResizeHandle />
-          <Panel defaultSize={50} minSize={20}>
-            <PanelSlot panel={bottomRight} />
-          </Panel>
+          <ResizablePanel defaultSize={50} minSize={20}>
+            <WorkspacePanel panel={bottomRight} />
+          </ResizablePanel>
         </PanelGroup>
-      </Panel>
+      </ResizablePanel>
     </PanelGroup>
   );
 }
@@ -108,9 +86,9 @@ export function Workspace() {
     if (firstPanel) {
       content = (
         <PanelGroup orientation="horizontal">
-          <Panel defaultSize={100} minSize={20}>
-            <PanelSlot panel={firstPanel} />
-          </Panel>
+          <ResizablePanel defaultSize={100} minSize={20}>
+            <WorkspacePanel panel={firstPanel} />
+          </ResizablePanel>
         </PanelGroup>
       );
     }
@@ -124,7 +102,11 @@ export function Workspace() {
 
   return (
     <main className="h-full w-full bg-[var(--color-bg-base)] p-2">
-      {content}
+      {content ?? (
+        <div className="flex h-full items-center justify-center font-mono text-sm text-[var(--color-text-muted)]">
+          No panel layout available.
+        </div>
+      )}
     </main>
   );
 }
