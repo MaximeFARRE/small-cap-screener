@@ -27,6 +27,10 @@ select = [
 ]
 ignore = []
 
+[tool.ruff.lint.per-file-ignores]
+# FastAPI requires Depends() in function argument defaults — B008 is a false positive there.
+"api/routers/*.py" = ["B008"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 
