@@ -1,2 +1,1 @@
-// Phase 6 — SignalsPanel implementation
-export {};
+export { SignalsPanel } from "./SignalsPanel";

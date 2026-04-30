@@ -33,6 +33,8 @@ ignore = []
 "api/dependencies.py" = ["B008"]
 # sys.path manipulation must precede project imports in the test conftest.
 "tests/api/conftest.py" = ["E402"]
+# Optional GUI tests require module-level skip when PySide6 is unavailable.
+"tests/test_main_window.py" = ["E402"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

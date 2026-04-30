@@ -36,3 +36,10 @@ export {
   type WatchlistEntry,
   type WatchlistStatus,
 } from "./useWatchlist";
+
+export {
+  useSignals,
+  type ScoreMover,
+  type SignalsPayload,
+  type TopCompanySignal,
+} from "./useSignals";

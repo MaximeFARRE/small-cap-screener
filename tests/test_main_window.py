@@ -4,6 +4,8 @@ import os
 from types import SimpleNamespace
 
 import pytest
+
+pytest.importorskip("PySide6")
 from PySide6.QtWidgets import QApplication
 
 import src.ui.main_window as main_window_module

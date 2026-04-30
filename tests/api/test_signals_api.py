@@ -12,6 +12,7 @@ class TestGetSignals:
         assert "movers_down" in data
         assert "top_quality" in data
         assert "top_value" in data
+        assert "watchlist_alerts" in data
         assert "has_snapshot" in data
 
     def test_no_snapshot_has_snapshot_false(self, api_client: TestClient) -> None:
@@ -21,3 +22,4 @@ class TestGetSignals:
         assert data["has_snapshot"] is False
         assert data["movers_up"] == []
         assert data["movers_down"] == []
+        assert data["watchlist_alerts"] == []
