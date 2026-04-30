@@ -1,5 +1,76 @@
 # CHANGELOG
 
+## v1.0.1 (2026-04-30)
+
+### Chore
+
+* chore: add FastAPI/Uvicorn/Pydantic deps, update .env.example, .gitignore, and STACK.md for web stack ([`ca8e3a1`](https://github.com/MaximeFARRE/small-cap-screener/commit/ca8e3a1d80cd2fdb062f87586d5d3b53881de319))
+
+* chore: create frontend src/ directory structure with panel registry, workspace context, api client, constants ([`fbf3938`](https://github.com/MaximeFARRE/small-cap-screener/commit/fbf393839e489a6b69c754458feca4676444572a))
+
+* chore: install react-resizable-panels, react-query, react-router, lightweight-charts, recharts, lucide-react ([`718f2a9`](https://github.com/MaximeFARRE/small-cap-screener/commit/718f2a9b8df8e5f9f8922aec72dfc03898c8a435))
+
+* chore: install shadcn/ui with terminal dark theme, enforce dark class on html root ([`fd11943`](https://github.com/MaximeFARRE/small-cap-screener/commit/fd11943c887d9cac96210ac72cb3e49478408576))
+
+* chore: configure Tailwind CSS v4 with terminal dark theme palette ([`82ddaa8`](https://github.com/MaximeFARRE/small-cap-screener/commit/82ddaa81fdf25941735ad3ce1319c5dcbb47e7d9))
+
+* chore: scaffold frontend with Vite + React + TypeScript strict mode, API proxy configured ([`9c4a86f`](https://github.com/MaximeFARRE/small-cap-screener/commit/9c4a86f01c2bce2f28858b1cec3999cb9b5fa2b4))
+
+* chore: scaffold api/ directory with FastAPI skeleton (main, dependencies, routers, schemas) ([`e93c5c1`](https://github.com/MaximeFARRE/small-cap-screener/commit/e93c5c128596fa53b3cff7f2907b51425809e652))
+
+### Documentation
+
+* docs: add project architectural roadmap for the small-cap analysis terminal ([`0398ee0`](https://github.com/MaximeFARRE/small-cap-screener/commit/0398ee05791a8ffe2f950f6294ce355203262509))
+
+* docs: fix README header after rebase merge artifact ([`7fd1e99`](https://github.com/MaximeFARRE/small-cap-screener/commit/7fd1e99bf9e155aa42bd417e24488b354a54d244))
+
+* docs: track screenshots in git and unblock PNG from gitignore ([`26ed0dc`](https://github.com/MaximeFARRE/small-cap-screener/commit/26ed0dc84195d692a168d5db2dbc6d373753a447))
+
+* docs: add real screenshots to README (screener, company detail, historical financials) ([`d83271c`](https://github.com/MaximeFARRE/small-cap-screener/commit/d83271cde3f30720ede73bbdb16c7d78289d365f))
+
+* docs: rewrite README as professional buy-side product presentation
+
+Replace sparse placeholder README with full institutional-grade document:
+- badges (Python, PySide6, SQLAlchemy, yfinance, Ruff, pre-commit, pytest,
+  semantic-release, MIT, version, platform, domain)
+- product rationale and analyst workflow positioning
+- complete real feature inventory (universe, KPI engine, scoring, workflow,
+  export, reliability)
+- architecture diagram and full service inventory table
+- getting started, dev standards, packaging sections
+- V1 polish and V2 AI assistant roadmap
+- docs reference table ([`44b780a`](https://github.com/MaximeFARRE/small-cap-screener/commit/44b780afe370b173d8c15fbc8e22ac4cf84ab25e))
+
+### Fix
+
+* fix: remove parameter properties from ApiError (erasableSyntaxOnly constraint) ([`9b1a98a`](https://github.com/MaximeFARRE/small-cap-screener/commit/9b1a98a470cfd03d61a438817e06c1cc81414c7e))
+
+### Unknown
+
+* Merge pull request #53 from MaximeFARRE/chore/pivot-foundation
+
+Chore/pivot foundation ([`f29fd62`](https://github.com/MaximeFARRE/small-cap-screener/commit/f29fd6251ee7792757c9e962de7863e645a78c3e))
+
+* Merge pull request #52 from MaximeFARRE/docs/update-docs
+
+docs: add project architectural roadmap for the small-cap analysis te… ([`f0f14d9`](https://github.com/MaximeFARRE/small-cap-screener/commit/f0f14d9e2185b4a1119bb64dd66842da11c9023a))
+
+* Merge pull request #51 from MaximeFARRE/docs/update-docs
+
+Docs/update docs ([`10cdc43`](https://github.com/MaximeFARRE/small-cap-screener/commit/10cdc43253623ebae39c5c758d2e3a35ccc7bd3c))
+
+* Merge pull request #50 from MaximeFARRE/docs/update-docs
+
+Restore &#39;Problem Solved&#39; section in README.md ([`6698cfc`](https://github.com/MaximeFARRE/small-cap-screener/commit/6698cfccf8557b4363f173b5aa5f2314a909a83b))
+
+* Restore &#39;Problem Solved&#39; section in README.md ([`b833c2b`](https://github.com/MaximeFARRE/small-cap-screener/commit/b833c2b9a76e4fb442d78acbe334a09275cc6a26))
+
+* Merge pull request #49 from MaximeFARRE/docs/update-docs
+
+Docs/update docs ([`983dc97`](https://github.com/MaximeFARRE/small-cap-screener/commit/983dc97077a413f8e078fcb81912e9a940981ca9))
+
+* Merge branch &#39;main&#39; into docs/update-docs ([`41efcee`](https://github.com/MaximeFARRE/small-cap-screener/commit/41efcee2802fbd897bc2eefb864965e89585579d))
+
 ## v1.0.0 (2026-04-28)
 
 ### Breaking
@@ -7,6 +78,10 @@
 * feat!: trigger v1 major release
 
 BREAKING CHANGE: release baseline moves to v1.0.0. ([`1f0ac6d`](https://github.com/MaximeFARRE/small-cap-screener/commit/1f0ac6dbc7cb0e179852fa453dc87be8b74a75c8))
+
+### Chore
+
+* chore(release): 1.0.0 [skip ci] ([`e9ee93f`](https://github.com/MaximeFARRE/small-cap-screener/commit/e9ee93f57cbe7f6bac973ed60b5a2c62a27c6d64))
 
 ### Unknown
 
