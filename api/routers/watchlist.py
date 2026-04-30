@@ -24,10 +24,9 @@ def list_watchlist(
 
 @router.get("/{ticker}/detail", response_model=CompanyAnalystDetailSchema)
 def get_analyst_detail(
-    ticker: str,
+    company_id: int = Depends(get_company_id),
     service: WatchlistService = Depends(get_watchlist_service),
 ) -> CompanyAnalystDetailSchema:
-    company_id = get_company_id(ticker)
     detail = service.get_company_analyst_detail(company_id)
     explanation = detail.score_explanation
     from api.schemas.scoring import ScoreBreakdownSchema
@@ -66,9 +65,9 @@ def get_analyst_detail(
 def add_to_watchlist(
     ticker: str,
     body: AddToWatchlistRequest,
+    company_id: int = Depends(get_company_id),
     service: WatchlistService = Depends(get_watchlist_service),
 ) -> WatchlistWorkflowEntrySchema:
-    company_id = get_company_id(ticker)
     entry = service.add_company(company_id, notes=body.notes)
     if entry is None:
         raise HTTPException(status_code=409, detail=f"{ticker} is already in watchlist")
@@ -82,9 +81,9 @@ def add_to_watchlist(
 @router.delete("/{ticker}", status_code=204)
 def remove_from_watchlist(
     ticker: str,
+    company_id: int = Depends(get_company_id),
     service: WatchlistService = Depends(get_watchlist_service),
 ) -> None:
-    company_id = get_company_id(ticker)
     removed = service.remove_company(company_id)
     if not removed:
         raise HTTPException(status_code=404, detail=f"{ticker} is not in watchlist")
@@ -94,9 +93,9 @@ def remove_from_watchlist(
 def update_memo(
     ticker: str,
     body: AnalystMemoSchema,
+    company_id: int = Depends(get_company_id),
     service: WatchlistService = Depends(get_watchlist_service),
 ) -> AnalystMemoSchema:
-    company_id = get_company_id(ticker)
     memo = AnalystMemo(
         investment_thesis=body.investment_thesis,
         key_risks=body.key_risks,
@@ -114,9 +113,9 @@ def update_memo(
 def update_status(
     ticker: str,
     body: UpdateStatusRequest,
+    company_id: int = Depends(get_company_id),
     service: WatchlistService = Depends(get_watchlist_service),
 ) -> None:
-    company_id = get_company_id(ticker)
     entry = service.update_company_status(company_id, body.status)
     if entry is None:
         raise HTTPException(status_code=404, detail=f"{ticker} is not in watchlist")
@@ -126,9 +125,9 @@ def update_status(
 def update_next_review(
     ticker: str,
     body: UpdateNextReviewRequest,
+    company_id: int = Depends(get_company_id),
     service: WatchlistService = Depends(get_watchlist_service),
 ) -> None:
-    company_id = get_company_id(ticker)
     entry = service.update_company_next_review(company_id, body.next_review_at)
     if entry is None:
         raise HTTPException(status_code=404, detail=f"{ticker} is not in watchlist")

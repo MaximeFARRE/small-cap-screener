@@ -41,13 +41,12 @@ def _build_historical_schema(detail: object) -> HistoricalFundamentalsSchema:
 
 @router.get("/{ticker}", response_model=CompanyDetailSchema)
 def get_company_detail(
-    ticker: str,
+    company_id: int = Depends(get_company_id),
     service: CompanyDetailService = Depends(get_company_detail_service),
 ) -> CompanyDetailSchema:
-    company_id = get_company_id(ticker)
     detail = service.get_financial_detail(company_id)
     if detail is None:
-        raise HTTPException(status_code=404, detail=f"No detail found for {ticker}")
+        raise HTTPException(status_code=404, detail=f"No detail found for company {company_id}")
 
     historical = _build_historical_schema(detail)
 
@@ -105,10 +104,9 @@ def get_company_detail(
 
 @router.get("/{ticker}/score", response_model=ScoreBreakdownSchema)
 def get_company_score(
-    ticker: str,
+    company_id: int = Depends(get_company_id),
     watchlist: WatchlistService = Depends(get_watchlist_service),
 ) -> ScoreBreakdownSchema:
-    company_id = get_company_id(ticker)
     analyst_detail = watchlist.get_company_analyst_detail(company_id)
     explanation = analyst_detail.score_explanation
     return ScoreBreakdownSchema(
@@ -129,9 +127,8 @@ def get_company_score(
 
 @router.get("/{ticker}/peers", response_model=PeerComparisonSchema)
 def get_company_peers(
-    ticker: str,
+    company_id: int = Depends(get_company_id),
     peer_service: PeerComparisonService = Depends(get_peer_service),
 ) -> PeerComparisonSchema:
-    company_id = get_company_id(ticker)
     data = peer_service.get_company_peer_comparison(company_id)
     return PeerComparisonSchema.model_validate(data)

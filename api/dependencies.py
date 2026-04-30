@@ -1,7 +1,9 @@
+from collections.abc import Generator
 from functools import lru_cache
 
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.orm import Session
 
 from src.repositories import company_repository
 from src.repositories.database import get_session
@@ -79,14 +81,26 @@ def get_financial_data_service() -> FinancialDataService:
 
 
 # ---------------------------------------------------------------------------
-# Company lookup helper — translates ticker → company_id for routers.
-# Raises 404 HTTPException when the ticker is unknown.
+# Session dependency — thin wrapper so tests can override DB access.
 # ---------------------------------------------------------------------------
 
 
-def get_company_id(ticker: str) -> int:
+def get_db_session() -> Generator[Session, None, None]:
     with get_session() as session:
-        company = company_repository.get_by_ticker(session, ticker)
+        yield session
+
+
+# ---------------------------------------------------------------------------
+# Company lookup — translates ticker → company_id; raises 404 if unknown.
+# Declared as a FastAPI dependency so tests can override get_db_session.
+# ---------------------------------------------------------------------------
+
+
+def get_company_id(
+    ticker: str,
+    session: Session = Depends(get_db_session),
+) -> int:
+    company = company_repository.get_by_ticker(session, ticker)
     if company is None:
         raise HTTPException(status_code=404, detail=f"Company not found: {ticker}")
     return company.id
