@@ -5,34 +5,14 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import type { PanelType } from "@/panels/registry";
-
-export type LayoutPreset = "single" | "split-h" | "split-v" | "quad";
+import { PANEL_TYPES, type PanelType } from "@/panels/registry";
+import {
+  DEFAULT_LAYOUT_PRESET,
+  LAYOUT_PRESETS,
+  type LayoutPreset,
+} from "@/workspace/LayoutPresets";
 
 const STORAGE_KEY = "workspace:layout";
-const DEFAULT_LAYOUT_PRESET: LayoutPreset = "split-h";
-
-const PANEL_TYPES: readonly PanelType[] = [
-  "screener",
-  "tearsheet",
-  "watchlist",
-  "signals",
-  "charts",
-];
-
-const PANEL_LIMIT_BY_PRESET: Record<LayoutPreset, number> = {
-  single: 1,
-  "split-h": 2,
-  "split-v": 2,
-  quad: 4,
-};
-
-const DEFAULT_PANEL_TYPES_BY_PRESET: Record<LayoutPreset, PanelType[]> = {
-  single: ["screener"],
-  "split-h": ["screener", "tearsheet"],
-  "split-v": ["screener", "tearsheet"],
-  quad: ["screener", "tearsheet", "watchlist", "signals"],
-};
 
 export interface WorkspacePanel {
   id: string;
@@ -80,7 +60,7 @@ function isWorkspacePanel(value: unknown): value is WorkspacePanel {
 }
 
 function buildDefaultLayout(preset: LayoutPreset): PanelLayout {
-  const panelTypes = DEFAULT_PANEL_TYPES_BY_PRESET[preset];
+  const panelTypes = LAYOUT_PRESETS[preset].panels;
   return {
     preset,
     panels: panelTypes.map((type) => ({ id: createPanelId(), type })),
@@ -88,8 +68,8 @@ function buildDefaultLayout(preset: LayoutPreset): PanelLayout {
 }
 
 function normalizeLayout(layout: PanelLayout): PanelLayout {
-  const maxPanels = PANEL_LIMIT_BY_PRESET[layout.preset];
-  const defaultTypes = DEFAULT_PANEL_TYPES_BY_PRESET[layout.preset];
+  const defaultTypes = LAYOUT_PRESETS[layout.preset].panels;
+  const maxPanels = defaultTypes.length;
   const primaryPanelType = defaultTypes[0];
   if (!primaryPanelType) {
     throw new Error(`No default panel type configured for preset: ${layout.preset}`);
@@ -169,7 +149,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const openPanel = useCallback((type: PanelType) => {
     setLayoutState((previousLayout) => {
-      const maxPanels = PANEL_LIMIT_BY_PRESET[previousLayout.preset];
+      const maxPanels = LAYOUT_PRESETS[previousLayout.preset].panels.length;
       if (previousLayout.panels.length >= maxPanels) {
         return previousLayout;
       }
