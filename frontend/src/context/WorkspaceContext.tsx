@@ -9,65 +9,225 @@ import type { PanelType } from "@/panels/registry";
 
 export type LayoutPreset = "single" | "split-h" | "split-v" | "quad";
 
+const STORAGE_KEY = "workspace:layout";
+const DEFAULT_LAYOUT_PRESET: LayoutPreset = "split-h";
+
+const PANEL_TYPES: readonly PanelType[] = [
+  "screener",
+  "tearsheet",
+  "watchlist",
+  "signals",
+  "charts",
+];
+
+const PANEL_LIMIT_BY_PRESET: Record<LayoutPreset, number> = {
+  single: 1,
+  "split-h": 2,
+  "split-v": 2,
+  quad: 4,
+};
+
+const DEFAULT_PANEL_TYPES_BY_PRESET: Record<LayoutPreset, PanelType[]> = {
+  single: ["screener"],
+  "split-h": ["screener", "tearsheet"],
+  "split-v": ["screener", "tearsheet"],
+  quad: ["screener", "tearsheet", "watchlist", "signals"],
+};
+
+export interface WorkspacePanel {
+  id: string;
+  type: PanelType;
+}
+
+export interface PanelLayout {
+  preset: LayoutPreset;
+  panels: WorkspacePanel[];
+}
+
 interface WorkspaceState {
   activeTicker: string | null;
   setActiveTicker: (ticker: string | null) => void;
-  layout: LayoutPreset;
-  setLayout: (preset: LayoutPreset) => void;
+  layout: PanelLayout;
+  setLayout: (layout: PanelLayout) => void;
+  openPanel: (type: PanelType) => void;
+  closePanel: (panelId: string) => void;
 }
 
 const WorkspaceContext = createContext<WorkspaceState | null>(null);
 
-const STORAGE_KEY = "workspace:layout";
+function createPanelId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `panel-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+}
 
-function readStoredLayout(): LayoutPreset {
+function isLayoutPreset(value: unknown): value is LayoutPreset {
+  return value === "single" || value === "split-h" || value === "split-v" || value === "quad";
+}
+
+function isPanelType(value: unknown): value is PanelType {
+  return PANEL_TYPES.some((panelType) => panelType === value);
+}
+
+function isWorkspacePanel(value: unknown): value is WorkspacePanel {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const panel = value as Partial<WorkspacePanel>;
+  return typeof panel.id === "string" && isPanelType(panel.type);
+}
+
+function buildDefaultLayout(preset: LayoutPreset): PanelLayout {
+  const panelTypes = DEFAULT_PANEL_TYPES_BY_PRESET[preset];
+  return {
+    preset,
+    panels: panelTypes.map((type) => ({ id: createPanelId(), type })),
+  };
+}
+
+function normalizeLayout(layout: PanelLayout): PanelLayout {
+  const maxPanels = PANEL_LIMIT_BY_PRESET[layout.preset];
+  const defaultTypes = DEFAULT_PANEL_TYPES_BY_PRESET[layout.preset];
+  const primaryPanelType = defaultTypes[0];
+  if (!primaryPanelType) {
+    throw new Error(`No default panel type configured for preset: ${layout.preset}`);
+  }
+  const nextPanels = [...layout.panels].slice(0, maxPanels);
+
+  while (nextPanels.length < maxPanels) {
+    const index = nextPanels.length;
+    const fallbackType = defaultTypes[index] ?? primaryPanelType;
+    nextPanels.push({ id: createPanelId(), type: fallbackType });
+  }
+
+  return {
+    preset: layout.preset,
+    panels: nextPanels,
+  };
+}
+
+function isPanelLayout(value: unknown): value is PanelLayout {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const maybeLayout = value as Partial<PanelLayout>;
+  if (!isLayoutPreset(maybeLayout.preset)) {
+    return false;
+  }
+  if (!Array.isArray(maybeLayout.panels)) {
+    return false;
+  }
+
+  return maybeLayout.panels.every((panel) => isWorkspacePanel(panel));
+}
+
+function readStoredLayout(): PanelLayout {
+  if (typeof window === "undefined") {
+    return buildDefaultLayout(DEFAULT_LAYOUT_PRESET);
+  }
+
+  const stored = window.localStorage.getItem(STORAGE_KEY);
+  if (!stored) {
+    return buildDefaultLayout(DEFAULT_LAYOUT_PRESET);
+  }
+
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (
-      stored === "single" ||
-      stored === "split-h" ||
-      stored === "split-v" ||
-      stored === "quad"
-    ) {
-      return stored;
+    const parsed: unknown = JSON.parse(stored);
+    if (isPanelLayout(parsed)) {
+      return normalizeLayout(parsed);
     }
   } catch {
-    // localStorage unavailable
+    window.localStorage.removeItem(STORAGE_KEY);
   }
-  return "split-h";
+
+  return buildDefaultLayout(DEFAULT_LAYOUT_PRESET);
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [activeTicker, setActiveTickerState] = useState<string | null>(null);
-  const [layout, setLayoutState] = useState<LayoutPreset>(readStoredLayout);
+  const [layout, setLayoutState] = useState<PanelLayout>(readStoredLayout);
 
   const setActiveTicker = useCallback((ticker: string | null) => {
     setActiveTickerState(ticker);
   }, []);
 
-  const setLayout = useCallback((preset: LayoutPreset) => {
-    setLayoutState(preset);
-    try {
-      localStorage.setItem(STORAGE_KEY, preset);
-    } catch {
-      // localStorage unavailable
+  const persistLayout = useCallback((nextLayout: PanelLayout) => {
+    if (typeof window === "undefined") {
+      return;
     }
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextLayout));
   }, []);
+
+  const setLayout = useCallback((nextLayout: PanelLayout) => {
+    const normalizedLayout = normalizeLayout(nextLayout);
+    setLayoutState(normalizedLayout);
+    persistLayout(normalizedLayout);
+  }, [persistLayout]);
+
+  const openPanel = useCallback((type: PanelType) => {
+    setLayoutState((previousLayout) => {
+      const maxPanels = PANEL_LIMIT_BY_PRESET[previousLayout.preset];
+      if (previousLayout.panels.length >= maxPanels) {
+        return previousLayout;
+      }
+
+      const nextLayout: PanelLayout = {
+        ...previousLayout,
+        panels: [...previousLayout.panels, { id: createPanelId(), type }],
+      };
+      const normalizedLayout = normalizeLayout(nextLayout);
+      persistLayout(normalizedLayout);
+      return normalizedLayout;
+    });
+  }, [persistLayout]);
+
+  const closePanel = useCallback((panelId: string) => {
+    setLayoutState((previousLayout) => {
+      const remainingPanels = previousLayout.panels.filter(
+        (panel) => panel.id !== panelId,
+      );
+      if (remainingPanels.length === previousLayout.panels.length) {
+        return previousLayout;
+      }
+
+      if (remainingPanels.length === 0) {
+        const fallbackLayout = buildDefaultLayout("single");
+        persistLayout(fallbackLayout);
+        return fallbackLayout;
+      }
+
+      const nextLayout: PanelLayout = {
+        ...previousLayout,
+        panels: remainingPanels,
+      };
+      const normalizedLayout = normalizeLayout(nextLayout);
+      persistLayout(normalizedLayout);
+      return normalizedLayout;
+    });
+  }, [persistLayout]);
 
   return (
     <WorkspaceContext.Provider
-      value={{ activeTicker, setActiveTicker, layout, setLayout }}
+      value={{
+        activeTicker,
+        setActiveTicker,
+        layout,
+        setLayout,
+        openPanel,
+        closePanel,
+      }}
     >
       {children}
     </WorkspaceContext.Provider>
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useWorkspace(): WorkspaceState {
   const ctx = useContext(WorkspaceContext);
   if (!ctx) throw new Error("useWorkspace must be used inside WorkspaceProvider");
   return ctx;
 }
-
-// Silence unused import warning until panels import PanelType
-export type { PanelType };
