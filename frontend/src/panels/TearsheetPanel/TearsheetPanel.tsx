@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { LoadingState } from "@/components/LoadingState";
@@ -104,12 +105,26 @@ export function TearsheetPanel() {
         watchlistActionPending={addToWatchlist.isPending || removeFromWatchlist.isPending}
         onAddToWatchlist={() => {
           if (ticker) {
-            addToWatchlist.mutate({ ticker });
+            addToWatchlist.mutate(
+              { ticker },
+              {
+                onSuccess: () => {
+                  toast.success(`${ticker} added to watchlist`);
+                },
+              },
+            );
           }
         }}
         onRemoveFromWatchlist={() => {
           if (ticker) {
-            removeFromWatchlist.mutate({ ticker });
+            removeFromWatchlist.mutate(
+              { ticker },
+              {
+                onSuccess: () => {
+                  toast.success(`${ticker} removed from watchlist`);
+                },
+              },
+            );
           }
         }}
       />

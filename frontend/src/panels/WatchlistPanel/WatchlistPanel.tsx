@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { LoadingState } from "@/components/LoadingState";
@@ -55,7 +56,14 @@ export function WatchlistPanel() {
   };
 
   const handleRemoveTicker = (ticker: string) => {
-    removeFromWatchlist.mutate({ ticker });
+    removeFromWatchlist.mutate(
+      { ticker },
+      {
+        onSuccess: () => {
+          toast.success(`${ticker} removed from watchlist`);
+        },
+      },
+    );
   };
 
   const handleSaveMemo = async (ticker: string, memo: AnalystMemoValue): Promise<void> => {
@@ -95,7 +103,16 @@ export function WatchlistPanel() {
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => addToWatchlist.mutate({ ticker: activeTicker })}
+              onClick={() =>
+                addToWatchlist.mutate(
+                  { ticker: activeTicker },
+                  {
+                    onSuccess: () => {
+                      toast.success(`${activeTicker} added to watchlist`);
+                    },
+                  },
+                )
+              }
               disabled={addToWatchlist.isPending}
               className="font-mono text-xs"
             >
