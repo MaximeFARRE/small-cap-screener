@@ -1,5 +1,4 @@
 import * as React from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { MetricCell } from "@/components/MetricCell";
 import { ScoreBadge } from "@/components/ScoreBadge";
@@ -44,8 +43,6 @@ const DEFAULT_SORT: SortState = {
   direction: "desc",
 };
 
-const VIRTUALIZATION_THRESHOLD = 200;
-
 const COLUMN_LABELS: Record<SortableColumnKey, string> = {
   ticker: "Ticker",
   name: "Name",
@@ -57,6 +54,32 @@ const COLUMN_LABELS: Record<SortableColumnKey, string> = {
   roe: "ROE",
   revenue_growth: "Rev Growth",
   net_debt_to_ebitda: "Net Debt/EBITDA",
+};
+
+const COLUMN_ORDER: SortableColumnKey[] = [
+  "ticker",
+  "name",
+  "total_score",
+  "sector",
+  "market_cap",
+  "pe_ratio",
+  "ev_ebitda",
+  "roe",
+  "revenue_growth",
+  "net_debt_to_ebitda",
+];
+
+const COLUMN_WIDTH_CLASSES: Record<SortableColumnKey, string> = {
+  ticker: "w-[92px]",
+  name: "w-[260px]",
+  total_score: "w-[96px]",
+  sector: "w-[170px]",
+  market_cap: "w-[130px]",
+  pe_ratio: "w-[100px]",
+  ev_ebitda: "w-[120px]",
+  roe: "w-[90px]",
+  revenue_growth: "w-[120px]",
+  net_debt_to_ebitda: "w-[155px]",
 };
 
 function sortRows(rows: CompanyRow[], sort: SortState): CompanyRow[] {
@@ -123,7 +146,6 @@ function renderDataRow(
   row: CompanyRow,
   activeTicker: string | null,
   onSelectTicker: (ticker: string | null) => void,
-  style?: React.CSSProperties,
 ) {
   const ticker = row.ticker;
   const isActive = ticker !== null && ticker === activeTicker;
@@ -131,7 +153,6 @@ function renderDataRow(
   return (
     <TableRow
       key={row.company_id}
-      style={style}
       className={cn(
         "cursor-pointer hover:bg-[var(--color-bg-elevated)]",
         isActive && "bg-[var(--color-accent)]/15",
@@ -143,7 +164,7 @@ function renderDataRow(
       <TableCell>
         <ScoreBadge score={row.total_score} />
       </TableCell>
-      <TableCell className="text-xs text-[var(--color-text-muted)]">{row.sector ?? "—"}</TableCell>
+      <TableCell className="truncate text-xs text-[var(--color-text-muted)]">{row.sector ?? "—"}</TableCell>
       <TableCell>
         <MetricCell value={row.market_cap} type="market_cap" format="currency" />
       </TableCell>
@@ -169,15 +190,6 @@ function renderDataRow(
 export function ScreenerTable({ rows, activeTicker, panelFocused, onSelectTicker }: ScreenerTableProps) {
   const [sortState, setSortState] = React.useState<SortState>(DEFAULT_SORT);
   const sortedRows = React.useMemo(() => sortRows(rows, sortState), [rows, sortState]);
-  const virtualized = sortedRows.length > VIRTUALIZATION_THRESHOLD;
-  const scrollRef = React.useRef<HTMLDivElement | null>(null);
-
-  const rowVirtualizer = useVirtualizer({
-    count: virtualized ? sortedRows.length : 0,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => 38,
-    overscan: 8,
-  });
 
   React.useEffect(() => {
     const onNavigateRows = (event: Event) => {
@@ -231,55 +243,36 @@ export function ScreenerTable({ rows, activeTicker, panelFocused, onSelectTicker
   };
 
   return (
-    <div ref={scrollRef} className="h-full overflow-auto">
-      <Table className="table-fixed">
+    <div className="h-full">
+      <Table className="min-w-[1333px] table-fixed">
+        <colgroup>
+          {COLUMN_ORDER.map((column) => (
+            <col key={column} className={COLUMN_WIDTH_CLASSES[column]} />
+          ))}
+        </colgroup>
         <TableHeader>
           <TableRow>
-            {(Object.keys(COLUMN_LABELS) as SortableColumnKey[]).map((column) => (
+            {COLUMN_ORDER.map((column) => (
               <TableHead key={column}>
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1 font-mono text-[11px] uppercase"
+                  className="inline-flex w-full items-center justify-between gap-1 overflow-hidden font-mono text-[11px] uppercase"
                   onClick={() => handleSort(column)}
                 >
-                  {COLUMN_LABELS[column]}
+                  <span className="truncate">{COLUMN_LABELS[column]}</span>
                   <SortIcon state={sortState} column={column} />
                 </button>
               </TableHead>
             ))}
           </TableRow>
         </TableHeader>
-        <TableBody
-          style={
-            virtualized
-              ? {
-                  display: "grid",
-                  height: `${rowVirtualizer.getTotalSize()}px`,
-                  position: "relative",
-                }
-              : undefined
-          }
-        >
+        <TableBody>
           {sortedRows.length === 0 ? (
             <TableRow>
               <TableCell colSpan={10} className="py-6 text-center font-mono text-sm text-[var(--color-text-muted)]">
                 No companies match current filters.
               </TableCell>
             </TableRow>
-          ) : virtualized ? (
-            rowVirtualizer.getVirtualItems().map((virtualItem) => {
-              const row = sortedRows[virtualItem.index];
-              if (!row) {
-                return null;
-              }
-              return renderDataRow(row, activeTicker, onSelectTicker, {
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                transform: `translateY(${virtualItem.start}px)`,
-              });
-            })
           ) : (
             sortedRows.map((row) => renderDataRow(row, activeTicker, onSelectTicker))
           )}
