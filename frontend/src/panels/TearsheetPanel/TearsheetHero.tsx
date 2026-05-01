@@ -1,8 +1,13 @@
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ScoreBadge } from "@/components/ScoreBadge";
+import { SCORE_THRESHOLDS } from "@/lib/constants";
 import type { CompanyDetail, CompanyScore, ScoreMetricDriver } from "@/hooks";
-import { formatMarketCap, formatNumber, formatPercent, formatRatio } from "@/lib/formatters";
+import {
+  formatMarketCap,
+  formatNumber,
+  formatPercent,
+  formatRatio,
+} from "@/lib/formatters";
 
 interface TearsheetHeroProps {
   detail: CompanyDetail;
@@ -13,29 +18,54 @@ interface TearsheetHeroProps {
   onRemoveFromWatchlist: () => void;
 }
 
-interface DriverCard {
+interface KpiCard {
   category: string;
-  label: string;
-  metric: string;
-  value: number;
+  title: string;
+  subScore: number | null;
+  metric: string | null;
+  rawValue: number | null;
+}
+
+function scoreColorClass(score: number | null): string {
+  if (score === null) return "text-[var(--color-text-muted)]";
+  if (score >= SCORE_THRESHOLDS.HIGH) return "text-[var(--color-positive)]";
+  if (score >= SCORE_THRESHOLDS.MID) return "text-[var(--color-warning)]";
+  return "text-[var(--color-negative)]";
+}
+
+function qualityBadgeLabel(score: number | null): string {
+  if (score === null) return "—";
+  if (score >= SCORE_THRESHOLDS.HIGH) return "HIGH";
+  if (score >= SCORE_THRESHOLDS.MID) return "MID";
+  return "LOW";
+}
+
+function qualityBadgeClass(score: number | null): string {
+  if (score === null)
+    return "text-[var(--color-text-muted)] border-[var(--color-border)]";
+  if (score >= SCORE_THRESHOLDS.HIGH)
+    return "text-[var(--color-positive)] border-[var(--color-positive)]/40";
+  if (score >= SCORE_THRESHOLDS.MID)
+    return "text-[var(--color-warning)] border-[var(--color-warning)]/40";
+  return "text-[var(--color-negative)] border-[var(--color-negative)]/40";
 }
 
 function formatMetricValue(metric: string, value: number): string {
-  const metricName = metric.toLowerCase();
+  const m = metric.toLowerCase();
   if (
-    metricName.includes("margin") ||
-    metricName.includes("yield") ||
-    metricName.includes("growth") ||
-    metricName.includes("roe") ||
-    metricName.includes("roic")
+    m.includes("margin") ||
+    m.includes("yield") ||
+    m.includes("growth") ||
+    m.includes("roe") ||
+    m.includes("roic")
   ) {
     return formatPercent(value);
   }
   if (
-    metricName.includes("ratio") ||
-    metricName.includes("debt") ||
-    metricName.includes("ebitda") ||
-    metricName.includes("pe")
+    m.includes("ratio") ||
+    m.includes("debt") ||
+    m.includes("ebitda") ||
+    m.includes("pe")
   ) {
     return formatRatio(value);
   }
@@ -44,29 +74,40 @@ function formatMetricValue(metric: string, value: number): string {
 
 function firstDriverForCategory(
   category: string,
-  drivers: ScoreMetricDriver[],
+  positive: ScoreMetricDriver[],
+  negative: ScoreMetricDriver[],
 ): ScoreMetricDriver | null {
-  const normalized = category.toLowerCase();
+  const norm = category.toLowerCase();
   return (
-    drivers.find((driver) => driver.category.toLowerCase() === normalized) ?? null
+    positive.find((d) => d.category.toLowerCase() === norm) ??
+    negative.find((d) => d.category.toLowerCase() === norm) ??
+    null
   );
 }
 
-function buildDriverCards(score: CompanyScore): DriverCard[] {
-  const categories: Array<{ key: string; label: string }> = [
-    { key: "quality", label: "Quality" },
-    { key: "value", label: "Value" },
-    { key: "growth", label: "Growth" },
-    { key: "risk", label: "Risk" },
+function buildKpiCards(score: CompanyScore): KpiCard[] {
+  const categories: Array<{
+    key: "quality" | "value" | "growth" | "risk";
+    title: string;
+  }> = [
+    { key: "quality", title: "QUALITY" },
+    { key: "value", title: "VALUE" },
+    { key: "growth", title: "GROWTH" },
+    { key: "risk", title: "RISK" },
   ];
 
-  return categories.map((category) => {
-    const driver = firstDriverForCategory(category.key, score.positive_drivers);
+  return categories.map(({ key, title }) => {
+    const driver = firstDriverForCategory(
+      key,
+      score.positive_drivers,
+      score.negative_drivers,
+    );
     return {
-      category: category.key,
-      label: category.label,
-      metric: driver?.metric ?? "N/A",
-      value: driver?.raw_value ?? 0,
+      category: key,
+      title,
+      subScore: score[key],
+      metric: driver?.metric ?? null,
+      rawValue: driver?.raw_value ?? null,
     };
   });
 }
@@ -79,88 +120,133 @@ export function TearsheetHero({
   onAddToWatchlist,
   onRemoveFromWatchlist,
 }: TearsheetHeroProps) {
-  const driverCards = buildDriverCards(score);
+  const kpiCards = buildKpiCards(score);
   const hasTicker = detail.ticker !== null;
+  const totalScore = score.total_score;
+  const scoreClass = scoreColorClass(totalScore);
+  const badgeLabel = qualityBadgeLabel(totalScore);
+  const badgeClass = qualityBadgeClass(totalScore);
 
   return (
-    <section className="space-y-4 border-b border-[var(--color-border)] p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-mono text-lg font-semibold text-[var(--color-text-primary)]">
+    <section className="border-b border-[var(--color-border)] p-4 space-y-4">
+      {/* Identity (left) + Score block (right) */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        {/* LEFT */}
+        <div className="min-w-0 flex-1">
+          <h2 className="font-mono text-xl font-bold leading-tight text-[var(--color-text-primary)] truncate">
             {detail.name}
           </h2>
-          <p className="font-mono text-xs text-[var(--color-text-muted)]">
-            {detail.ticker ?? "—"} · {detail.country ?? "—"} · {detail.currency}
+          <p className="mt-0.5 font-mono text-xs text-[var(--color-text-muted)]">
+            {detail.ticker ?? "—"} · {detail.country ?? "—"} ·{" "}
+            {detail.currency}
           </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <span className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-2 py-0.5 font-mono text-[11px] text-[var(--color-text-muted)]">
-              {detail.sector ?? "Unknown sector"}
-            </span>
-            <span className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-2 py-0.5 font-mono text-[11px] text-[var(--color-text-muted)]">
-              {detail.industry ?? "Unknown industry"}
-            </span>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {detail.sector && (
+              <span className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">
+                {detail.sector}
+              </span>
+            )}
+            {detail.industry && (
+              <span className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">
+                {detail.industry}
+              </span>
+            )}
           </div>
+          {score.summary && (
+            <p className="mt-2 font-mono text-[11px] italic text-[var(--color-text-muted)]">
+              {score.summary}
+            </p>
+          )}
         </div>
 
-        <div className="text-right space-y-2">
-          <div className="mb-2">
-            <p className="font-mono text-xs uppercase text-[var(--color-text-muted)]">Score</p>
-            <ScoreBadge score={score.total_score} />
+        {/* RIGHT: dominant score + price + action */}
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <div className="flex items-baseline gap-2">
+            <span
+              className={`font-mono text-5xl font-black leading-none tabular-nums ${scoreClass}`}
+            >
+              {totalScore === null ? "—" : Math.round(totalScore)}
+            </span>
+            <span
+              className={`rounded-sm border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest ${badgeClass}`}
+            >
+              {badgeLabel}
+            </span>
           </div>
-          <p className="font-mono text-sm text-[var(--color-text-primary)]">
-            Price: {detail.current_price === null ? "—" : formatNumber(detail.current_price, 2)}
-          </p>
-          <p className="font-mono text-xs text-[var(--color-text-muted)]">
-            Market cap: {formatMarketCap(detail.market_cap)}
+          <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+            Score
           </p>
 
-          {hasTicker ? (
-            isInWatchlist ? (
+          <div className="mt-1 text-right">
+            <p className="font-mono text-sm font-semibold text-[var(--color-text-primary)]">
+              {detail.current_price === null
+                ? "—"
+                : `${detail.currency ?? ""} ${formatNumber(detail.current_price, 2)}`}
+            </p>
+            <p className="font-mono text-[11px] text-[var(--color-text-muted)]">
+              MCap {formatMarketCap(detail.market_cap)}
+            </p>
+          </div>
+
+          {hasTicker &&
+            (isInWatchlist ? (
               <Button
                 type="button"
                 size="sm"
                 variant="destructive"
-                className="w-full justify-center font-mono text-xs"
+                className="mt-1 font-mono text-xs"
                 disabled={watchlistActionPending}
                 onClick={onRemoveFromWatchlist}
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Remove from watchlist
+                Remove
               </Button>
             ) : (
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                className="w-full justify-center font-mono text-xs"
+                className="mt-1 font-mono text-xs"
                 disabled={watchlistActionPending}
                 onClick={onAddToWatchlist}
               >
                 <Plus className="h-3.5 w-3.5" />
-                Add to watchlist
+                Watchlist
               </Button>
-            )
-          ) : null}
+            ))}
         </div>
       </div>
 
-      <div className="grid gap-2 md:grid-cols-4">
-        {driverCards.map((card) => (
-          <div
-            key={card.category}
-            className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-2"
-          >
-            <p className="font-mono text-[11px] uppercase text-[var(--color-text-muted)]">
-              {card.label}
-            </p>
-            <p className="truncate font-mono text-xs text-[var(--color-text-primary)]">
-              {card.metric}
-            </p>
-            <p className="font-mono text-xs text-[var(--color-accent)]">
-              {card.metric === "N/A" ? "—" : formatMetricValue(card.metric, card.value)}
-            </p>
-          </div>
-        ))}
+      {/* KPI Cards */}
+      <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-4">
+        {kpiCards.map((card) => {
+          const subScoreClass = scoreColorClass(card.subScore);
+          const subtext =
+            card.metric === null
+              ? "—"
+              : card.rawValue === null
+                ? `${card.metric}: —`
+                : `${card.metric}: ${formatMetricValue(card.metric, card.rawValue)}`;
+
+          return (
+            <div
+              key={card.category}
+              className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3"
+            >
+              <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                {card.title}
+              </p>
+              <p
+                className={`mt-0.5 font-mono text-3xl font-black leading-tight tabular-nums ${subScoreClass}`}
+              >
+                {card.subScore === null ? "—" : Math.round(card.subScore)}
+              </p>
+              <p className="mt-0.5 truncate font-mono text-[11px] text-[var(--color-text-muted)]">
+                {subtext}
+              </p>
+            </div>
+          );
+        })}
       </div>
     </section>
   );
