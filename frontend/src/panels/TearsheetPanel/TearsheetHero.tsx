@@ -1,4 +1,4 @@
-import { Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SCORE_THRESHOLDS } from "@/lib/constants";
 import type { CompanyDetail, CompanyScore, ScoreMetricDriver } from "@/hooks";
@@ -14,6 +14,8 @@ interface TearsheetHeroProps {
   score: CompanyScore;
   isInWatchlist: boolean;
   watchlistActionPending: boolean;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
   onAddToWatchlist: () => void;
   onRemoveFromWatchlist: () => void;
 }
@@ -117,6 +119,8 @@ export function TearsheetHero({
   score,
   isInWatchlist,
   watchlistActionPending,
+  isCollapsed,
+  onToggleCollapse,
   onAddToWatchlist,
   onRemoveFromWatchlist,
 }: TearsheetHeroProps) {
@@ -126,7 +130,64 @@ export function TearsheetHero({
   const scoreClass = scoreColorClass(totalScore);
   const badgeLabel = qualityBadgeLabel(totalScore);
   const badgeClass = qualityBadgeClass(totalScore);
+  const scoreDisplay =
+    totalScore === null ? "—" : Math.round(totalScore).toString();
+  const priceDisplay =
+    detail.current_price === null
+      ? "—"
+      : `${detail.currency ?? ""} ${formatNumber(detail.current_price, 2)}`;
 
+  /* ── COLLAPSED: compact single-row bar ─────────────────────────── */
+  if (isCollapsed) {
+    return (
+      <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
+        {/* Name + meta */}
+        <div className="min-w-0 flex-1">
+          <span className="font-mono text-sm font-semibold text-[var(--color-text-primary)] truncate block">
+            {detail.name}
+          </span>
+          <span className="font-mono text-[11px] text-[var(--color-text-muted)]">
+            {detail.ticker ?? "—"} · {detail.country ?? "—"} ·{" "}
+            {detail.currency}
+          </span>
+        </div>
+
+        {/* Score */}
+        <div className="flex items-baseline gap-1.5 shrink-0">
+          <span className={`font-mono text-2xl font-black tabular-nums ${scoreClass}`}>
+            {scoreDisplay}
+          </span>
+          <span
+            className={`rounded-sm border px-1 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest ${badgeClass}`}
+          >
+            {badgeLabel}
+          </span>
+        </div>
+
+        {/* Price · MCap */}
+        <div className="hidden sm:block shrink-0 text-right">
+          <p className="font-mono text-xs font-semibold text-[var(--color-text-primary)]">
+            {priceDisplay}
+          </p>
+          <p className="font-mono text-[10px] text-[var(--color-text-muted)]">
+            MCap {formatMarketCap(detail.market_cap)}
+          </p>
+        </div>
+
+        {/* Expand toggle */}
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          className="shrink-0 rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+          aria-label="Expand hero"
+        >
+          <ChevronDown className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    );
+  }
+
+  /* ── EXPANDED: full hero ────────────────────────────────────────── */
   return (
     <section className="border-b border-[var(--color-border)] p-4 space-y-4">
       {/* Identity (left) + Score block (right) */}
@@ -152,20 +213,15 @@ export function TearsheetHero({
               </span>
             )}
           </div>
-          {score.summary && (
-            <p className="mt-2 font-mono text-[11px] italic text-[var(--color-text-muted)]">
-              {score.summary}
-            </p>
-          )}
         </div>
 
-        {/* RIGHT: dominant score + price + action */}
+        {/* RIGHT: dominant score + price + actions */}
         <div className="flex shrink-0 flex-col items-end gap-1">
           <div className="flex items-baseline gap-2">
             <span
               className={`font-mono text-5xl font-black leading-none tabular-nums ${scoreClass}`}
             >
-              {totalScore === null ? "—" : Math.round(totalScore)}
+              {scoreDisplay}
             </span>
             <span
               className={`rounded-sm border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest ${badgeClass}`}
@@ -179,41 +235,51 @@ export function TearsheetHero({
 
           <div className="mt-1 text-right">
             <p className="font-mono text-sm font-semibold text-[var(--color-text-primary)]">
-              {detail.current_price === null
-                ? "—"
-                : `${detail.currency ?? ""} ${formatNumber(detail.current_price, 2)}`}
+              {priceDisplay}
             </p>
             <p className="font-mono text-[11px] text-[var(--color-text-muted)]">
               MCap {formatMarketCap(detail.market_cap)}
             </p>
           </div>
 
-          {hasTicker &&
-            (isInWatchlist ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="destructive"
-                className="mt-1 font-mono text-xs"
-                disabled={watchlistActionPending}
-                onClick={onRemoveFromWatchlist}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Remove
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="mt-1 font-mono text-xs"
-                disabled={watchlistActionPending}
-                onClick={onAddToWatchlist}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Watchlist
-              </Button>
-            ))}
+          <div className="mt-1 flex items-center gap-1.5">
+            {hasTicker &&
+              (isInWatchlist ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  className="font-mono text-xs"
+                  disabled={watchlistActionPending}
+                  onClick={onRemoveFromWatchlist}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Remove
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="font-mono text-xs"
+                  disabled={watchlistActionPending}
+                  onClick={onAddToWatchlist}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Watchlist
+                </Button>
+              ))}
+
+            {/* Collapse toggle */}
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+              aria-label="Collapse hero"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 

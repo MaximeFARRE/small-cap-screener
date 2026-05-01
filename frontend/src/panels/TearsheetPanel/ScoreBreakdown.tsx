@@ -69,7 +69,6 @@ export function ScoreBreakdown({ score }: ScoreBreakdownProps) {
           <p className="font-mono text-xs uppercase text-[var(--color-text-muted)]">
             Score Breakdown
           </p>
-          <p className="font-mono text-sm text-[var(--color-text-muted)]">{score.summary}</p>
         </div>
         <div className="text-right">
           <p className="font-mono text-xs uppercase text-[var(--color-text-muted)]">Overall</p>
