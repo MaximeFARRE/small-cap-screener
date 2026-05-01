@@ -9,13 +9,25 @@ from api.dependencies import (
     get_financial_data_service,
     get_kpi_service,
     get_screening_service,
+    get_ticker_ingestion_service,
+    get_universe_discovery_service,
+    get_universe_service,
 )
-from api.schemas.refresh import CompanyRefreshResultSchema
+from api.schemas.refresh import (
+    CompanyRefreshResultSchema,
+    ImportUniverseRequestSchema,
+    ImportUniverseResultSchema,
+    TickerIngestionRequestSchema,
+    TickerIngestionResultSchema,
+)
 from src.repositories import company_repository
 from src.repositories.database import get_session
 from src.services.financial_data_service import FinancialDataService
 from src.services.kpi_snapshot_service import KpiSnapshotService
 from src.services.screening_service import ScreeningService
+from src.services.ticker_ingestion_service import TickerIngestionService
+from src.services.universe_discovery_service import UniverseDiscoveryService
+from src.services.universe_service import UniverseService
 
 router = APIRouter(prefix="/refresh", tags=["data_refresh"])
 
@@ -94,3 +106,45 @@ def refresh_universe_stream(
         yield {"event": "done", "data": json.dumps({"total": total})}
 
     return EventSourceResponse(_event_generator())
+
+
+@router.post("/ingest", response_model=TickerIngestionResultSchema)
+def ingest_ticker(
+    body: TickerIngestionRequestSchema,
+    ingestion_service: TickerIngestionService = Depends(get_ticker_ingestion_service),
+) -> TickerIngestionResultSchema:
+    result = ingestion_service.ingest_identifier(body.identifier)
+    return TickerIngestionResultSchema.model_validate(result)
+
+
+@router.post("/universe/import-france", response_model=ImportUniverseResultSchema)
+def import_france_universe(
+    body: ImportUniverseRequestSchema,
+    universe_service: UniverseService = Depends(get_universe_service),
+    discovery_service: UniverseDiscoveryService = Depends(get_universe_discovery_service),
+) -> ImportUniverseResultSchema:
+    import_result = universe_service.import_euronext_france_universe()
+    if not body.enrich:
+        return ImportUniverseResultSchema(
+            discovered_count=import_result.discovered_count,
+            upserted_count=import_result.upserted_count,
+            enrichment_total=0,
+            enrichment_succeeded=0,
+            enrichment_failed=0,
+            enrichment_skipped=0,
+        )
+
+    enrichment_result = discovery_service.refresh_companies_by_ids(
+        company_id_list=import_result.upserted_company_ids,
+        pacing_seconds=body.pacing_seconds,
+        batch_size=body.batch_size,
+        skip_recently_refreshed=False,
+    )
+    return ImportUniverseResultSchema(
+        discovered_count=import_result.discovered_count,
+        upserted_count=import_result.upserted_count,
+        enrichment_total=enrichment_result.total,
+        enrichment_succeeded=enrichment_result.succeeded,
+        enrichment_failed=enrichment_result.failed,
+        enrichment_skipped=enrichment_result.skipped,
+    )

@@ -2,9 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { LoadingState } from "@/components/LoadingState";
+import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import {
   DEFAULT_SCREENING_FILTERS,
+  useImportFranceUniverse,
+  useIngestTicker,
   useSnapshots,
   useUniverse,
   type ScreeningFilters,
@@ -77,6 +80,8 @@ export function ScreenerPanel() {
   const apiFilters = useMemo(() => toApiFilters(debouncedFilters), [debouncedFilters]);
   const universeQuery = useUniverse(apiFilters);
   const snapshotsQuery = useSnapshots(5);
+  const ingestTickerMutation = useIngestTicker();
+  const importUniverseMutation = useImportFranceUniverse();
 
   const rows = useMemo(() => {
     const loadedRows = universeQuery.data ?? [];
@@ -108,6 +113,51 @@ export function ScreenerPanel() {
 
   const latestSnapshot = snapshotsQuery.data?.[0] ?? null;
 
+  const isActionPending = ingestTickerMutation.isPending || importUniverseMutation.isPending;
+
+  const handleAddTicker = async () => {
+    const rawInput = window.prompt("Ticker ou ISIN (ex: MC.PA ou FR0000120271)");
+    if (rawInput === null) {
+      return;
+    }
+    const identifier = rawInput.trim();
+    if (identifier.length === 0) {
+      window.alert("Ticker/ISIN vide.");
+      return;
+    }
+
+    try {
+      const result = await ingestTickerMutation.mutateAsync(identifier);
+      if (!result.success) {
+        window.alert(result.error ?? "Échec de l'import du ticker.");
+        return;
+      }
+      const warnings = result.warnings.length > 0 ? `\nAvertissements: ${result.warnings.join(" | ")}` : "";
+      window.alert(`Ticker importé: ${result.resolved_ticker ?? result.ticker}${warnings}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Échec de l'import du ticker.";
+      window.alert(message);
+    }
+  };
+
+  const handleImportSmallCaps = async () => {
+    const confirmed = window.confirm(
+      "Importer toutes les small caps France et lancer l'enrichissement complet ?",
+    );
+    if (!confirmed) {
+      return;
+    }
+    try {
+      const result = await importUniverseMutation.mutateAsync();
+      window.alert(
+        `Import terminé.\nDécouvertes: ${result.discovered_count}\nImportées/mises à jour: ${result.upserted_count}\nEnrichies: ${result.enrichment_succeeded}/${result.enrichment_total}\nÉchecs: ${result.enrichment_failed}\nIgnorées: ${result.enrichment_skipped}`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Échec de l'import univers.";
+      window.alert(message);
+    }
+  };
+
   return (
     <div className="flex h-full min-h-0">
       <ScreenerFilters
@@ -131,6 +181,25 @@ export function ScreenerPanel() {
           <div className="text-right font-mono text-[11px] text-[var(--color-text-muted)]">
             <p>{latestSnapshot ? `Latest snapshot: ${latestSnapshot.name}` : "No snapshot yet"}</p>
             <p>{latestSnapshot ? new Date(latestSnapshot.created_at).toLocaleString() : "—"}</p>
+          </div>
+          <div className="ml-3 flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void handleAddTicker()}
+              disabled={isActionPending}
+            >
+              Ajouter un ticker
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void handleImportSmallCaps()}
+              disabled={isActionPending}
+            >
+              Importer small caps
+            </Button>
           </div>
         </header>
 

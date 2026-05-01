@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
 export type UniverseSortBy =
@@ -68,6 +68,28 @@ export interface SnapshotSummary {
   filters_summary: string;
 }
 
+export interface TickerIngestionResult {
+  ticker: string;
+  success: boolean;
+  resolved_ticker: string | null;
+  company_id: number | null;
+  created: boolean;
+  kpi_snapshot_id: number | null;
+  error: string | null;
+  error_kind: string | null;
+  stage: string | null;
+  warnings: string[];
+}
+
+export interface ImportUniverseResult {
+  discovered_count: number;
+  upserted_count: number;
+  enrichment_total: number;
+  enrichment_succeeded: number;
+  enrichment_failed: number;
+  enrichment_skipped: number;
+}
+
 export const DEFAULT_SCREENING_FILTERS: ScreeningFilters = {
   sector: null,
   min_total_score: null,
@@ -106,5 +128,39 @@ export function useSnapshots(limit = 20) {
   return useQuery({
     queryKey: ["screening", "snapshots", limit],
     queryFn: () => api.get<SnapshotSummary[]>(`/screening/snapshots?limit=${limit}`),
+  });
+}
+
+export function useIngestTicker() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (identifier: string) =>
+      api.post<TickerIngestionResult>("/refresh/ingest", { identifier }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["screening", "universe"] }),
+        queryClient.invalidateQueries({ queryKey: ["companies"] }),
+        queryClient.invalidateQueries({ queryKey: ["signals"] }),
+      ]);
+    },
+  });
+}
+
+export function useImportFranceUniverse() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api.post<ImportUniverseResult>("/refresh/universe/import-france", {
+        enrich: true,
+        pacing_seconds: 0.0,
+        batch_size: 25,
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["screening", "universe"] }),
+        queryClient.invalidateQueries({ queryKey: ["companies"] }),
+        queryClient.invalidateQueries({ queryKey: ["signals"] }),
+      ]);
+    },
   });
 }
