@@ -1,39 +1,38 @@
-# Known Limitations
+# Known Limitations (v2)
 
-This document lists current product limitations and deliberate V1 boundaries.
+This document lists current limitations and explicit non-goals for version 2.
 
-## Current Limitations
+## Data and coverage
 
-### Market and data coverage
+- Universe scope is focused on French listed equities (Euronext Paris/Growth/Access).
+- Data quality depends on third-party provider consistency and uptime.
+- Coverage depth remains below premium institutional vendor datasets.
 
-* Scope is limited to French listed small caps (Euronext Paris / Growth).
-* External data quality depends on third-party provider availability and consistency.
-* Coverage depth is lower than institutional premium data terminals.
+## Product boundaries
 
-### Scoring model maturity
+- Local-first single-user workflow only.
+- No built-in authentication, roles, or multi-tenant model.
+- No cloud sync or centralized collaboration backend.
 
-* Scoring V1 is deterministic but intentionally simple.
-* Weights and thresholds are rule-based and not yet statistically calibrated on long backtests.
-* Model is designed for shortlist prioritization, not standalone investment decisioning.
+## Scoring model
 
-### Product and operations
+- Deterministic scoring is rule-based and configurable, not ML-driven.
+- Calibration is practical for shortlist prioritization, not a standalone investment decision engine.
 
-* Desktop app is local-first and single-user (no shared workspace, no permissions model).
-* No cloud sync, no centralized monitoring, no enterprise deployment pipeline.
-* Packaging is available via PyInstaller, but installer/signing/distribution workflow is still basic.
+## Frontend and testing
 
-### Testing scope
+- Frontend quality gates include lint/build, but full E2E browser automation is limited.
+- UI behavior across very large universes still needs additional stress testing.
 
-* Unit and service-level coverage is strong; full UI end-to-end automation remains limited.
-* Real-world stress testing on very large universes is still to be expanded.
+## Operations and deployment
 
-## Deliberate V1 Non-Goals
+- Primary workflow is local development/runtime.
+- Production-grade deployment hardening (monitoring, observability, rollback playbooks) is limited.
 
-* No multi-user collaboration layer.
-* No cloud backend.
-* No real-time market data streaming or execution.
-* No AI-generated investment recommendation.
+## Deliberate non-goals for v2
 
-## Improvement Direction
+- no execution or order management
+- no real-time streaming market feed
+- no AI-generated buy/sell recommendation
 
-See [ROADMAP.md](./ROADMAP.md) for prioritized post-V1 improvements.
+For future priorities, see [ROADMAP.md](./ROADMAP.md).
