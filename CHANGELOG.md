@@ -1,6 +1,42 @@
 # CHANGELOG
 
+## v1.7.0 (2026-05-01)
+
+### Chore
+
+* chore: add frontend ux dependencies ([`f3560d1`](https://github.com/MaximeFARRE/small-cap-screener/commit/f3560d11f5150b421a69648059f2e43b207552aa))
+
+### Feature
+
+* feat: add workspace shortcuts and table virtualization ([`aa41f19`](https://github.com/MaximeFARRE/small-cap-screener/commit/aa41f198a9a93c078971541554a226e9b2abe2e8))
+
+* feat: add refresh modal and tearsheet export action ([`3390ac5`](https://github.com/MaximeFARRE/small-cap-screener/commit/3390ac54b0f5502c581208ce1fcb928f69245943))
+
+* feat: add companies refresh stream and csv export ([`c72a6b2`](https://github.com/MaximeFARRE/small-cap-screener/commit/c72a6b232000211a479da710a1523d28fb2469e7))
+
+* feat: add toast feedback for watchlist actions ([`05b2c16`](https://github.com/MaximeFARRE/small-cap-screener/commit/05b2c16250057ed69c58e53491d720c73dc2fb06))
+
+* feat: add global toast container ([`6f850dc`](https://github.com/MaximeFARRE/small-cap-screener/commit/6f850dca4f563ce87c8362fe705f8067b8e68daf))
+
+* feat: unify panel loading and error states ([`052bdf3`](https://github.com/MaximeFARRE/small-cap-screener/commit/052bdf3cfa6b08b2afb2f4cff075ba0fa7016110))
+
+* feat: add shared panel state components ([`14cb306`](https://github.com/MaximeFARRE/small-cap-screener/commit/14cb306b714cfe4bd746fbaf00bf96a0f4b060af))
+
+### Test
+
+* test: skip ui tests when pyside6 is unavailable ([`5c0fd45`](https://github.com/MaximeFARRE/small-cap-screener/commit/5c0fd45297cde0dbb6624cf3a6c566f01a7ef083))
+
+### Unknown
+
+* Merge pull request #60 from MaximeFARRE/feat/ux-polish
+
+Feat/ux polish ([`ada5300`](https://github.com/MaximeFARRE/small-cap-screener/commit/ada5300f87029e9f75905e0ee7c897edc3a7ea4d))
+
 ## v1.6.0 (2026-04-30)
+
+### Chore
+
+* chore(release): 1.6.0 [skip ci] ([`db28eed`](https://github.com/MaximeFARRE/small-cap-screener/commit/db28eed5fade955d061529bc172c99b8b3c98d3e))
 
 ### Feature
 

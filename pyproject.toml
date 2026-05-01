@@ -1,6 +1,6 @@
 [project]
 name = "small-cap-screener"
-version = "1.6.0"
+version = "1.7.0"
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
