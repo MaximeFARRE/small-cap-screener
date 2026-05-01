@@ -16,6 +16,18 @@ interface PeersTableProps {
   activeTicker: string | null;
 }
 
+const PEER_COLUMN_WIDTH_CLASSES: string[] = [
+  "w-[92px]",
+  "w-[260px]",
+  "w-[96px]",
+  "w-[130px]",
+  "w-[100px]",
+  "w-[120px]",
+  "w-[90px]",
+  "w-[120px]",
+  "w-[155px]",
+];
+
 export function PeersTable({ peers, activeTicker }: PeersTableProps) {
   const percentileMetrics = peers.metrics
     .filter((metric) => metric.percentile_rank !== null)
@@ -43,7 +55,12 @@ export function PeersTable({ peers, activeTicker }: PeersTableProps) {
         </div>
       </div>
 
-      <Table className="table-fixed">
+      <Table className="min-w-[1163px] table-fixed">
+        <colgroup>
+          {PEER_COLUMN_WIDTH_CLASSES.map((widthClassName, index) => (
+            <col key={index} className={widthClassName} />
+          ))}
+        </colgroup>
         <TableHeader>
           <TableRow>
             <TableHead>Ticker</TableHead>
@@ -66,7 +83,7 @@ export function PeersTable({ peers, activeTicker }: PeersTableProps) {
                 className={cn(isActive && "bg-[var(--color-accent)]/15")}
               >
                 <TableCell className="font-mono text-xs">{row.ticker ?? "—"}</TableCell>
-                <TableCell className="text-xs">{row.name}</TableCell>
+                <TableCell className="truncate text-xs">{row.name}</TableCell>
                 <TableCell>
                   <ScoreBadge score={row.total_score} />
                 </TableCell>

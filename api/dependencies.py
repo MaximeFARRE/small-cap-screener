@@ -14,6 +14,9 @@ from src.services.kpi_snapshot_service import KpiSnapshotService
 from src.services.peer_comparison_service import PeerComparisonService
 from src.services.scoring_service import ScoringService
 from src.services.screening_service import ScreeningService
+from src.services.ticker_ingestion_service import TickerIngestionService
+from src.services.universe_discovery_service import UniverseDiscoveryService
+from src.services.universe_service import UniverseService
 from src.services.watchlist_service import WatchlistService
 
 
@@ -78,6 +81,27 @@ def get_peer_service() -> PeerComparisonService:
 @lru_cache
 def get_financial_data_service() -> FinancialDataService:
     return FinancialDataService(provider=YFinanceProvider())
+
+
+@lru_cache
+def get_ticker_ingestion_service() -> TickerIngestionService:
+    return TickerIngestionService(
+        financial_data_service=get_financial_data_service(),
+        kpi_snapshot_service=get_kpi_service(),
+    )
+
+
+@lru_cache
+def get_universe_service() -> UniverseService:
+    return UniverseService()
+
+
+@lru_cache
+def get_universe_discovery_service() -> UniverseDiscoveryService:
+    return UniverseDiscoveryService(
+        financial_data_service=get_financial_data_service(),
+        kpi_snapshot_service=get_kpi_service(),
+    )
 
 
 # ---------------------------------------------------------------------------

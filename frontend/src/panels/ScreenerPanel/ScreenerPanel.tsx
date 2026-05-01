@@ -1,14 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { LoadingState } from "@/components/LoadingState";
+import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import {
   DEFAULT_SCREENING_FILTERS,
+  useIngestTicker,
+  openUniverseImportStream,
   useSnapshots,
   useUniverse,
   type ScreeningFilters,
 } from "@/hooks";
+import {
+  UNIVERSE_IMPORT_STATUS_EVENT,
+  type UniverseImportStatusDetail,
+} from "@/lib/universeImportEvents";
 import { ScreenerFilters, type ScreenerFilterState } from "./ScreenerFilters";
 import { ScreenerTable } from "./ScreenerTable";
 
@@ -50,11 +58,14 @@ function toApiFilters(filters: ScreenerFilterState): ScreeningFilters {
 }
 
 export function ScreenerPanel() {
+  const queryClient = useQueryClient();
   const { activeTicker, focusedPanelType, setActiveTicker } = useWorkspace();
 
   const [filters, setFilters] = useState<ScreenerFilterState>(DEFAULT_UI_FILTERS);
   const [debouncedFilters, setDebouncedFilters] = useState<ScreenerFilterState>(DEFAULT_UI_FILTERS);
+  const [isUniverseImportRunning, setIsUniverseImportRunning] = useState(false);
   const sectorFilterRef = useRef<HTMLSelectElement | null>(null);
+  const importStreamRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     const onFocusScreenerFilter = () => {
@@ -77,6 +88,7 @@ export function ScreenerPanel() {
   const apiFilters = useMemo(() => toApiFilters(debouncedFilters), [debouncedFilters]);
   const universeQuery = useUniverse(apiFilters);
   const snapshotsQuery = useSnapshots(5);
+  const ingestTickerMutation = useIngestTicker();
 
   const rows = useMemo(() => {
     const loadedRows = universeQuery.data ?? [];
@@ -108,6 +120,148 @@ export function ScreenerPanel() {
 
   const latestSnapshot = snapshotsQuery.data?.[0] ?? null;
 
+  const isActionPending = ingestTickerMutation.isPending || isUniverseImportRunning;
+
+  const emitUniverseImportStatus = (detail: UniverseImportStatusDetail) => {
+    window.dispatchEvent(
+      new CustomEvent<UniverseImportStatusDetail>(UNIVERSE_IMPORT_STATUS_EVENT, {
+        detail,
+      }),
+    );
+  };
+
+  useEffect(() => {
+    return () => {
+      if (importStreamRef.current) {
+        importStreamRef.current.close();
+        importStreamRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleAddTicker = async () => {
+    const rawInput = window.prompt("Ticker ou ISIN (ex: MC.PA ou FR0000120271)");
+    if (rawInput === null) {
+      return;
+    }
+    const identifier = rawInput.trim();
+    if (identifier.length === 0) {
+      window.alert("Ticker/ISIN vide.");
+      return;
+    }
+
+    try {
+      const result = await ingestTickerMutation.mutateAsync(identifier);
+      if (!result.success) {
+        window.alert(result.error ?? "Échec de l'import du ticker.");
+        return;
+      }
+      const warnings = result.warnings.length > 0 ? `\nAvertissements: ${result.warnings.join(" | ")}` : "";
+      window.alert(`Ticker importé: ${result.resolved_ticker ?? result.ticker}${warnings}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Échec de l'import du ticker.";
+      window.alert(message);
+    }
+  };
+
+  const handleImportSmallCaps = async () => {
+    const confirmed = window.confirm(
+      "Importer toutes les small caps France et lancer l'enrichissement complet ?",
+    );
+    if (!confirmed) {
+      return;
+    }
+    if (importStreamRef.current) {
+      importStreamRef.current.close();
+      importStreamRef.current = null;
+    }
+
+    setIsUniverseImportRunning(true);
+    emitUniverseImportStatus({
+      phase: "running",
+      message: "Import universe en cours…",
+      processed: 0,
+      total: 0,
+    });
+
+    importStreamRef.current = openUniverseImportStream({
+      enrich: true,
+      pacingSeconds: 0.0,
+      batchSize: 25,
+      onStart: () => {
+        emitUniverseImportStatus({
+          phase: "running",
+          message: "Découverte Euronext France en cours…",
+          processed: 0,
+          total: 0,
+        });
+      },
+      onDiscovery: (payload) => {
+        emitUniverseImportStatus({
+          phase: "discovery_done",
+          message: `Découverte terminée: ${payload.discovered_count} trouvées, ${payload.upserted_count} importées.`,
+          processed: 0,
+          total: payload.enrichment_total,
+        });
+      },
+      onProgress: (payload) => {
+        const phaseMessage =
+          payload.phase === "batch_start"
+            ? `Enrichissement lot ${payload.batch_number ?? 0}/${payload.total_batches ?? 0}…`
+            : payload.phase === "company_result" && payload.ticker
+              ? `Enrichissement ${payload.ticker} (${payload.processed}/${payload.total})…`
+              : "Enrichissement en cours…";
+
+        emitUniverseImportStatus({
+          phase: "running",
+          message: phaseMessage,
+          processed: payload.processed,
+          total: payload.total,
+        });
+      },
+      onDone: async (result) => {
+        setIsUniverseImportRunning(false);
+        importStreamRef.current = null;
+        emitUniverseImportStatus({
+          phase: "completed",
+          message: `Import terminé: ${result.enrichment_succeeded}/${result.enrichment_total} enrichies.`,
+          processed: result.enrichment_total,
+          total: result.enrichment_total,
+          succeeded: result.enrichment_succeeded,
+          failed: result.enrichment_failed,
+          skipped: result.enrichment_skipped,
+        });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["screening", "universe"] }),
+          queryClient.invalidateQueries({ queryKey: ["companies"] }),
+          queryClient.invalidateQueries({ queryKey: ["signals"] }),
+          queryClient.invalidateQueries({ queryKey: ["screening", "snapshots"] }),
+        ]);
+        window.alert(
+          `Import terminé.\nDécouvertes: ${result.discovered_count}\nImportées/mises à jour: ${result.upserted_count}\nEnrichies: ${result.enrichment_succeeded}/${result.enrichment_total}\nÉchecs: ${result.enrichment_failed}\nIgnorées: ${result.enrichment_skipped}`,
+        );
+      },
+      onServerError: (message) => {
+        setIsUniverseImportRunning(false);
+        importStreamRef.current = null;
+        emitUniverseImportStatus({
+          phase: "error",
+          message,
+        });
+        window.alert(message);
+      },
+      onConnectionError: (message) => {
+        setIsUniverseImportRunning(false);
+        importStreamRef.current = null;
+        emitUniverseImportStatus({
+          phase: "error",
+          message,
+        });
+        window.alert(message);
+      },
+    });
+  };
+
   return (
     <div className="flex h-full min-h-0">
       <ScreenerFilters
@@ -131,6 +285,25 @@ export function ScreenerPanel() {
           <div className="text-right font-mono text-[11px] text-[var(--color-text-muted)]">
             <p>{latestSnapshot ? `Latest snapshot: ${latestSnapshot.name}` : "No snapshot yet"}</p>
             <p>{latestSnapshot ? new Date(latestSnapshot.created_at).toLocaleString() : "—"}</p>
+          </div>
+          <div className="ml-3 flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void handleAddTicker()}
+              disabled={isActionPending}
+            >
+              Add ticker
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void handleImportSmallCaps()}
+              disabled={isActionPending}
+            >
+              Importer small caps
+            </Button>
           </div>
         </header>
 
