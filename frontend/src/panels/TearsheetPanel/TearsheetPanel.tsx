@@ -1,7 +1,14 @@
 import { useMemo, useState } from "react";
+import { Download } from "lucide-react";
+import { toast } from "sonner";
+import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
+import { LoadingState } from "@/components/LoadingState";
+import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import {
   useAddToWatchlist,
+  downloadCompanyTearsheetCsv,
   useCompanyDetail,
   useCompanyPeers,
   useCompanyScore,
@@ -52,21 +59,23 @@ export function TearsheetPanel() {
 
   if (activeTicker === null) {
     return (
-      <div className="flex h-full items-center justify-center p-4">
-        <p className="font-mono text-sm text-[var(--color-text-muted)]">
-          Select a company from the screener or watchlist.
-        </p>
-      </div>
+      <EmptyState
+        title="Select a company from the screener or watchlist."
+      />
     );
   }
 
   if (firstError) {
     return (
-      <div className="flex h-full items-center justify-center p-4">
-        <p className="font-mono text-sm text-[var(--color-negative)]">
-          {firstError instanceof Error ? firstError.message : "Failed to load company data."}
-        </p>
-      </div>
+      <ErrorState
+        message={firstError instanceof Error ? firstError.message : "Failed to load company data."}
+        onRetry={() => {
+          void detailQuery.refetch();
+          void scoreQuery.refetch();
+          void historyQuery.refetch();
+          void peersQuery.refetch();
+        }}
+      />
     );
   }
 
@@ -77,11 +86,11 @@ export function TearsheetPanel() {
 
   if (!detail || !score || !historical || !peers) {
     return (
-      <div className="flex h-full items-center justify-center p-4">
-        <p className="font-mono text-sm text-[var(--color-text-muted)]">
-          {isPendingAny ? "Loading tearsheet…" : "No data available for selected company."}
-        </p>
-      </div>
+      isPendingAny ? (
+        <LoadingState label="Loading tearsheet…" />
+      ) : (
+        <EmptyState title="No data available for selected company." />
+      )
     );
   }
 
@@ -92,6 +101,34 @@ export function TearsheetPanel() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[var(--color-bg-panel)]">
+      <header className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-2">
+        <div>
+          <p className="font-mono text-xs uppercase text-[var(--color-text-muted)]">Tearsheet</p>
+          <p className="font-mono text-[11px] text-[var(--color-text-muted)]">{detail.ticker ?? "—"}</p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="font-mono text-xs"
+          disabled={!ticker}
+          onClick={async () => {
+            if (!ticker) {
+              return;
+            }
+            try {
+              await downloadCompanyTearsheetCsv(ticker);
+              toast.success(`Exported tearsheet for ${ticker}`);
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : "Failed to export tearsheet");
+            }
+          }}
+        >
+          <Download className="h-3.5 w-3.5" />
+          Export tearsheet
+        </Button>
+      </header>
+
       <TearsheetHero
         detail={detail}
         score={score}
@@ -99,12 +136,26 @@ export function TearsheetPanel() {
         watchlistActionPending={addToWatchlist.isPending || removeFromWatchlist.isPending}
         onAddToWatchlist={() => {
           if (ticker) {
-            addToWatchlist.mutate({ ticker });
+            addToWatchlist.mutate(
+              { ticker },
+              {
+                onSuccess: () => {
+                  toast.success(`${ticker} added to watchlist`);
+                },
+              },
+            );
           }
         }}
         onRemoveFromWatchlist={() => {
           if (ticker) {
-            removeFromWatchlist.mutate({ ticker });
+            removeFromWatchlist.mutate(
+              { ticker },
+              {
+                onSuccess: () => {
+                  toast.success(`${ticker} removed from watchlist`);
+                },
+              },
+            );
           }
         }}
       />

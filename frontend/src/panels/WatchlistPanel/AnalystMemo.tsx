@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import type { AnalystMemo as AnalystMemoValue } from "@/hooks";
 
 interface AnalystMemoProps {
@@ -54,6 +55,7 @@ export function AnalystMemo({ ticker, memo, onSave }: AnalystMemoProps) {
         const snapshot = memoSnapshot(draft);
         setSavedSnapshot(snapshot);
         setSaveState("saved");
+        toast.success(`Memo saved for ${ticker}`);
 
         if (savedTimeoutRef.current !== null) {
           window.clearTimeout(savedTimeoutRef.current);

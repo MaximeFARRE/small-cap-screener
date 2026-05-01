@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { toast } from "sonner";
 import {
   useUpdateWatchlistStatus,
   type WatchlistStatus,
@@ -42,10 +43,17 @@ export function WatchlistStatusSelect({
       value={current}
       disabled={updateStatus.isPending}
       onChange={(event) =>
-        updateStatus.mutate({
-          ticker,
-          status: event.target.value as WatchlistStatus,
-        })
+        updateStatus.mutate(
+          {
+            ticker,
+            status: event.target.value as WatchlistStatus,
+          },
+          {
+            onSuccess: () => {
+              toast.success(`${ticker} status updated`);
+            },
+          },
+        )
       }
       className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-2 py-1 font-mono text-[11px] text-[var(--color-text-primary)]"
       aria-label="Watchlist status"

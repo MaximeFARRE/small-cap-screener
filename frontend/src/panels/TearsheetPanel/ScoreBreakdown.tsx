@@ -1,4 +1,5 @@
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import type { CompanyScore, ScoreMetricDriver } from "@/hooks";
 import { formatNumber } from "@/lib/formatters";
 
@@ -35,12 +36,32 @@ function DriverRow({
 }
 
 export function ScoreBreakdown({ score }: ScoreBreakdownProps) {
-  const bars = [
+  const bars = useMemo(() => [
     { key: "quality", label: "Quality", value: score.quality },
     { key: "value", label: "Value", value: score.value },
     { key: "growth", label: "Growth", value: score.growth },
     { key: "risk", label: "Risk", value: score.risk },
-  ] as const;
+  ] as const, [score.growth, score.quality, score.risk, score.value]);
+
+  const [animatedWidths, setAnimatedWidths] = useState<Record<string, number>>({
+    quality: 0,
+    value: 0,
+    growth: 0,
+    risk: 0,
+  });
+
+  useEffect(() => {
+    setAnimatedWidths({ quality: 0, value: 0, growth: 0, risk: 0 });
+    const frame = window.requestAnimationFrame(() => {
+      setAnimatedWidths({
+        quality: Math.max(0, Math.min(100, score.quality ?? 0)),
+        value: Math.max(0, Math.min(100, score.value ?? 0)),
+        growth: Math.max(0, Math.min(100, score.growth ?? 0)),
+        risk: Math.max(0, Math.min(100, score.risk ?? 0)),
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [score.growth, score.quality, score.risk, score.value, score.total_score]);
 
   return (
     <section className="space-y-4 border-b border-[var(--color-border)] p-4">
@@ -61,8 +82,7 @@ export function ScoreBreakdown({ score }: ScoreBreakdownProps) {
 
       <div className="grid gap-2 md:grid-cols-2">
         {bars.map((bar) => {
-          const value = bar.value ?? 0;
-          const width = Math.max(0, Math.min(100, value));
+          const width = animatedWidths[bar.key];
           return (
             <div key={bar.key} className="space-y-1 rounded-sm border border-[var(--color-border)] p-2">
               <div className="flex items-center justify-between">
@@ -73,7 +93,7 @@ export function ScoreBreakdown({ score }: ScoreBreakdownProps) {
               </div>
               <div className="h-2 overflow-hidden rounded bg-[var(--color-bg-elevated)]">
                 <div
-                  className="h-full bg-[var(--color-accent)] transition-all"
+                  className="h-full bg-[var(--color-accent)] transition-[width] duration-700 ease-out"
                   style={{ width: `${width}%` }}
                 />
               </div>

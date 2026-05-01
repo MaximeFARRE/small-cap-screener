@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { ErrorState } from "@/components/ErrorState";
+import { LoadingState } from "@/components/LoadingState";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useSignals, type ScoreMover, type TopCompanySignal } from "@/hooks";
 import { SectionHeader } from "./SectionHeader";
@@ -115,13 +117,9 @@ export function SignalsPanel() {
       </header>
 
       {signalsQuery.isError ? (
-        <div className="flex flex-1 items-center justify-center p-4">
-          <p className="font-mono text-sm text-[var(--color-negative)]">{errorMessage}</p>
-        </div>
+        <ErrorState message={errorMessage} onRetry={() => void signalsQuery.refetch()} />
       ) : signalsQuery.isPending && !payload ? (
-        <div className="flex flex-1 items-center justify-center p-4">
-          <p className="font-mono text-sm text-[var(--color-text-muted)]">Loading signals…</p>
-        </div>
+        <LoadingState label="Loading signals…" />
       ) : (
         <div className="min-h-0 flex-1 space-y-3 overflow-auto p-3">
           {sections.map((section) => (

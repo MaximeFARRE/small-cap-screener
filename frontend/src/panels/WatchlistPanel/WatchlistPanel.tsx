@@ -1,5 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
+import { LoadingState } from "@/components/LoadingState";
 import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import {
@@ -14,7 +18,7 @@ import { AnalystMemo } from "./AnalystMemo";
 import { WatchlistRow } from "./WatchlistRow";
 
 export function WatchlistPanel() {
-  const { activeTicker, setActiveTicker } = useWorkspace();
+  const { activeTicker, focusedPanelType, setActiveTicker } = useWorkspace();
   const watchlistQuery = useWatchlist();
   const addToWatchlist = useAddToWatchlist();
   const removeFromWatchlist = useRemoveFromWatchlist();
@@ -52,12 +56,53 @@ export function WatchlistPanel() {
   };
 
   const handleRemoveTicker = (ticker: string) => {
-    removeFromWatchlist.mutate({ ticker });
+    removeFromWatchlist.mutate(
+      { ticker },
+      {
+        onSuccess: () => {
+          toast.success(`${ticker} removed from watchlist`);
+        },
+      },
+    );
   };
 
   const handleSaveMemo = async (ticker: string, memo: AnalystMemoValue): Promise<void> => {
     await updateMemo.mutateAsync({ ticker, memo });
   };
+
+  useEffect(() => {
+    const onNavigateRows = (event: Event) => {
+      if (focusedPanelType !== "watchlist") {
+        return;
+      }
+      const detail = (event as CustomEvent<{ panel: string | null; direction: 1 | -1 }>).detail;
+      if (detail.panel !== "watchlist") {
+        return;
+      }
+      const tickers = (rows ?? [])
+        .map((entry) => entry.ticker)
+        .filter((ticker): ticker is string => ticker !== null);
+      if (tickers.length === 0) {
+        return;
+      }
+
+      const currentIndex = selectedTicker ? tickers.indexOf(selectedTicker) : -1;
+      const fallback = detail.direction === 1 ? 0 : tickers.length - 1;
+      const targetIndex =
+        currentIndex < 0
+          ? fallback
+          : Math.max(0, Math.min(tickers.length - 1, currentIndex + detail.direction));
+      const ticker = tickers[targetIndex];
+      if (!ticker) {
+        return;
+      }
+      setSelectedTickerOverride(ticker);
+      setActiveTicker(ticker);
+    };
+
+    window.addEventListener("workspace:navigate-rows", onNavigateRows);
+    return () => window.removeEventListener("workspace:navigate-rows", onNavigateRows);
+  }, [focusedPanelType, rows, selectedTicker, setActiveTicker]);
 
   const errorMessage =
     watchlistQuery.error instanceof Error
@@ -92,7 +137,16 @@ export function WatchlistPanel() {
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => addToWatchlist.mutate({ ticker: activeTicker })}
+              onClick={() =>
+                addToWatchlist.mutate(
+                  { ticker: activeTicker },
+                  {
+                    onSuccess: () => {
+                      toast.success(`${activeTicker} added to watchlist`);
+                    },
+                  },
+                )
+              }
               disabled={addToWatchlist.isPending}
               className="font-mono text-xs"
             >
@@ -104,19 +158,14 @@ export function WatchlistPanel() {
       </header>
 
       {watchlistQuery.isError ? (
-        <div className="flex flex-1 items-center justify-center">
-          <p className="font-mono text-sm text-[var(--color-negative)]">{errorMessage}</p>
-        </div>
+        <ErrorState message={errorMessage} onRetry={() => void watchlistQuery.refetch()} />
       ) : watchlistQuery.isPending && !watchlistQuery.data ? (
-        <div className="flex flex-1 items-center justify-center">
-          <p className="font-mono text-sm text-[var(--color-text-muted)]">Loading watchlist…</p>
-        </div>
+        <LoadingState label="Loading watchlist…" />
       ) : (rows ?? []).length === 0 ? (
-        <div className="flex flex-1 items-center justify-center p-4">
-          <p className="font-mono text-sm text-[var(--color-text-muted)]">
-            Watchlist is empty. Add a ticker from Screener or Tearsheet.
-          </p>
-        </div>
+        <EmptyState
+          title="Watchlist is empty."
+          description="Add a ticker from Screener or Tearsheet."
+        />
       ) : (
         <div className="flex min-h-0 flex-1">
           <div className="w-[45%] min-w-80 space-y-2 overflow-auto p-3">
@@ -133,23 +182,22 @@ export function WatchlistPanel() {
 
           {selectedTicker === null ? (
             <div className="flex flex-1 items-center justify-center border-l border-[var(--color-border)]">
-              <p className="font-mono text-sm text-[var(--color-text-muted)]">
-                Select a company to edit memo.
-              </p>
+              <EmptyState title="Select a company to edit memo." />
             </div>
           ) : selectedDetailQuery.isError ? (
             <div className="flex flex-1 items-center justify-center border-l border-[var(--color-border)]">
-              <p className="font-mono text-sm text-[var(--color-negative)]">
-                {selectedDetailQuery.error instanceof Error
-                  ? selectedDetailQuery.error.message
-                  : "Failed to load watchlist detail."}
-              </p>
+              <ErrorState
+                message={
+                  selectedDetailQuery.error instanceof Error
+                    ? selectedDetailQuery.error.message
+                    : "Failed to load watchlist detail."
+                }
+                onRetry={() => void selectedDetailQuery.refetch()}
+              />
             </div>
           ) : selectedDetailQuery.isPending || !selectedDetailQuery.data ? (
             <div className="flex flex-1 items-center justify-center border-l border-[var(--color-border)]">
-              <p className="font-mono text-sm text-[var(--color-text-muted)]">
-                Loading memo…
-              </p>
+              <LoadingState label="Loading memo…" />
             </div>
           ) : (
             <div className="min-h-0 flex-1">

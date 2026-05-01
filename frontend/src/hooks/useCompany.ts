@@ -150,6 +150,19 @@ function getCompanyPath(ticker: string, suffix = ""): string {
   return `/companies/${encodeURIComponent(ticker)}${suffix}`;
 }
 
+export async function downloadCompanyTearsheetCsv(ticker: string): Promise<void> {
+  const blob = await api.getBlob(getCompanyPath(ticker, "/export"));
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const safeTicker = ticker.replace(/[^a-zA-Z0-9._-]/g, "_");
+  link.href = url;
+  link.download = `${safeTicker}-tearsheet.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export function useCompanyDetail(ticker: string | null) {
   return useQuery({
     queryKey: ["companies", "detail", ticker],

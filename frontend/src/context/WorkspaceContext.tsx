@@ -27,6 +27,8 @@ export interface PanelLayout {
 interface WorkspaceState {
   activeTicker: string | null;
   setActiveTicker: (ticker: string | null) => void;
+  focusedPanelType: PanelType | null;
+  setFocusedPanelType: (type: PanelType | null) => void;
   layout: PanelLayout;
   setLayout: (layout: PanelLayout) => void;
   openPanel: (type: PanelType) => void;
@@ -128,10 +130,15 @@ function readStoredLayout(): PanelLayout {
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [activeTicker, setActiveTickerState] = useState<string | null>(null);
+  const [focusedPanelType, setFocusedPanelTypeState] = useState<PanelType | null>(null);
   const [layout, setLayoutState] = useState<PanelLayout>(readStoredLayout);
 
   const setActiveTicker = useCallback((ticker: string | null) => {
     setActiveTickerState(ticker);
+  }, []);
+
+  const setFocusedPanelType = useCallback((type: PanelType | null) => {
+    setFocusedPanelTypeState(type);
   }, []);
 
   const persistLayout = useCallback((nextLayout: PanelLayout) => {
@@ -194,6 +201,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       value={{
         activeTicker,
         setActiveTicker,
+        focusedPanelType,
+        setFocusedPanelType,
         layout,
         setLayout,
         openPanel,

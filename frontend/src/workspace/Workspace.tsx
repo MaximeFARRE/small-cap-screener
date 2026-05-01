@@ -3,13 +3,14 @@ import {
   Panel as ResizablePanel,
   Separator as PanelResizeHandle,
 } from "react-resizable-panels";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   useWorkspace,
   type WorkspacePanel as WorkspacePanelState,
 } from "@/context/WorkspaceContext";
 import { PanelHeader } from "./PanelHeader";
 import { WorkspacePanel } from "./Panel";
+import { ShortcutsModal } from "./ShortcutsModal";
 
 function ResizeHandle() {
   return (
@@ -78,8 +79,89 @@ function renderQuadLayout(panels: WorkspacePanelState[]) {
 }
 
 export function Workspace() {
-  const { layout } = useWorkspace();
+  const { activeTicker, layout, setActiveTicker, focusedPanelType, setFocusedPanelType } = useWorkspace();
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const { panels, preset } = layout;
+
+  useEffect(() => {
+    const focusPanelElement = (type: string) => {
+      const panel = document.querySelector<HTMLElement>(`[data-panel-type="${type}"]`);
+      if (!panel) {
+        return;
+      }
+      panel.focus();
+    };
+
+    const isEditableTarget = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+      const tagName = target.tagName;
+      return (
+        target.isContentEditable ||
+        tagName === "INPUT" ||
+        tagName === "TEXTAREA" ||
+        tagName === "SELECT"
+      );
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setActiveTicker(null);
+        return;
+      }
+
+      if (event.key === "?") {
+        event.preventDefault();
+        setShowShortcuts(true);
+        return;
+      }
+
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      if (key === "s") {
+        event.preventDefault();
+        setFocusedPanelType("screener");
+        focusPanelElement("screener");
+        window.dispatchEvent(new CustomEvent("workspace:focus-screener-filter"));
+        return;
+      }
+      if (key === "w") {
+        event.preventDefault();
+        setFocusedPanelType("watchlist");
+        focusPanelElement("watchlist");
+        return;
+      }
+      if (key === "j" || key === "k") {
+        event.preventDefault();
+        const direction = key === "j" ? 1 : -1;
+        window.dispatchEvent(
+          new CustomEvent("workspace:navigate-rows", {
+            detail: { panel: focusedPanelType, direction },
+          }),
+        );
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        window.dispatchEvent(
+          new CustomEvent("workspace:open-selected", {
+            detail: { panel: focusedPanelType },
+          }),
+        );
+        if (activeTicker) {
+          setFocusedPanelType("tearsheet");
+          focusPanelElement("tearsheet");
+        }
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [activeTicker, focusedPanelType, setActiveTicker, setFocusedPanelType]);
 
   let content: ReactNode = null;
   if (preset === "single") {
@@ -103,7 +185,7 @@ export function Workspace() {
 
   return (
     <main className="flex h-full w-full flex-col gap-2 bg-[var(--color-bg-base)] p-2">
-      <PanelHeader />
+      <PanelHeader onShowShortcuts={() => setShowShortcuts(true)} />
       <div className="min-h-0 flex-1">
         {content ?? (
           <div className="flex h-full items-center justify-center font-mono text-sm text-[var(--color-text-muted)]">
@@ -111,6 +193,7 @@ export function Workspace() {
           </div>
         )}
       </div>
+      <ShortcutsModal open={showShortcuts} onClose={() => setShowShortcuts(false)} />
     </main>
   );
 }
