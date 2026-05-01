@@ -294,7 +294,7 @@ export function ScreenerPanel() {
               onClick={() => void handleAddTicker()}
               disabled={isActionPending}
             >
-              Ajouter un ticker
+              Add ticker
             </Button>
             <Button
               type="button"
