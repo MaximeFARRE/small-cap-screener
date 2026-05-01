@@ -1,8 +1,34 @@
 # CHANGELOG
 
+## v1.8.0 (2026-05-01)
+
+### Feature
+
+* feat: add web ticker and universe import actions ([`06a2281`](https://github.com/MaximeFARRE/small-cap-screener/commit/06a22815742340c2d5b73182f886b71d16f14148))
+
+### Fix
+
+* fix: translate add ticker button ([`f0c6cb2`](https://github.com/MaximeFARRE/small-cap-screener/commit/f0c6cb2d69f2a1bee4e6fe184cf8586f29cf8224))
+
+* fix: resolve frontend lint errors ([`a5403b7`](https://github.com/MaximeFARRE/small-cap-screener/commit/a5403b7d656f0aef82287a894a8b978dbe98a3ca))
+
+* fix: prevent table column overflow ([`b5ae12f`](https://github.com/MaximeFARRE/small-cap-screener/commit/b5ae12fb56b2c1e482b27986002c8f278a3a1779))
+
+* fix: use company id dependency in refresh endpoint ([`0938a24`](https://github.com/MaximeFARRE/small-cap-screener/commit/0938a24d926a3d52cc7275e22aac234ecfe307c0))
+
+* fix: make launch.bat handle missing pnpm ([`041855f`](https://github.com/MaximeFARRE/small-cap-screener/commit/041855fca6eb5809ab133c0cc8fe6a2a73b74616))
+
+### Unknown
+
+* Merge pull request #61 from MaximeFARRE/feat/ux-polish
+
+Feat/ux polish ([`2b221dd`](https://github.com/MaximeFARRE/small-cap-screener/commit/2b221dd1c231e89a34973831b3891f808aac5e03))
+
 ## v1.7.0 (2026-05-01)
 
 ### Chore
+
+* chore(release): 1.7.0 [skip ci] ([`daa3015`](https://github.com/MaximeFARRE/small-cap-screener/commit/daa3015949e2c2259122335e99c05d6df3ae4300))
 
 * chore: add frontend ux dependencies ([`f3560d1`](https://github.com/MaximeFARRE/small-cap-screener/commit/f3560d11f5150b421a69648059f2e43b207552aa))
 
