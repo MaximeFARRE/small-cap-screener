@@ -1,6 +1,28 @@
 # CHANGELOG
 
+## v2.0.0 (2026-05-01)
+
+### Breaking
+
+* docs!: align documentation baseline with v2.0.0
+
+BREAKING CHANGE: documentation baseline now targets the v2 web architecture and release model. ([`c7124b1`](https://github.com/MaximeFARRE/small-cap-screener/commit/c7124b1dcc46f7ba879b63b757596891d332fc57))
+
+### Documentation
+
+* docs: update README for v2.0.0 release ([`0f8ba86`](https://github.com/MaximeFARRE/small-cap-screener/commit/0f8ba86407d82152610b757b5293b71aeb172677))
+
+### Unknown
+
+* Merge pull request #62 from MaximeFARRE/docs/update-docs
+
+Docs/update docs ([`d3bb31d`](https://github.com/MaximeFARRE/small-cap-screener/commit/d3bb31d5ed810d0af6cec5710c2fc0abdaad5d4a))
+
 ## v1.8.0 (2026-05-01)
+
+### Chore
+
+* chore(release): 1.8.0 [skip ci] ([`10e35e3`](https://github.com/MaximeFARRE/small-cap-screener/commit/10e35e3f62eba7ef6e3c93ad80f6030e5ea2c499))
 
 ### Feature
 
