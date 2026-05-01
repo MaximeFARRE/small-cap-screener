@@ -1,26 +1,46 @@
 # Release Process
 
-This project uses `python-semantic-release` with Conventional Commits.
+This repository uses `python-semantic-release` with Conventional Commits.
 
-## Rules
+## Release source
 
-- Commit messages must follow: `feat|fix|docs|chore|test|refactor: short description`
-- Release automation runs only on `main`
-- Tag format is `vX.Y.Z`
+- releases are generated from `main`
+- tags use `vX.Y.Z`
+- version source is `pyproject.toml` (`project.version`)
+
+## Commit types and version bump
+
+- `fix:` -> patch
+- `feat:` -> minor
+- `type!:` or `BREAKING CHANGE:` footer -> major
+
+Examples:
+
+```text
+feat: add screener snapshot comparison endpoint
+fix: prevent stale ticker cache on refresh
+docs!: align documentation with v2 architecture
+```
+
+With footer:
+
+```text
+docs: align release docs
+
+BREAKING CHANGE: release baseline now targets v2 architecture.
+```
 
 ## Automated flow
 
-On each push to `main`, `.github/workflows/release.yml` runs:
+On push to `main`, release workflow should:
 
-1. detect the next version from commit history
-2. update `project.version` in `pyproject.toml`
+1. detect next semantic version from commits
+2. update `pyproject.toml` version
 3. update `CHANGELOG.md`
-4. create a release commit and tag
-5. publish a GitHub release
+4. create release commit and tag
+5. publish GitHub release
 
 ## Local dry run
-
-Use no-op mode before merging:
 
 ```bash
 python -m semantic_release --noop version --print
@@ -29,5 +49,6 @@ python -m semantic_release --noop changelog
 
 ## Notes
 
-- Feature work should happen on feature branches.
-- The release commit and tag are created by GitHub Actions on `main`.
+- do release prep work on feature/docs branches
+- merge to `main` with clean commit history
+- avoid mixing unrelated changes in release-triggering commits
