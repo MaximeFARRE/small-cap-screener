@@ -32,21 +32,6 @@ from src.services.universe_service import UniverseService
 router = APIRouter(prefix="/refresh", tags=["data_refresh"])
 
 
-@router.post("/{ticker}", response_model=CompanyRefreshResultSchema)
-def refresh_company(
-    ticker: str,
-    financial_data: FinancialDataService = Depends(get_financial_data_service),
-    kpi: KpiSnapshotService = Depends(get_kpi_service),
-) -> CompanyRefreshResultSchema:
-    company_id = get_company_id(ticker)
-    result = financial_data.refresh_company_data(company_id)
-    if result.success:
-        import datetime
-
-        kpi.compute_and_upsert_for_company(company_id, datetime.date.today())
-    return CompanyRefreshResultSchema.model_validate(result)
-
-
 @router.post("/universe/stream")
 def refresh_universe_stream(
     financial_data: FinancialDataService = Depends(get_financial_data_service),
@@ -148,3 +133,17 @@ def import_france_universe(
         enrichment_failed=enrichment_result.failed,
         enrichment_skipped=enrichment_result.skipped,
     )
+
+
+@router.post("/{ticker}", response_model=CompanyRefreshResultSchema)
+def refresh_company(
+    company_id: int = Depends(get_company_id),
+    financial_data: FinancialDataService = Depends(get_financial_data_service),
+    kpi: KpiSnapshotService = Depends(get_kpi_service),
+) -> CompanyRefreshResultSchema:
+    result = financial_data.refresh_company_data(company_id)
+    if result.success:
+        import datetime
+
+        kpi.compute_and_upsert_for_company(company_id, datetime.date.today())
+    return CompanyRefreshResultSchema.model_validate(result)
