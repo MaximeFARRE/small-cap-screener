@@ -51,7 +51,6 @@ export function ScoreBreakdown({ score }: ScoreBreakdownProps) {
   });
 
   useEffect(() => {
-    setAnimatedWidths({ quality: 0, value: 0, growth: 0, risk: 0 });
     const frame = window.requestAnimationFrame(() => {
       setAnimatedWidths({
         quality: Math.max(0, Math.min(100, score.quality ?? 0)),

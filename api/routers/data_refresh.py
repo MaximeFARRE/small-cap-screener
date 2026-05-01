@@ -1,7 +1,9 @@
 import json
+from asyncio import Queue, get_running_loop
 from collections.abc import AsyncGenerator
+from functools import partial
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sse_starlette.sse import EventSourceResponse
 
 from api.dependencies import (
@@ -30,6 +32,103 @@ from src.services.universe_discovery_service import UniverseDiscoveryService
 from src.services.universe_service import UniverseService
 
 router = APIRouter(prefix="/refresh", tags=["data_refresh"])
+
+
+def _queue_event(
+    *,
+    loop,
+    queue: Queue[dict[str, str] | None],
+    event_name: str,
+    payload: dict,
+) -> None:
+    loop.call_soon_threadsafe(
+        queue.put_nowait,
+        {"event": event_name, "data": json.dumps(payload)},
+    )
+
+
+def _stream_import_france_universe(
+    *,
+    loop,
+    queue: Queue[dict[str, str] | None],
+    universe_service: UniverseService,
+    discovery_service: UniverseDiscoveryService,
+    enrich: bool,
+    pacing_seconds: float,
+    batch_size: int,
+) -> None:
+    try:
+        _queue_event(
+            loop=loop,
+            queue=queue,
+            event_name="start",
+            payload={
+                "enrich": enrich,
+                "pacing_seconds": pacing_seconds,
+                "batch_size": batch_size,
+            },
+        )
+
+        import_result = universe_service.import_euronext_france_universe()
+        enrichment_total = len(import_result.upserted_company_ids) if enrich else 0
+        _queue_event(
+            loop=loop,
+            queue=queue,
+            event_name="discovery",
+            payload={
+                "discovered_count": import_result.discovered_count,
+                "upserted_count": import_result.upserted_count,
+                "enrichment_total": enrichment_total,
+            },
+        )
+
+        enrichment_succeeded = 0
+        enrichment_failed = 0
+        enrichment_skipped = 0
+
+        if enrich and enrichment_total > 0:
+
+            def progress_callback(payload: dict) -> None:
+                _queue_event(
+                    loop=loop,
+                    queue=queue,
+                    event_name="progress",
+                    payload=payload,
+                )
+
+            enrichment_result = discovery_service.refresh_companies_by_ids(
+                company_id_list=import_result.upserted_company_ids,
+                pacing_seconds=pacing_seconds,
+                batch_size=batch_size,
+                skip_recently_refreshed=False,
+                progress_callback=progress_callback,
+            )
+            enrichment_succeeded = enrichment_result.succeeded
+            enrichment_failed = enrichment_result.failed
+            enrichment_skipped = enrichment_result.skipped
+
+        _queue_event(
+            loop=loop,
+            queue=queue,
+            event_name="done",
+            payload={
+                "discovered_count": import_result.discovered_count,
+                "upserted_count": import_result.upserted_count,
+                "enrichment_total": enrichment_total,
+                "enrichment_succeeded": enrichment_succeeded,
+                "enrichment_failed": enrichment_failed,
+                "enrichment_skipped": enrichment_skipped,
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        _queue_event(
+            loop=loop,
+            queue=queue,
+            event_name="error",
+            payload={"message": str(exc)},
+        )
+    finally:
+        loop.call_soon_threadsafe(queue.put_nowait, None)
 
 
 @router.post("/universe/stream")
@@ -133,6 +232,42 @@ def import_france_universe(
         enrichment_failed=enrichment_result.failed,
         enrichment_skipped=enrichment_result.skipped,
     )
+
+
+@router.get("/universe/import-france/stream")
+async def import_france_universe_stream(
+    enrich: bool = Query(default=True),
+    pacing_seconds: float = Query(default=0.0, ge=0.0),
+    batch_size: int = Query(default=25, ge=1),
+    universe_service: UniverseService = Depends(get_universe_service),
+    discovery_service: UniverseDiscoveryService = Depends(get_universe_discovery_service),
+) -> EventSourceResponse:
+    async def _event_generator() -> AsyncGenerator[dict[str, str], None]:
+        loop = get_running_loop()
+        event_queue: Queue[dict[str, str] | None] = Queue()
+        worker = loop.run_in_executor(
+            None,
+            partial(
+                _stream_import_france_universe,
+                loop=loop,
+                queue=event_queue,
+                universe_service=universe_service,
+                discovery_service=discovery_service,
+                enrich=enrich,
+                pacing_seconds=pacing_seconds,
+                batch_size=batch_size,
+            ),
+        )
+
+        while True:
+            event = await event_queue.get()
+            if event is None:
+                break
+            yield event
+
+        await worker
+
+    return EventSourceResponse(_event_generator())
 
 
 @router.post("/{ticker}", response_model=CompanyRefreshResultSchema)
