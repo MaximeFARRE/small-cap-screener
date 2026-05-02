@@ -39,6 +39,19 @@ SCORE_WEIGHT_QUALITY_KEY: str = "score_weight_quality"
 SCORE_WEIGHT_VALUE_KEY: str = "score_weight_value"
 SCORE_WEIGHT_GROWTH_KEY: str = "score_weight_growth"
 SCORE_WEIGHT_RISK_KEY: str = "score_weight_risk"
+PROFILE_LABEL_KEY: str = "profile_label"
+
+_PROFILE_DISTRESSED: str = "distressed"
+_PROFILE_VALUE_TRAP: str = "value_trap"
+_PROFILE_TURNAROUND: str = "turnaround"
+_PROFILE_COMPOUNDER: str = "compounder"
+_PROFILE_REINVESTMENT: str = "reinvestment_phase"
+_PROFILE_CYCLICAL: str = "cyclical"
+_PROFILE_LOW_VISIBILITY: str = "low_visibility"
+_PROFILE_STANDARD: str = "standard"
+
+_CFQ_REINVESTMENT_FLOOR: float = 35.0
+_CFQ_REINVESTMENT_MAX_LIFT: float = 20.0
 
 _MAX_EXPLANATION_POINTS: int = 3
 _STRENGTH_THRESHOLD: float = 60.0
@@ -149,6 +162,7 @@ class _BlocResult:
 class _AdvancedResult:
     scores: SnapshotScores
     all_contributions: tuple[_MetricContribution, ...]
+    profile_label: str = _PROFILE_STANDARD
 
 
 # ---------------------------------------------------------------------------
@@ -172,7 +186,8 @@ class ScoringService:
         return _compute_advanced(metrics, self.sub_score_weights.as_dict()).scores
 
     def apply_scores(self, snapshot: KpiSnapshot) -> KpiSnapshot:
-        scores = self.compute_snapshot_scores(snapshot)
+        result = _compute_advanced(snapshot.metrics, self.sub_score_weights.as_dict())
+        scores = result.scores
         updated_metrics = dict(snapshot.metrics)
         updated_metrics.update(
             {
@@ -185,6 +200,7 @@ class ScoringService:
                 SCORE_WEIGHT_VALUE_KEY: self.sub_score_weights.value_weight,
                 SCORE_WEIGHT_GROWTH_KEY: self.sub_score_weights.growth_weight,
                 SCORE_WEIGHT_RISK_KEY: self.sub_score_weights.risk_weight,
+                PROFILE_LABEL_KEY: result.profile_label,
             }
         )
         snapshot.metrics = updated_metrics
@@ -261,6 +277,7 @@ def _compute_advanced(
 ) -> _AdvancedResult:
     bloc_results = _compute_all_blocs(metrics, weights)
     bloc_results = _bridle_valuation(bloc_results)
+    bloc_results = _apply_reinvestment_cfq_relief(metrics, bloc_results)
 
     quality = _legacy_category_score(bloc_results, LEGACY_QUALITY_BLOCS)
     value = _legacy_category_score(bloc_results, LEGACY_VALUE_BLOCS)
@@ -281,6 +298,7 @@ def _compute_advanced(
     total = max(0.0, min(100.0, round(total, 2)))
 
     all_contributions = tuple(c for br in bloc_results.values() for c in br.contributions)
+    profile_label = _detect_profile(metrics, bloc_results)
 
     return _AdvancedResult(
         scores=SnapshotScores(
@@ -291,6 +309,7 @@ def _compute_advanced(
             total=total,
         ),
         all_contributions=all_contributions,
+        profile_label=profile_label,
     )
 
 
@@ -526,6 +545,64 @@ def _is_reinvestment_phase(metrics: Mapping[str, object]) -> bool:
     fcf_m = _get(metrics, "fcf_margin")
     gm = _get(metrics, "gross_margin")
     return rev_g is not None and rev_g > 0.15 and fcf_m is not None and fcf_m < 0.02 and gm is not None and gm > 0.20
+
+
+def _is_compounder(metrics: Mapping[str, object]) -> bool:
+    roic = _get(metrics, "roic")
+    gm = _get(metrics, "gross_margin")
+    rev_g = _get(metrics, "revenue_growth")
+    return roic is not None and roic >= 0.15 and gm is not None and gm >= 0.30 and rev_g is not None and rev_g > 0.0
+
+
+def _is_low_visibility(metrics: Mapping[str, object]) -> bool:
+    keys = ("roic", "revenue_growth", "ebit_margin", "net_debt_to_ebitda")
+    available = sum(1 for k in keys if _get(metrics, k) is not None)
+    return available < 2
+
+
+def _detect_profile(
+    metrics: Mapping[str, object],
+    bloc_results: dict[str, _BlocResult],
+) -> str:
+    if _is_distressed(metrics):
+        return _PROFILE_DISTRESSED
+    if _is_value_trap(metrics, bloc_results):
+        return _PROFILE_VALUE_TRAP
+    if _detect_turnaround(metrics) is not None:
+        return _PROFILE_TURNAROUND
+    if _is_compounder(metrics):
+        return _PROFILE_COMPOUNDER
+    if _is_reinvestment_phase(metrics):
+        return _PROFILE_REINVESTMENT
+    if _is_cyclical(metrics):
+        return _PROFILE_CYCLICAL
+    if _is_low_visibility(metrics):
+        return _PROFILE_LOW_VISIBILITY
+    return _PROFILE_STANDARD
+
+
+def _apply_reinvestment_cfq_relief(
+    metrics: Mapping[str, object],
+    bloc_results: dict[str, _BlocResult],
+) -> dict[str, _BlocResult]:
+    if not _is_reinvestment_phase(metrics):
+        return bloc_results
+    cfq = bloc_results.get("cash_flow_quality")
+    if cfq is None or cfq.available_metrics == 0:
+        return bloc_results
+    if cfq.score >= _CFQ_REINVESTMENT_FLOOR:
+        return bloc_results
+    lift = min(_CFQ_REINVESTMENT_FLOOR - cfq.score, _CFQ_REINVESTMENT_MAX_LIFT)
+    new_score = cfq.score + lift
+    bloc_results = dict(bloc_results)
+    bloc_results["cash_flow_quality"] = _BlocResult(
+        name=cfq.name,
+        score=round(new_score, 2),
+        available_metrics=cfq.available_metrics,
+        total_metrics=cfq.total_metrics,
+        contributions=cfq.contributions,
+    )
+    return bloc_results
 
 
 # ---------------------------------------------------------------------------

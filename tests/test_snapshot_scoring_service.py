@@ -6,6 +6,7 @@ from src.models.kpi_snapshot import KpiSnapshot
 from src.services.scoring_config import SnapshotSubScoreWeights
 from src.services.scoring_service import (
     GROWTH_SCORE_KEY,
+    PROFILE_LABEL_KEY,
     QUALITY_SCORE_KEY,
     RISK_SCORE_KEY,
     SCORE_WEIGHT_GROWTH_KEY,
@@ -45,8 +46,9 @@ def _all_good_metrics() -> dict[str, object]:
         "gross_profitability": 0.35,
         "roa": 0.10,
         "ebit_margin": 0.15,
-        "net_debt_growth": -0.10,
-        "fcf_yield": 0.10,
+        "ronic": 0.20,
+        "capex_to_revenue": 0.02,
+        "shares_growth": -0.02,
         "net_debt_to_ebitda": 0.5,
         "interest_coverage": 8.0,
         "current_ratio": 2.0,
@@ -54,6 +56,8 @@ def _all_good_metrics() -> dict[str, object]:
         "cfo_to_net_income": 1.3,
         "cfo_to_ebit": 1.1,
         "fcf_margin": 0.10,
+        "cfo_margin": 0.10,
+        "cfo_streak_negative": 0,
         "accrual_ratio": -0.08,
         "ev_ebit": 6.0,
         "ev_fcf": 10.0,
@@ -77,8 +81,9 @@ def _all_bad_metrics() -> dict[str, object]:
         "gross_profitability": 0.02,
         "roa": -0.02,
         "ebit_margin": -0.03,
-        "net_debt_growth": 0.30,
-        "fcf_yield": -0.03,
+        "ronic": -0.05,
+        "capex_to_revenue": 0.20,
+        "shares_growth": 0.10,
         "net_debt_to_ebitda": 6.0,
         "interest_coverage": 0.5,
         "current_ratio": 0.5,
@@ -86,6 +91,8 @@ def _all_bad_metrics() -> dict[str, object]:
         "cfo_to_net_income": 0.3,
         "cfo_to_ebit": 0.2,
         "fcf_margin": -0.05,
+        "cfo_margin": -0.05,
+        "cfo_streak_negative": 2,
         "accrual_ratio": 0.15,
         "ev_ebit": 25.0,
         "ev_fcf": 40.0,
@@ -443,3 +450,36 @@ def test_all_blocs_produce_score():
     assert scores.growth > 0.0
     assert scores.risk > 0.0
     assert scores.total > 0.0
+
+
+def test_apply_scores_stores_profile_label():
+    snapshot = _make_snapshot(_all_good_metrics())
+    updated = apply_scores(snapshot)
+
+    assert PROFILE_LABEL_KEY in updated.metrics
+    assert isinstance(updated.metrics[PROFILE_LABEL_KEY], str)
+    assert updated.metrics[PROFILE_LABEL_KEY] != ""
+
+
+def test_profile_label_is_distressed_when_highly_leveraged():
+    metrics = _all_good_metrics()
+    metrics["net_debt_to_ebitda"] = 6.0
+    metrics["interest_coverage"] = 1.0
+    snapshot = _make_snapshot(metrics)
+    updated = apply_scores(snapshot)
+
+    assert updated.metrics[PROFILE_LABEL_KEY] == "distressed"
+
+
+def test_profile_label_is_compounder_when_quality_and_growth():
+    metrics = _all_good_metrics()
+    metrics["roic"] = 0.20
+    metrics["gross_margin"] = 0.45
+    metrics["revenue_growth"] = 0.12
+    # ensure not distressed or value_trap
+    metrics["net_debt_to_ebitda"] = 0.5
+    metrics["interest_coverage"] = 10.0
+    snapshot = _make_snapshot(metrics)
+    updated = apply_scores(snapshot)
+
+    assert updated.metrics[PROFILE_LABEL_KEY] == "compounder"

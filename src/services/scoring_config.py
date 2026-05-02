@@ -70,10 +70,12 @@ BLOC_DEFS: tuple[BlocDef, ...] = (
         "growth_trajectory",
         0.12,
         (
+            # gross_profit_growth is top priority: captures margin quality of growth
             ("gross_profit_growth", MetricDef(0.35, 0.15, -0.05, False)),
-            ("revenue_growth", MetricDef(0.25, 0.12, -0.05, False)),
+            ("revenue_growth", MetricDef(0.30, 0.12, -0.05, False)),
             ("revenue_cagr_3y", MetricDef(0.25, 0.10, -0.03, False)),
-            ("ebitda_growth", MetricDef(0.15, 0.15, -0.10, False)),
+            # ebitda_growth: lower weight; not duplicated in capital_allocation
+            ("ebitda_growth", MetricDef(0.10, 0.15, -0.10, False)),
         ),
     ),
     BlocDef(
@@ -90,15 +92,19 @@ BLOC_DEFS: tuple[BlocDef, ...] = (
         "capital_allocation",
         0.10,
         (
-            ("ebitda_growth", MetricDef(0.40, 0.12, -0.05, False)),
-            ("net_debt_growth", MetricDef(0.30, -0.05, 0.20, True)),
-            ("fcf_yield", MetricDef(0.30, 0.08, 0.0, False)),
+            # ronic = ΔEBIT (or ΔEBITDA) / Δcapital_invested; primary capital efficiency signal
+            ("ronic", MetricDef(0.55, 0.15, 0.0, False)),
+            # capex_to_revenue: capital-light model preferred (lower is better)
+            ("capex_to_revenue", MetricDef(0.25, 0.03, 0.15, True)),
+            # shares_growth: dilution penalised; buybacks rewarded (lower is better)
+            ("shares_growth", MetricDef(0.20, -0.01, 0.05, True)),
         ),
     ),
     BlocDef(
         "balance_sheet_strength",
         0.14,
         (
+            # Sole home for accounting leverage / coverage / liquidity
             ("net_debt_to_ebitda", MetricDef(0.35, 1.0, 4.0, True)),
             ("interest_coverage", MetricDef(0.25, 6.0, 1.5, False)),
             ("current_ratio", MetricDef(0.20, 1.5, 0.8, False)),
@@ -109,10 +115,14 @@ BLOC_DEFS: tuple[BlocDef, ...] = (
         "cash_flow_quality",
         0.12,
         (
-            ("cfo_to_net_income", MetricDef(0.30, 1.2, 0.5, False)),
-            ("cfo_to_ebit", MetricDef(0.25, 1.0, 0.4, False)),
+            # accrual_ratio moved to risk_inverse (forensic layer)
+            ("cfo_to_net_income", MetricDef(0.25, 1.2, 0.5, False)),
+            ("cfo_to_ebit", MetricDef(0.20, 1.0, 0.4, False)),
             ("fcf_margin", MetricDef(0.25, 0.08, -0.02, False)),
-            ("accrual_ratio", MetricDef(0.20, -0.05, 0.10, True)),
+            # cfo_margin: absolute CFO level; negative CFO scores 0
+            ("cfo_margin", MetricDef(0.20, 0.08, -0.02, False)),
+            # cfo_streak_negative: 0=none, 1=1 year, 2=2 consecutive; lower is better
+            ("cfo_streak_negative", MetricDef(0.10, 0.0, 2.0, True)),
         ),
     ),
     BlocDef(
@@ -129,11 +139,12 @@ BLOC_DEFS: tuple[BlocDef, ...] = (
         "risk_inverse",
         0.13,
         (
-            ("altman_z_proxy", MetricDef(0.25, 3.0, 1.2, False)),
-            ("net_debt_to_ebitda", MetricDef(0.25, 1.0, 4.0, True)),
-            ("beta", MetricDef(0.20, 0.8, 1.8, True)),
-            ("current_ratio", MetricDef(0.15, 1.5, 0.8, False)),
-            ("debt_to_equity", MetricDef(0.15, 0.5, 2.0, True)),
+            # Accounting composite — no overlap with balance_sheet metrics
+            ("altman_z_proxy", MetricDef(0.40, 3.0, 1.2, False)),
+            # Market layer
+            ("beta", MetricDef(0.30, 0.8, 1.8, True)),
+            # Forensic layer — moved from cash_flow_quality
+            ("accrual_ratio", MetricDef(0.30, -0.05, 0.10, True)),
         ),
     ),
 )
