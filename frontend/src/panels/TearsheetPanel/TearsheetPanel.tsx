@@ -278,6 +278,43 @@ export function TearsheetPanel() {
           <section className="space-y-4">
             <ScoreBreakdown score={score} detail={detail} historical={historical} />
             <section className="grid gap-3 p-4 md:grid-cols-2">
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 md:col-span-2">
+                <p className="font-mono text-xs uppercase text-[var(--color-text-muted)]">Momentum</p>
+                <p className="mt-1 text-sm text-[var(--color-text-primary)]">
+                  1M: {formatPercentRatio(insights.momentum.performance_1m)} | 6M: {formatPercentRatio(insights.momentum.performance_6m)} | 12M: {formatPercentRatio(insights.momentum.performance_12m)}
+                </p>
+                <p className="mt-1 text-sm text-[var(--color-text-primary)]">
+                  vs 52w high: {formatPercentRatio(insights.momentum.pct_vs_52w_high)} | vs 52w low: {formatPercentRatio(insights.momentum.pct_vs_52w_low)}
+                </p>
+              </div>
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 md:col-span-2">
+                <p className="font-mono text-xs uppercase text-[var(--color-text-muted)]">Analyst sentiment</p>
+                <p className="mt-1 text-sm text-[var(--color-text-primary)]">
+                  Target: {formatNumber(insights.business.analyst_target_price, 2)} | Current: {formatNumber(detail.current_price, 2)}
+                </p>
+                <p className="mt-1 text-sm text-[var(--color-text-primary)]">
+                  Upside: {formatPercentRatio(insights.business.analyst_target_upside)} | Reco: {insights.business.analyst_recommendation ?? "—"} | Analysts: {insights.business.analyst_count ?? 0}
+                </p>
+              </div>
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 md:col-span-2">
+                <p className="font-mono text-xs uppercase text-[var(--color-text-muted)]">Ownership</p>
+                <p className="mt-1 text-sm text-[var(--color-text-primary)]">
+                  Institutional: {formatPercentRatio(insights.ownership.institutional_pct === null ? null : insights.ownership.institutional_pct / 100)} | Insiders: {formatPercentRatio(insights.ownership.insiders_pct === null ? null : insights.ownership.insiders_pct / 100)}
+                </p>
+                <div className="mt-1 space-y-1 text-sm text-[var(--color-text-primary)]">
+                  {insights.ownership.top_holders.length === 0 ? (
+                    <p>Top holders: —</p>
+                  ) : (
+                    insights.ownership.top_holders.map((holder) => (
+                      <p key={holder.holder_name}>
+                        {holder.holder_name}: {formatPercentRatio(holder.weight === null ? null : holder.weight / 100)}
+                      </p>
+                    ))
+                  )}
+                </div>
+              </div>
+            </section>
+            <section className="grid gap-3 p-4 md:grid-cols-2">
               <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Sector: {insights.business.sector ?? "—"}</div>
               <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Industry: {insights.business.industry ?? "—"}</div>
               <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Market cap: {formatMarketCap(insights.business.market_cap)}</div>
@@ -288,7 +325,9 @@ export function TearsheetPanel() {
               <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)] md:col-span-2">Business model: {insights.business.business_model ?? "—"}</div>
             </section>
             <section className="space-y-3 p-4">
-              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Data quality score: {insights.data_quality.data_quality_score ?? "—"}</div>
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">
+                Data confidence: score {insights.data_quality.data_quality_score ?? "—"} | years available {insights.data_quality.years_available}
+              </div>
               <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
                 <p className="font-mono text-xs uppercase text-[var(--color-text-muted)]">Missing data</p>
                 <div className="mt-1 space-y-1 text-sm text-[var(--color-text-primary)]">

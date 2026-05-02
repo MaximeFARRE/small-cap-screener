@@ -4,7 +4,7 @@ import logging
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -254,8 +254,25 @@ class CapitalAllocationSummary:
 @dataclass(frozen=True)
 class DataQualitySummary:
     data_quality_score: float | None
+    years_available: int
     missing_data: tuple[str, ...]
     warnings: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class MomentumSummary:
+    performance_1m: float | None
+    performance_6m: float | None
+    performance_12m: float | None
+    pct_vs_52w_high: float | None
+    pct_vs_52w_low: float | None
+
+
+@dataclass(frozen=True)
+class OwnershipSummary:
+    institutional_pct: float | None
+    insiders_pct: float | None
+    top_holders: tuple[OwnershipHolderItem, ...]
 
 
 @dataclass
@@ -347,10 +364,49 @@ class CompanyDetailService:
             warnings.append("low data quality score")
         if detail.missing_fields:
             warnings.append("missing key fields")
+        years_available = len(detail.historical_fundamentals.revenue_history)
         return DataQualitySummary(
             data_quality_score=detail.data_quality_score,
+            years_available=years_available,
             missing_data=detail.missing_fields,
             warnings=tuple(warnings),
+        )
+
+    def compute_momentum_summary(self, company_id: int) -> MomentumSummary:
+        with self.session_scope_factory() as session:
+            prices = price_history_repository.get_by_company(session, company_id)
+        if not prices:
+            return MomentumSummary(None, None, None, None, None)
+        latest = prices[0]
+        latest_date = latest.date
+        latest_close = latest.close
+        perf_1m = _performance_since(prices, latest_date - timedelta(days=30), latest_close)
+        perf_6m = _performance_since(prices, latest_date - timedelta(days=182), latest_close)
+        perf_12m = _performance_since(prices, latest_date - timedelta(days=365), latest_close)
+        one_year_window = [p for p in prices if p.date >= latest_date - timedelta(days=365)]
+        if not one_year_window:
+            one_year_window = prices
+        high_52w = max((p.high if p.high is not None else p.close) for p in one_year_window)
+        low_52w = min((p.low if p.low is not None else p.close) for p in one_year_window)
+        pct_vs_52w_high = None if abs(high_52w) < _ZERO else (latest_close - high_52w) / high_52w
+        pct_vs_52w_low = None if abs(low_52w) < _ZERO else (latest_close - low_52w) / low_52w
+        return MomentumSummary(
+            performance_1m=perf_1m,
+            performance_6m=perf_6m,
+            performance_12m=perf_12m,
+            pct_vs_52w_high=pct_vs_52w_high,
+            pct_vs_52w_low=pct_vs_52w_low,
+        )
+
+    def compute_ownership_summary(self, detail: CompanyFinancialDetail) -> OwnershipSummary:
+        institutional_pct = _sum_holder_weights(detail.institutional_holders)
+        insider_candidates = [holder for holder in detail.major_holders if holder.holder_type == "insider"]
+        insiders_pct = _sum_holder_weights(tuple(insider_candidates))
+        top_holders = tuple(detail.top_shareholders[:5])
+        return OwnershipSummary(
+            institutional_pct=institutional_pct,
+            insiders_pct=insiders_pct,
+            top_holders=top_holders,
         )
 
 
@@ -884,3 +940,19 @@ def _reinvestment_vs_returns_label(roic: float | None, fcf_yield: float | None) 
     if fcf_yield is not None and fcf_yield < 0:
         return "reinvestment currently pressuring returns"
     return "moderate capital efficiency"
+
+
+def _performance_since(prices_desc: list[PriceHistory], target_date: date, latest_close: float) -> float | None:
+    reference = next((item for item in prices_desc if item.date <= target_date), None)
+    if reference is None:
+        return None
+    if abs(reference.close) < _ZERO:
+        return None
+    return (latest_close - reference.close) / reference.close
+
+
+def _sum_holder_weights(holders: tuple[OwnershipHolderItem, ...]) -> float | None:
+    weights = [holder.weight for holder in holders if holder.weight is not None]
+    if not weights:
+        return None
+    return sum(weights)

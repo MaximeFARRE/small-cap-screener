@@ -288,6 +288,8 @@ def get_company_insights(
     valuation = detail_service.compute_valuation_summary(detail, ev_peer_median, pe_peer_median)
     quality_risk = detail_service.compute_quality_metrics(detail)
     business = detail_service.compute_business_summary(detail)
+    momentum = detail_service.compute_momentum_summary(company_id)
+    ownership = detail_service.compute_ownership_summary(detail)
     capital_allocation = detail_service.compute_allocation_metrics(detail)
     data_quality = detail_service.compute_data_quality_summary(detail)
     analysis = scoring_service.describe_company(
@@ -305,9 +307,18 @@ def get_company_insights(
         valuation=valuation,  # type: ignore[arg-type]
         quality_risk=quality_risk,  # type: ignore[arg-type]
         business=business,  # type: ignore[arg-type]
+        momentum=momentum,  # type: ignore[arg-type]
+        ownership={
+            "institutional_pct": ownership.institutional_pct,
+            "insiders_pct": ownership.insiders_pct,
+            "top_holders": [
+                {"holder_name": holder.holder_name, "weight": holder.weight} for holder in ownership.top_holders
+            ],
+        },
         capital_allocation=capital_allocation,  # type: ignore[arg-type]
         data_quality={
             "data_quality_score": data_quality.data_quality_score,
+            "years_available": data_quality.years_available,
             "missing_data": list(data_quality.missing_data),
             "warnings": list(data_quality.warnings),
         },

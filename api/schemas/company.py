@@ -195,8 +195,34 @@ class DataQualitySummarySchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     data_quality_score: float | None
+    years_available: int
     missing_data: list[str]
     warnings: list[str]
+
+
+class MomentumSummarySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    performance_1m: float | None
+    performance_6m: float | None
+    performance_12m: float | None
+    pct_vs_52w_high: float | None
+    pct_vs_52w_low: float | None
+
+
+class OwnershipHolderSummarySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    holder_name: str
+    weight: float | None
+
+
+class OwnershipSummarySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    institutional_pct: float | None
+    insiders_pct: float | None
+    top_holders: list[OwnershipHolderSummarySchema]
 
 
 class CompanyInsightsSchema(BaseModel):
@@ -204,5 +230,7 @@ class CompanyInsightsSchema(BaseModel):
     valuation: ValuationSummarySchema
     quality_risk: QualityRiskSummarySchema
     business: BusinessSummarySchema
+    momentum: MomentumSummarySchema
+    ownership: OwnershipSummarySchema
     capital_allocation: CapitalAllocationSummarySchema
     data_quality: DataQualitySummarySchema

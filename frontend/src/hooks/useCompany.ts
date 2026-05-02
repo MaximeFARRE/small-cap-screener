@@ -207,8 +207,28 @@ export interface CapitalAllocationSummary {
 
 export interface DataQualitySummary {
   data_quality_score: number | null;
+  years_available: number;
   missing_data: string[];
   warnings: string[];
+}
+
+export interface MomentumSummary {
+  performance_1m: number | null;
+  performance_6m: number | null;
+  performance_12m: number | null;
+  pct_vs_52w_high: number | null;
+  pct_vs_52w_low: number | null;
+}
+
+export interface OwnershipTopHolder {
+  holder_name: string;
+  weight: number | null;
+}
+
+export interface OwnershipSummary {
+  institutional_pct: number | null;
+  insiders_pct: number | null;
+  top_holders: OwnershipTopHolder[];
 }
 
 export interface CompanyInsights {
@@ -216,6 +236,8 @@ export interface CompanyInsights {
   valuation: ValuationSummary;
   quality_risk: QualityRiskSummary;
   business: BusinessSummary;
+  momentum: MomentumSummary;
+  ownership: OwnershipSummary;
   capital_allocation: CapitalAllocationSummary;
   data_quality: DataQualitySummary;
 }
