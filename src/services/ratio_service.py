@@ -30,6 +30,10 @@ class CompanyRatios:
     ebitda_growth: float | None = None
     revenue_cagr_3y: float | None = None
     ebitda_cagr_3y: float | None = None
+    net_income_growth: float | None = None
+    fcf_growth: float | None = None
+    gross_profit_growth: float | None = None
+    net_debt_growth: float | None = None
     net_debt_to_ebitda: float | None = None
     current_ratio: float | None = None
     interest_coverage: float | None = None
@@ -102,6 +106,22 @@ class RatioService:
             ebitda_cagr_3y=self.ebitda_cagr_3y(
                 current_ebitda=stmt.ebitda,
                 three_year_ago_ebitda=three_year_ago_stmt.ebitda if three_year_ago_stmt is not None else None,
+            ),
+            net_income_growth=self.net_income_growth(
+                current_net_income=stmt.net_income,
+                previous_net_income=previous_stmt.net_income if previous_stmt is not None else None,
+            ),
+            fcf_growth=self.fcf_growth(
+                current_fcf=stmt.free_cash_flow,
+                previous_fcf=previous_stmt.free_cash_flow if previous_stmt is not None else None,
+            ),
+            gross_profit_growth=self.gross_profit_growth(
+                current_gross_profit=stmt.gross_profit,
+                previous_gross_profit=previous_stmt.gross_profit if previous_stmt is not None else None,
+            ),
+            net_debt_growth=self.net_debt_growth(
+                current_net_debt=stmt.net_debt,
+                previous_net_debt=previous_stmt.net_debt if previous_stmt is not None else None,
             ),
             net_debt_to_ebitda=self.net_debt_to_ebitda(stmt.net_debt, stmt.ebitda),
             current_ratio=self.current_ratio(current_assets, current_liabilities),
@@ -208,6 +228,50 @@ class RatioService:
         if previous_ebitda <= self.zero_threshold:
             return None
         return (current_ebitda - previous_ebitda) / previous_ebitda
+
+    def net_income_growth(
+        self,
+        current_net_income: float | None,
+        previous_net_income: float | None,
+    ) -> float | None:
+        return self._yoy_growth(current_net_income, previous_net_income)
+
+    def fcf_growth(
+        self,
+        current_fcf: float | None,
+        previous_fcf: float | None,
+    ) -> float | None:
+        return self._yoy_growth(current_fcf, previous_fcf)
+
+    def gross_profit_growth(
+        self,
+        current_gross_profit: float | None,
+        previous_gross_profit: float | None,
+    ) -> float | None:
+        return self._yoy_growth(current_gross_profit, previous_gross_profit)
+
+    def net_debt_growth(
+        self,
+        current_net_debt: float | None,
+        previous_net_debt: float | None,
+    ) -> float | None:
+        if current_net_debt is None or previous_net_debt is None:
+            return None
+        if not _is_finite(current_net_debt) or not _is_finite(previous_net_debt):
+            return None
+        abs_base = abs(previous_net_debt)
+        if abs_base < self.zero_threshold:
+            return None
+        return (current_net_debt - previous_net_debt) / abs_base
+
+    def _yoy_growth(self, current: float | None, previous: float | None) -> float | None:
+        if current is None or previous is None:
+            return None
+        if not _is_finite(current) or not _is_finite(previous):
+            return None
+        if previous <= self.zero_threshold:
+            return None
+        return (current - previous) / previous
 
     def revenue_cagr_3y(
         self,
@@ -417,6 +481,22 @@ def net_margin(net_income: float | None, revenue: float | None) -> float | None:
 
 def debt_to_equity(total_debt: float | None, total_equity: float | None) -> float | None:
     return _SERVICE.debt_to_equity(total_debt, total_equity)
+
+
+def net_income_growth(current_net_income: float | None, previous_net_income: float | None) -> float | None:
+    return _SERVICE.net_income_growth(current_net_income, previous_net_income)
+
+
+def fcf_growth(current_fcf: float | None, previous_fcf: float | None) -> float | None:
+    return _SERVICE.fcf_growth(current_fcf, previous_fcf)
+
+
+def gross_profit_growth(current_gross_profit: float | None, previous_gross_profit: float | None) -> float | None:
+    return _SERVICE.gross_profit_growth(current_gross_profit, previous_gross_profit)
+
+
+def net_debt_growth(current_net_debt: float | None, previous_net_debt: float | None) -> float | None:
+    return _SERVICE.net_debt_growth(current_net_debt, previous_net_debt)
 
 
 def revenue_cagr_3y(current_revenue: float | None, three_year_ago_revenue: float | None) -> float | None:
