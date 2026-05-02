@@ -193,6 +193,10 @@ def _ensure_financial_statement_columns() -> None:
         "current_assets": "FLOAT",
         "current_liabilities": "FLOAT",
         "interest_expense": "FLOAT",
+        "operating_cash_flow": "FLOAT",
+        "capex": "FLOAT",
+        "depreciation_amortization": "FLOAT",
+        "pretax_income": "FLOAT",
     }
     with engine.begin() as connection:
         inspector = inspect(connection)

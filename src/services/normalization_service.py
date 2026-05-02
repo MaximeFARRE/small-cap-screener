@@ -35,6 +35,10 @@ class NormalizedFinancialStatement:
     current_assets: float | None = None
     current_liabilities: float | None = None
     interest_expense: float | None = None
+    operating_cash_flow: float | None = None
+    capex: float | None = None
+    depreciation_amortization: float | None = None
+    pretax_income: float | None = None
 
 
 @dataclass
