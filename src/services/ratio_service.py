@@ -28,6 +28,8 @@ class CompanyRatios:
     operating_margin: float | None = None
     revenue_growth: float | None = None
     ebitda_growth: float | None = None
+    revenue_cagr_3y: float | None = None
+    ebitda_cagr_3y: float | None = None
     net_debt_to_ebitda: float | None = None
     current_ratio: float | None = None
     interest_coverage: float | None = None
@@ -50,6 +52,7 @@ class RatioService:
         price: float,
         stmt: FinancialStatement,
         previous_stmt: FinancialStatement | None = None,
+        three_year_ago_stmt: FinancialStatement | None = None,
         *,
         gross_profit: float | None = None,
         current_assets: float | None = None,
@@ -91,6 +94,14 @@ class RatioService:
             ebitda_growth=self.ebitda_growth(
                 current_ebitda=stmt.ebitda,
                 previous_ebitda=previous_stmt.ebitda if previous_stmt is not None else None,
+            ),
+            revenue_cagr_3y=self.revenue_cagr_3y(
+                current_revenue=stmt.revenue,
+                three_year_ago_revenue=three_year_ago_stmt.revenue if three_year_ago_stmt is not None else None,
+            ),
+            ebitda_cagr_3y=self.ebitda_cagr_3y(
+                current_ebitda=stmt.ebitda,
+                three_year_ago_ebitda=three_year_ago_stmt.ebitda if three_year_ago_stmt is not None else None,
             ),
             net_debt_to_ebitda=self.net_debt_to_ebitda(stmt.net_debt, stmt.ebitda),
             current_ratio=self.current_ratio(current_assets, current_liabilities),
@@ -198,6 +209,29 @@ class RatioService:
             return None
         return (current_ebitda - previous_ebitda) / previous_ebitda
 
+    def revenue_cagr_3y(
+        self,
+        current_revenue: float | None,
+        three_year_ago_revenue: float | None,
+    ) -> float | None:
+        return self._cagr_3y(current_revenue, three_year_ago_revenue)
+
+    def ebitda_cagr_3y(
+        self,
+        current_ebitda: float | None,
+        three_year_ago_ebitda: float | None,
+    ) -> float | None:
+        return self._cagr_3y(current_ebitda, three_year_ago_ebitda)
+
+    def _cagr_3y(self, current: float | None, three_years_ago: float | None) -> float | None:
+        if current is None or three_years_ago is None:
+            return None
+        if not _is_finite(current) or not _is_finite(three_years_ago):
+            return None
+        if three_years_ago <= self.zero_threshold:
+            return None
+        return (current / three_years_ago) ** (1.0 / 3.0) - 1.0
+
     def net_debt_to_ebitda(self, net_debt: float | None, ebitda: float | None) -> float | None:
         return _safe_div(net_debt, ebitda, positive_denominator=True)
 
@@ -253,6 +287,7 @@ def compute_all(
     price: float,
     stmt: FinancialStatement,
     previous_stmt: FinancialStatement | None = None,
+    three_year_ago_stmt: FinancialStatement | None = None,
     *,
     gross_profit: float | None = None,
     current_assets: float | None = None,
@@ -267,6 +302,7 @@ def compute_all(
         price=price,
         stmt=stmt,
         previous_stmt=previous_stmt,
+        three_year_ago_stmt=three_year_ago_stmt,
         gross_profit=gross_profit,
         current_assets=current_assets,
         current_liabilities=current_liabilities,
@@ -381,3 +417,11 @@ def net_margin(net_income: float | None, revenue: float | None) -> float | None:
 
 def debt_to_equity(total_debt: float | None, total_equity: float | None) -> float | None:
     return _SERVICE.debt_to_equity(total_debt, total_equity)
+
+
+def revenue_cagr_3y(current_revenue: float | None, three_year_ago_revenue: float | None) -> float | None:
+    return _SERVICE.revenue_cagr_3y(current_revenue, three_year_ago_revenue)
+
+
+def ebitda_cagr_3y(current_ebitda: float | None, three_year_ago_ebitda: float | None) -> float | None:
+    return _SERVICE.ebitda_cagr_3y(current_ebitda, three_year_ago_ebitda)
