@@ -6,6 +6,8 @@ from api.schemas.scoring import ScoreBreakdownSchema
 
 
 class AnalystMemoSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     investment_thesis: str | None = None
     key_risks: str | None = None
     catalysts: str | None = None

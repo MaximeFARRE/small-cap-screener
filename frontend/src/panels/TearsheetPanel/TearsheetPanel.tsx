@@ -35,6 +35,12 @@ const TABS: Array<{ key: TearsheetTab; label: string }> = [
 export function TearsheetPanel() {
   const { activeTicker } = useWorkspace();
   const [activeTab, setActiveTab] = useState<TearsheetTab>("summary");
+  const [heroCollapsed, setHeroCollapsed] = useState(false);
+
+  function selectTab(tab: TearsheetTab) {
+    setActiveTab(tab);
+    if (tab !== "summary") setHeroCollapsed(true);
+  }
 
   const detailQuery = useCompanyDetail(activeTicker);
   const scoreQuery = useCompanyScore(activeTicker);
@@ -133,6 +139,8 @@ export function TearsheetPanel() {
         detail={detail}
         score={score}
         isInWatchlist={isInWatchlist}
+        isCollapsed={heroCollapsed}
+        onToggleCollapse={() => setHeroCollapsed((c) => !c)}
         watchlistActionPending={addToWatchlist.isPending || removeFromWatchlist.isPending}
         onAddToWatchlist={() => {
           if (ticker) {
@@ -165,7 +173,7 @@ export function TearsheetPanel() {
           <button
             key={tab.key}
             type="button"
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => selectTab(tab.key)}
             className={cn(
               "rounded-sm border px-2 py-1 font-mono text-xs transition-colors",
               activeTab === tab.key
