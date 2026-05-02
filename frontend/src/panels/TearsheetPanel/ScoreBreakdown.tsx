@@ -1,10 +1,13 @@
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { CompanyScore, ScoreMetricDriver } from "@/hooks";
-import { formatNumber } from "@/lib/formatters";
+import type { CompanyDetail, CompanyScore, HistoricalFundamentals, ScoreMetricDriver } from "@/hooks";
+import { formatMarketCap, formatNumber, formatPercent } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
 
 interface ScoreBreakdownProps {
   score: CompanyScore;
+  detail?: CompanyDetail;
+  historical?: HistoricalFundamentals;
 }
 
 function DriverRow({
@@ -35,7 +38,18 @@ function DriverRow({
   );
 }
 
-export function ScoreBreakdown({ score }: ScoreBreakdownProps) {
+function latestGrowth(points: Array<{ fiscal_year: number; value: number }>): number | null {
+  if (points.length === 0) return null;
+  const sorted = [...points].sort((left, right) => right.fiscal_year - left.fiscal_year);
+  return sorted[0]?.value ?? null;
+}
+
+function trendClass(value: number | null): string {
+  if (value === null) return "text-[var(--color-text-muted)]";
+  return value >= 0 ? "text-[var(--color-positive)]" : "text-[var(--color-negative)]";
+}
+
+export function ScoreBreakdown({ score, detail, historical }: ScoreBreakdownProps) {
   const bars = useMemo(() => [
     { key: "quality", label: "Quality", value: score.quality },
     { key: "value", label: "Value", value: score.value },
@@ -64,6 +78,57 @@ export function ScoreBreakdown({ score }: ScoreBreakdownProps) {
 
   return (
     <section className="space-y-4 border-b border-[var(--color-border)] p-4">
+      {detail && historical && (
+        <>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+              <p className="font-mono text-[10px] uppercase text-[var(--color-text-muted)]">Score</p>
+              <p className="font-mono text-2xl font-bold text-[var(--color-text-primary)]">
+                {score.total_score === null ? "—" : Math.round(score.total_score)}
+              </p>
+            </div>
+            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+              <p className="font-mono text-[10px] uppercase text-[var(--color-text-muted)]">Market Cap</p>
+              <p className="font-mono text-2xl font-bold text-[var(--color-text-primary)]">
+                {formatMarketCap(detail.market_cap)}
+              </p>
+            </div>
+            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+              <p className="font-mono text-[10px] uppercase text-[var(--color-text-muted)]">EV</p>
+              <p className="font-mono text-2xl font-bold text-[var(--color-text-primary)]">
+                {formatMarketCap(detail.enterprise_value)}
+              </p>
+            </div>
+            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+              <p className="font-mono text-[10px] uppercase text-[var(--color-text-muted)]">FCF Yield</p>
+              <p className="font-mono text-2xl font-bold text-[var(--color-text-primary)]">
+                {formatPercent(detail.fcf_yield)}
+              </p>
+            </div>
+          </div>
+          <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+            <p className="font-mono text-[10px] uppercase text-[var(--color-text-muted)]">Quick verdict</p>
+            <p className="mt-1 text-sm text-[var(--color-text-primary)]">{score.summary}</p>
+          </div>
+          <div className="grid gap-2 md:grid-cols-3">
+            {[
+              { label: "Revenue growth", value: detail.revenue_growth },
+              { label: "EBITDA growth", value: detail.ebitda_growth },
+              { label: "FCF growth", value: latestGrowth(historical.free_cash_flow_growth_history) },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3"
+              >
+                <p className="font-mono text-[10px] uppercase text-[var(--color-text-muted)]">{item.label}</p>
+                <p className={cn("font-mono text-xl font-semibold", trendClass(item.value))}>
+                  {formatPercent(item.value)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <p className="font-mono text-xs uppercase text-[var(--color-text-muted)]">

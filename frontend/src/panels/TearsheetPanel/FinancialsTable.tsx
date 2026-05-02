@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import type { HistoricalFundamentals, HistoricalMetricPoint } from "@/hooks";
 import { cn } from "@/lib/utils";
 
@@ -8,7 +9,8 @@ interface FinancialsTableProps {
 interface FinancialRowDefinition {
   key: string;
   label: string;
-  points: HistoricalMetricPoint[];
+  absolutePoints: HistoricalMetricPoint[];
+  growthPoints: HistoricalMetricPoint[];
   cagr: number | null;
 }
 
@@ -24,13 +26,6 @@ const PERCENT = new Intl.NumberFormat("en-US", {
 
 function valueForYear(points: HistoricalMetricPoint[], fiscalYear: number): number | null {
   return points.find((point) => point.fiscal_year === fiscalYear)?.value ?? null;
-}
-
-function yoy(current: number | null, previous: number | null): number | null {
-  if (current === null || previous === null || previous === 0) {
-    return null;
-  }
-  return (current - previous) / Math.abs(previous);
 }
 
 function cagrFromPoints(points: HistoricalMetricPoint[]): number | null {
@@ -66,48 +61,56 @@ function formatPercent(value: number | null): string {
 }
 
 export function FinancialsTable({ historical }: FinancialsTableProps) {
+  const [mode, setMode] = useState<"absolute" | "growth">("absolute");
+  const anomalySet = useMemo(
+    () =>
+      new Set(
+        historical.financial_anomalies.map((item) => `${item.metric_key}:${item.fiscal_year}:${item.kind}`),
+      ),
+    [historical.financial_anomalies],
+  );
+
   const rows: FinancialRowDefinition[] = [
     {
       key: "revenue",
       label: "Revenue",
-      points: historical.revenue_history,
+      absolutePoints: historical.revenue_history,
+      growthPoints: historical.revenue_growth_history,
       cagr: historical.revenue_cagr ?? cagrFromPoints(historical.revenue_history),
     },
     {
       key: "ebitda",
       label: "EBITDA",
-      points: historical.ebitda_history,
+      absolutePoints: historical.ebitda_history,
+      growthPoints: historical.ebitda_growth_history,
       cagr: cagrFromPoints(historical.ebitda_history),
     },
     {
       key: "net_income",
       label: "Net Income",
-      points: historical.net_income_history,
+      absolutePoints: historical.net_income_history,
+      growthPoints: historical.net_income_growth_history,
       cagr: historical.net_income_cagr ?? cagrFromPoints(historical.net_income_history),
     },
     {
       key: "free_cash_flow",
       label: "FCF",
-      points: historical.free_cash_flow_history,
+      absolutePoints: historical.free_cash_flow_history,
+      growthPoints: historical.free_cash_flow_growth_history,
       cagr: historical.free_cash_flow_cagr ?? cagrFromPoints(historical.free_cash_flow_history),
-    },
-    {
-      key: "total_assets",
-      label: "Total Assets",
-      points: [],
-      cagr: null,
     },
     {
       key: "net_debt",
       label: "Net Debt",
-      points: historical.net_debt_history,
+      absolutePoints: historical.net_debt_history,
+      growthPoints: [],
       cagr: cagrFromPoints(historical.net_debt_history),
     },
   ];
 
   const years = Array.from(
     new Set(
-      rows.flatMap((row) => row.points.map((point) => point.fiscal_year)),
+      rows.flatMap((row) => row.absolutePoints.map((point) => point.fiscal_year)),
     ),
   )
     .sort((left, right) => right - left)
@@ -115,7 +118,24 @@ export function FinancialsTable({ historical }: FinancialsTableProps) {
 
   return (
     <section className="overflow-auto p-4">
-      <table className="w-full min-w-[760px] table-fixed border-collapse">
+      <div className="mb-3 flex gap-1">
+        {(["absolute", "growth"] as const).map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setMode(key)}
+            className={cn(
+              "rounded-sm border px-2 py-1 font-mono text-xs",
+              mode === key
+                ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-white"
+                : "border-[var(--color-border)] bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)]",
+            )}
+          >
+            {key === "absolute" ? "Absolute values" : "Growth (% YoY)"}
+          </button>
+        ))}
+      </div>
+      <table className="w-full min-w-[760px] table-fixed border-separate border-spacing-y-1">
         <thead>
           <tr className="border-b border-[var(--color-border)]">
             <th className="px-2 py-2 text-left font-mono text-xs uppercase text-[var(--color-text-muted)]">
@@ -140,29 +160,23 @@ export function FinancialsTable({ historical }: FinancialsTableProps) {
               <td className="px-2 py-2 font-mono text-xs text-[var(--color-text-primary)]">
                 {row.label}
               </td>
-              {years.map((year, index) => {
-                const value = valueForYear(row.points, year);
-                const previousYear = years[index + 1];
-                const previousValue =
-                  previousYear === undefined ? null : valueForYear(row.points, previousYear);
-                const yoyChange = yoy(value, previousValue);
+              {years.map((year) => {
+                const value = valueForYear(row.absolutePoints, year);
+                const yoyChange = valueForYear(row.growthPoints, year);
+                const isNegativeEbitda = anomalySet.has(`${row.key}:${year}:negative`);
+                const hasStrongDrop = anomalySet.has(`${row.key}:${year}:strong_drop`);
+                const toneClass =
+                  isNegativeEbitda || hasStrongDrop
+                    ? "text-[var(--color-negative)]"
+                    : "text-[var(--color-text-primary)]";
 
                 return (
-                  <td key={`${row.key}-${year}`} className="px-2 py-2 text-right">
-                    <div className="font-mono text-xs text-[var(--color-text-primary)]">
-                      {formatCurrency(value)}
+                  <td key={`${row.key}-${year}`} className={cn("px-2 py-2 text-right", toneClass)}>
+                    <div className="font-mono text-xs">
+                      {mode === "absolute" ? formatCurrency(value) : formatPercent(yoyChange)}
                     </div>
-                    <div
-                      className={cn(
-                        "font-mono text-[11px]",
-                        yoyChange === null
-                          ? "text-[var(--color-text-muted)]"
-                          : yoyChange >= 0
-                            ? "text-[var(--color-positive)]"
-                            : "text-[var(--color-negative)]",
-                      )}
-                    >
-                      {formatPercent(yoyChange)}
+                    <div className="font-mono text-[11px] text-[var(--color-text-muted)]">
+                      {mode === "absolute" ? formatPercent(yoyChange) : formatCurrency(value)}
                     </div>
                   </td>
                 );
