@@ -1,6 +1,96 @@
 # CHANGELOG
 
+## v2.2.0 (2026-05-02)
+
+### Documentation
+
+* docs: add scoring data audit — data inventory before scoring refactor ([`d6ddef6`](https://github.com/MaximeFARRE/small-cap-screener/commit/d6ddef6440c0bcb881084450ad41c3a67f770e68))
+
+### Feature
+
+* feat: overhaul scoring blocs, add profile detection and CFO hardening
+
+- scoring_config: replace capital_allocation with ronic/capex_to_revenue/shares_growth;
+  move accrual_ratio from cash_flow_quality to risk_inverse (no double-count);
+  add cfo_margin and cfo_streak_negative to cash_flow_quality
+
+- scoring_service: add profile detection (compounder, reinvestment_phase,
+  cyclical, turnaround, value_trap, distressed, low_visibility, standard);
+  store PROFILE_LABEL_KEY in snapshot metrics; add reinvestment CFO relief
+  (lift cash_flow_quality up to floor=35 when in reinvestment phase)
+
+- kpi_snapshot_service: compute ronic (ΔEBIT/Δcapital, ΔEBITDA fallback),
+  capex_to_revenue, shares_growth, cfo_margin, cfo_streak_negative
+
+- tests: update good/bad metric fixtures, add profile label coverage (22 tests)
+
+Co-Authored-By: Claude Sonnet 4.6 &lt;noreply@anthropic.com&gt; ([`3f30f70`](https://github.com/MaximeFARRE/small-cap-screener/commit/3f30f7028c79038d29d6d159a7eaf0d71d0edd1b))
+
+* feat: implement 8-bloc advanced scoring engine with caps and context
+
+Replace the 4-category scoring system with an 8-bloc architecture:
+business_quality, growth_trajectory, profitability, capital_allocation,
+balance_sheet_strength, cash_flow_quality, valuation, risk_inverse.
+
+Each bloc uses threshold-based metric scoring (0-100). The final score
+applies red-flag caps (distressed=35, value_trap=45, dangerous_debt=45),
+context adjustments (reinvestment +6, cyclical +5, distressed -11),
+anti-compensation penalties, and valuation bridling when quality/risk
+are poor. Preserves all public interfaces for backward compatibility.
+
+Co-Authored-By: Claude Opus 4.6 &lt;noreply@anthropic.com&gt; ([`a26f9ab`](https://github.com/MaximeFARRE/small-cap-screener/commit/a26f9ab0cfa78a51808065fbc373260268e87d3b))
+
+* feat: extend KPI snapshot metrics payload with advanced scoring inputs
+
+Add all computed ratios (asset_turnover, roa, ebit_margin, debt_to_equity,
+fcf_margin, etc.) and derived metrics (gross_profitability, cfo_to_net_income,
+cfo_to_ebit, accrual_ratio, ev_fcf, altman_z_proxy) to the snapshot
+metrics payload. These feed the new 8-bloc scoring engine.
+
+Co-Authored-By: Claude Opus 4.6 &lt;noreply@anthropic.com&gt; ([`df206ed`](https://github.com/MaximeFARRE/small-cap-screener/commit/df206ed0d226ce088d9918a51e111eda3025dde7))
+
+* feat: parse operating_cash_flow, capex (abs), depreciation_amortization, pretax_income in yfinance _parse_statement ([`2192252`](https://github.com/MaximeFARRE/small-cap-screener/commit/2192252ac560c42a1e1d019cd8bdd7e6e9a97cc7))
+
+* feat: wire operating_cash_flow, capex, depreciation_amortization, pretax_income through persistence and normalization ([`97bcc1e`](https://github.com/MaximeFARRE/small-cap-screener/commit/97bcc1ea64c5c4888f3ef0cb5bf58e2021704804))
+
+* feat: add operating_cash_flow, capex, depreciation_amortization, pretax_income to data structures and migration ([`c2023fe`](https://github.com/MaximeFARRE/small-cap-screener/commit/c2023feab5e6e978ba62aa91afc46f25cd15a0e6))
+
+* feat: add ps_ratio, ev_sales, fcf_margin, cash_conversion_ratio, asset_turnover to RatioService ([`d7e9d16`](https://github.com/MaximeFARRE/small-cap-screener/commit/d7e9d1662d0287952453e195e2b9a1c6190377e4))
+
+* feat: add net_income_growth, fcf_growth, gross_profit_growth, net_debt_growth to RatioService ([`912ba11`](https://github.com/MaximeFARRE/small-cap-screener/commit/912ba11bce0739aa2e06ae6065784c331f69b934))
+
+* feat: add revenue_cagr_3y and ebitda_cagr_3y to RatioService ([`0fad814`](https://github.com/MaximeFARRE/small-cap-screener/commit/0fad81435567a345bec76701aa22a931d1c0e288))
+
+### Fix
+
+* fix: initialize database on api startup ([`1ac3fd6`](https://github.com/MaximeFARRE/small-cap-screener/commit/1ac3fd693bcbb53cf6b3fc81e813b265fcb03255))
+
+### Test
+
+* test: update scoring tests for 8-bloc engine and add cap/context tests
+
+Update existing tests to use metrics that map to the new 8-bloc system.
+Add tests for: distressed cap, value trap cap, dangerous debt cap,
+valuation bridling, compensation penalty, reinvestment context,
+and full bloc coverage verification.
+
+Co-Authored-By: Claude Opus 4.6 &lt;noreply@anthropic.com&gt; ([`fdc533d`](https://github.com/MaximeFARRE/small-cap-screener/commit/fdc533d401f55c34036e94e6a4e42a84d80312a7))
+
+* test: add unit tests for operating_cash_flow, capex, depreciation_amortization, pretax_income parsing ([`4a853c9`](https://github.com/MaximeFARRE/small-cap-screener/commit/4a853c9cd9f3ce99393372484ddb9b030f97cdaf))
+
+* test: add unit tests for new ratios — CAGR 3y, growth, value/efficiency ([`4a825ff`](https://github.com/MaximeFARRE/small-cap-screener/commit/4a825ffd8ce273a70b886a68ac860254a1fce190))
+
+### Unknown
+
+* Merge pull request #64 from MaximeFARRE/feat/scoring
+
+Feat/scoring ([`532d1bd`](https://github.com/MaximeFARRE/small-cap-screener/commit/532d1bd0eaf2b48310372f420d83d5fc3e899a82))
+
 ## v2.1.0 (2026-05-02)
+
+### Chore
+
+* chore(release): 2.1.0 [skip ci] ([`4b06b59`](https://github.com/MaximeFARRE/small-cap-screener/commit/4b06b597f54516ec5d04ccccb2e86e86745d1fe8))
 
 ### Feature
 
