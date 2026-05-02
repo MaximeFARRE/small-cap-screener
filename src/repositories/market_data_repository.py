@@ -116,6 +116,10 @@ def _store_statement_records(session: Session, company: Company, statements: lis
                 current_assets=data.current_assets,
                 current_liabilities=data.current_liabilities,
                 interest_expense=data.interest_expense,
+                operating_cash_flow=data.operating_cash_flow,
+                capex=data.capex,
+                depreciation_amortization=data.depreciation_amortization,
+                pretax_income=data.pretax_income,
             ),
         )
         added += 1

@@ -716,6 +716,10 @@ def _build_payload_from_normalized(
                 current_assets=record.current_assets,
                 current_liabilities=record.current_liabilities,
                 interest_expense=record.interest_expense,
+                operating_cash_flow=record.operating_cash_flow,
+                capex=record.capex,
+                depreciation_amortization=record.depreciation_amortization,
+                pretax_income=record.pretax_income,
             )
             for record in normalized.financial_statements
         ],

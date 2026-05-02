@@ -289,6 +289,18 @@ def _normalize_financial_statements(
                 interest_expense=_normalize_nullable_float(
                     record.interest_expense, f"financial_statements[{index}].interest_expense", errors
                 ),
+                operating_cash_flow=_normalize_nullable_float(
+                    record.operating_cash_flow, f"financial_statements[{index}].operating_cash_flow", errors
+                ),
+                capex=_normalize_nullable_float(record.capex, f"financial_statements[{index}].capex", errors),
+                depreciation_amortization=_normalize_nullable_float(
+                    record.depreciation_amortization,
+                    f"financial_statements[{index}].depreciation_amortization",
+                    errors,
+                ),
+                pretax_income=_normalize_nullable_float(
+                    record.pretax_income, f"financial_statements[{index}].pretax_income", errors
+                ),
             )
         )
     return sorted(normalized, key=lambda statement: statement.fiscal_date)
