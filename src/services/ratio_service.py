@@ -37,6 +37,11 @@ class CompanyRatios:
     net_debt_to_ebitda: float | None = None
     current_ratio: float | None = None
     interest_coverage: float | None = None
+    ps_ratio: float | None = None
+    ev_sales: float | None = None
+    fcf_margin: float | None = None
+    cash_conversion_ratio: float | None = None
+    asset_turnover: float | None = None
     # Backward-compatible metrics kept for existing services/scoring.
     roa: float | None = None
     ebit_margin: float | None = None
@@ -126,6 +131,11 @@ class RatioService:
             net_debt_to_ebitda=self.net_debt_to_ebitda(stmt.net_debt, stmt.ebitda),
             current_ratio=self.current_ratio(current_assets, current_liabilities),
             interest_coverage=self.interest_coverage(stmt.ebit, interest_expense),
+            ps_ratio=self.ps_ratio(market_cap_value, stmt.revenue),
+            ev_sales=self.ev_sales(enterprise_value_value, stmt.revenue),
+            fcf_margin=self.fcf_margin(stmt.free_cash_flow, stmt.revenue),
+            cash_conversion_ratio=self.cash_conversion_ratio(stmt.free_cash_flow, stmt.net_income),
+            asset_turnover=self.asset_turnover(stmt.revenue, stmt.total_assets),
             # Backward-compatible aliases/legacy outputs.
             roa=self.roa(stmt.net_income, stmt.total_assets),
             ebit_margin=self.ebit_margin(stmt.ebit, stmt.revenue),
@@ -228,6 +238,21 @@ class RatioService:
         if previous_ebitda <= self.zero_threshold:
             return None
         return (current_ebitda - previous_ebitda) / previous_ebitda
+
+    def ps_ratio(self, mkt_cap: float, revenue: float | None) -> float | None:
+        return _safe_div(mkt_cap, revenue, positive_denominator=True)
+
+    def ev_sales(self, ev: float, revenue: float | None) -> float | None:
+        return _safe_div(ev, revenue, positive_denominator=True)
+
+    def fcf_margin(self, free_cash_flow: float | None, revenue: float | None) -> float | None:
+        return _safe_div(free_cash_flow, revenue, positive_denominator=True)
+
+    def cash_conversion_ratio(self, free_cash_flow: float | None, net_income: float | None) -> float | None:
+        return _safe_div(free_cash_flow, net_income)
+
+    def asset_turnover(self, revenue: float | None, total_assets: float | None) -> float | None:
+        return _safe_div(revenue, total_assets, positive_denominator=True)
 
     def net_income_growth(
         self,
@@ -481,6 +506,26 @@ def net_margin(net_income: float | None, revenue: float | None) -> float | None:
 
 def debt_to_equity(total_debt: float | None, total_equity: float | None) -> float | None:
     return _SERVICE.debt_to_equity(total_debt, total_equity)
+
+
+def ps_ratio(mkt_cap: float, revenue: float | None) -> float | None:
+    return _SERVICE.ps_ratio(mkt_cap, revenue)
+
+
+def ev_sales(ev: float, revenue: float | None) -> float | None:
+    return _SERVICE.ev_sales(ev, revenue)
+
+
+def fcf_margin(free_cash_flow: float | None, revenue: float | None) -> float | None:
+    return _SERVICE.fcf_margin(free_cash_flow, revenue)
+
+
+def cash_conversion_ratio(free_cash_flow: float | None, net_income: float | None) -> float | None:
+    return _SERVICE.cash_conversion_ratio(free_cash_flow, net_income)
+
+
+def asset_turnover(revenue: float | None, total_assets: float | None) -> float | None:
+    return _SERVICE.asset_turnover(revenue, total_assets)
 
 
 def net_income_growth(current_net_income: float | None, previous_net_income: float | None) -> float | None:
