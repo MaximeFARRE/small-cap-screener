@@ -7,6 +7,12 @@ export interface HistoricalMetricPoint {
   value: number;
 }
 
+export interface FinancialAnomaly {
+  metric_key: string;
+  fiscal_year: number;
+  kind: string;
+}
+
 export interface HistoricalFundamentals {
   revenue_history: HistoricalMetricPoint[];
   ebitda_history: HistoricalMetricPoint[];
@@ -15,6 +21,12 @@ export interface HistoricalFundamentals {
   free_cash_flow_history: HistoricalMetricPoint[];
   net_debt_history: HistoricalMetricPoint[];
   eps_history: HistoricalMetricPoint[];
+  revenue_growth_history: HistoricalMetricPoint[];
+  ebitda_growth_history: HistoricalMetricPoint[];
+  net_income_growth_history: HistoricalMetricPoint[];
+  free_cash_flow_growth_history: HistoricalMetricPoint[];
+  ebitda_margin_history: HistoricalMetricPoint[];
+  financial_anomalies: FinancialAnomaly[];
   revenue_cagr: number | null;
   operating_income_cagr: number | null;
   net_income_cagr: number | null;
@@ -132,6 +144,8 @@ export interface PeerCompanyRow {
   roic: number | null;
   roe: number | null;
   net_debt_to_ebitda: number | null;
+  peer_rank: number | null;
+  score_percentile: number | null;
 }
 
 export interface PeerComparison {
@@ -144,6 +158,66 @@ export interface PeerComparison {
   peer_count: number;
   metrics: PeerMetric[];
   peer_rows: PeerCompanyRow[];
+}
+
+export interface AnalysisSummary {
+  quality: number | null;
+  value: number | null;
+  growth: number | null;
+  risk: number | null;
+  strengths: string[];
+  weaknesses: string[];
+  red_flags: string[];
+  trend: string;
+  verdict: string;
+}
+
+export interface ValuationSummary {
+  ev_ebitda: number | null;
+  pe_ratio: number | null;
+  fcf_yield: number | null;
+  valuation_view: string;
+  valuation_verdict: string;
+}
+
+export interface QualityRiskSummary {
+  profitability_score: number;
+  balance_sheet_score: number;
+  cash_flow_quality_score: number;
+  volatility_score: number;
+}
+
+export interface BusinessSummary {
+  sector: string | null;
+  industry: string | null;
+  business_model: string | null;
+  market_cap: number | null;
+  enterprise_value: number | null;
+  analyst_target_price: number | null;
+  analyst_target_upside: number | null;
+  analyst_recommendation: string | null;
+  analyst_count: number | null;
+}
+
+export interface CapitalAllocationSummary {
+  fcf_trend: string;
+  debt_trend: string;
+  reinvestment_vs_returns: string;
+}
+
+export interface DataQualitySummary {
+  data_quality_score: number | null;
+  missing_data: string[];
+  warnings: string[];
+}
+
+export interface CompanyInsights {
+  analysis: AnalysisSummary;
+  valuation: ValuationSummary;
+  quality_risk: QualityRiskSummary;
+  business: BusinessSummary;
+  capital_allocation: CapitalAllocationSummary;
+  data_quality: DataQualitySummary;
 }
 
 function getCompanyPath(ticker: string, suffix = ""): string {
@@ -203,5 +277,13 @@ export function useCompanyPeers(ticker: string | null) {
     queryKey: ["companies", "peers", ticker],
     enabled: ticker !== null,
     queryFn: () => api.get<PeerComparison>(getCompanyPath(ticker ?? "", "/peers")),
+  });
+}
+
+export function useCompanyInsights(ticker: string | null) {
+  return useQuery({
+    queryKey: ["companies", "insights", ticker],
+    enabled: ticker !== null,
+    queryFn: () => api.get<CompanyInsights>(getCompanyPath(ticker ?? "", "/insights")),
   });
 }

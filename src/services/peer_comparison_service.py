@@ -77,6 +77,8 @@ class PeerCompanyRow:
     roe: float | None
     net_debt_to_ebitda: float | None
     similarity_score: float | None
+    peer_rank: int | None
+    score_percentile: float | None
 
 
 @dataclass(frozen=True)
@@ -240,9 +242,11 @@ def _build_peer_rows(
         key=lambda entry: _peer_distance(target_entry, entry, snapshots_by_company_id) + _peer_sort_tie_breaker(entry),
     )
     selected = ordered[:max_rows] if max_rows > 0 else []
+    ranked_entries = compute_peer_ranking(selected)
     rows: list[PeerCompanyRow] = []
     for entry in selected:
         snapshot = snapshots_by_company_id.get(entry.company_id)
+        rank_info = ranked_entries.get(entry.company_id)
         rows.append(
             PeerCompanyRow(
                 company_id=entry.company_id,
@@ -260,9 +264,24 @@ def _build_peer_rows(
                 roe=_metric_value("roe", entry, snapshot),
                 net_debt_to_ebitda=_metric_value("net_debt_to_ebitda", entry, snapshot),
                 similarity_score=_similarity_score(target_entry, entry, snapshots_by_company_id),
+                peer_rank=rank_info[0] if rank_info is not None else None,
+                score_percentile=rank_info[1] if rank_info is not None else None,
             )
         )
     return rows
+
+
+def compute_peer_ranking(entries: list[UniverseScreeningEntry]) -> dict[int, tuple[int, float]]:
+    scored = [entry for entry in entries if entry.total_score is not None]
+    ordered = sorted(scored, key=lambda entry: (-(entry.total_score or 0.0), entry.company_id))
+    total = len(ordered)
+    ranked: dict[int, tuple[int, float]] = {}
+    if total == 0:
+        return ranked
+    for index, entry in enumerate(ordered, start=1):
+        percentile = ((total - index + 1) / total) * 100.0
+        ranked[entry.company_id] = (index, percentile)
+    return ranked
 
 
 def _metric_value(key: str, entry: UniverseScreeningEntry, snapshot: KpiSnapshot | None) -> float | None:

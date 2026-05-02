@@ -36,6 +36,7 @@ _ANNUAL_PERIOD = PeriodType.ANNUAL.value
 _TREND_POSITIVE = "positive"
 _TREND_NEGATIVE = "negative"
 _TREND_STABLE = "stable"
+_STRONG_DROP_THRESHOLD = -0.2
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,12 @@ class HistoricalFundamentals:
     net_debt_history: list[HistoricalMetricPoint] = field(default_factory=list)
     eps_history: list[HistoricalMetricPoint] = field(default_factory=list)
     shares_outstanding_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    revenue_growth_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    ebitda_growth_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    net_income_growth_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    free_cash_flow_growth_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    ebitda_margin_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    financial_anomalies: list[FinancialAnomaly] = field(default_factory=list)
     trends: HistoricalFundamentalsTrends = field(
         default_factory=lambda: HistoricalFundamentalsTrends(
             revenue_cagr=None,
@@ -78,6 +85,13 @@ class HistoricalFundamentals:
             net_debt_direction=None,
         )
     )
+
+
+@dataclass(frozen=True)
+class FinancialAnomaly:
+    metric_key: str
+    fiscal_year: int
+    kind: str
 
 
 @dataclass(frozen=True)
@@ -200,6 +214,50 @@ class CompanyFinancialDetail:
     insider_activity: tuple[OwnershipInsiderItem, ...] = ()
 
 
+@dataclass(frozen=True)
+class ValuationSummary:
+    ev_ebitda: float | None
+    pe_ratio: float | None
+    fcf_yield: float | None
+    valuation_view: str
+    valuation_verdict: str
+
+
+@dataclass(frozen=True)
+class QualityMetricsSummary:
+    profitability_score: float
+    balance_sheet_score: float
+    cash_flow_quality_score: float
+    volatility_score: float
+
+
+@dataclass(frozen=True)
+class BusinessSummary:
+    sector: str | None
+    industry: str | None
+    business_model: str | None
+    market_cap: float | None
+    enterprise_value: float | None
+    analyst_target_price: float | None
+    analyst_target_upside: float | None
+    analyst_recommendation: str | None
+    analyst_count: int | None
+
+
+@dataclass(frozen=True)
+class CapitalAllocationSummary:
+    fcf_trend: str
+    debt_trend: str
+    reinvestment_vs_returns: str
+
+
+@dataclass(frozen=True)
+class DataQualitySummary:
+    data_quality_score: float | None
+    missing_data: tuple[str, ...]
+    warnings: tuple[str, ...]
+
+
 @dataclass
 class CompanyDetailService:
     session_scope_factory: SessionScopeFactory = field(default=get_session)
@@ -230,6 +288,70 @@ class CompanyDetailService:
                 holders,
                 insider_transactions,
             )
+
+    def compute_valuation_summary(
+        self,
+        detail: CompanyFinancialDetail,
+        peer_ev_ebitda_median: float | None,
+        peer_pe_median: float | None,
+    ) -> ValuationSummary:
+        view = _valuation_view(detail, peer_ev_ebitda_median, peer_pe_median)
+        verdict = _valuation_verdict(view, detail.fcf_yield)
+        return ValuationSummary(
+            ev_ebitda=detail.ev_ebitda,
+            pe_ratio=detail.pe_ratio,
+            fcf_yield=detail.fcf_yield,
+            valuation_view=view,
+            valuation_verdict=verdict,
+        )
+
+    def compute_quality_metrics(self, detail: CompanyFinancialDetail) -> QualityMetricsSummary:
+        profitability_score = _to_score(detail.roic, good=0.15, bad=0.02, lower_is_better=False)
+        balance_sheet_score = _to_score(detail.net_debt_to_ebitda, good=1.0, bad=5.0, lower_is_better=True)
+        cash_flow_quality_score = _to_score(detail.fcf_yield, good=0.06, bad=0.0, lower_is_better=False)
+        volatility_score = _to_score(detail.beta, good=0.8, bad=1.8, lower_is_better=True)
+        return QualityMetricsSummary(
+            profitability_score=profitability_score,
+            balance_sheet_score=balance_sheet_score,
+            cash_flow_quality_score=cash_flow_quality_score,
+            volatility_score=volatility_score,
+        )
+
+    def compute_business_summary(self, detail: CompanyFinancialDetail) -> BusinessSummary:
+        return BusinessSummary(
+            sector=detail.sector,
+            industry=detail.industry,
+            business_model=detail.business_summary,
+            market_cap=detail.market_cap,
+            enterprise_value=detail.enterprise_value,
+            analyst_target_price=detail.analyst_target_price,
+            analyst_target_upside=detail.analyst_target_upside,
+            analyst_recommendation=detail.analyst_recommendation,
+            analyst_count=detail.analyst_count,
+        )
+
+    def compute_allocation_metrics(self, detail: CompanyFinancialDetail) -> CapitalAllocationSummary:
+        historical = detail.historical_fundamentals
+        fcf_trend = _trend_from_growth_points(historical.free_cash_flow_growth_history)
+        debt_trend = historical.trends.net_debt_direction or "stable"
+        reinvestment_vs_returns = _reinvestment_vs_returns_label(detail.roic, detail.fcf_yield)
+        return CapitalAllocationSummary(
+            fcf_trend=fcf_trend,
+            debt_trend=debt_trend,
+            reinvestment_vs_returns=reinvestment_vs_returns,
+        )
+
+    def compute_data_quality_summary(self, detail: CompanyFinancialDetail) -> DataQualitySummary:
+        warnings: list[str] = []
+        if detail.data_quality_score is not None and detail.data_quality_score < 60.0:
+            warnings.append("low data quality score")
+        if detail.missing_fields:
+            warnings.append("missing key fields")
+        return DataQualitySummary(
+            data_quality_score=detail.data_quality_score,
+            missing_data=detail.missing_fields,
+            warnings=tuple(warnings),
+        )
 
 
 def _select_historical_statements(statements: list[FinancialStatement]) -> list[FinancialStatement]:
@@ -453,6 +575,28 @@ def _margin_history(statements: list[FinancialStatement]) -> list[HistoricalMetr
     return _build_metric_history(statements, lambda s: _ratio(_operating_income(s), s.revenue))
 
 
+def compute_growth_rates(points: list[HistoricalMetricPoint]) -> list[HistoricalMetricPoint]:
+    if len(points) < 2:
+        return []
+    ordered = sorted(points, key=lambda p: p.fiscal_year, reverse=True)
+    growth_points: list[HistoricalMetricPoint] = []
+    for index, point in enumerate(ordered):
+        previous = ordered[index + 1] if index + 1 < len(ordered) else None
+        growth = None
+        if previous is not None and abs(previous.value) >= _ZERO:
+            growth = (point.value - previous.value) / abs(previous.value)
+        if growth is None:
+            continue
+        growth_points.append(
+            HistoricalMetricPoint(
+                fiscal_year=point.fiscal_year,
+                period_type=point.period_type,
+                value=growth,
+            )
+        )
+    return growth_points
+
+
 def _ratio(numerator: float | None, denominator: float | None) -> float | None:
     if numerator is None or denominator is None:
         return None
@@ -494,6 +638,23 @@ def _build_historical_fundamentals(statements: list[FinancialStatement]) -> Hist
     eps_history = _build_metric_history(statements, _eps)
     shares_outstanding_history = _build_metric_history(statements, lambda s: s.shares_outstanding)
     margin_history = _margin_history(statements)
+    revenue_growth_history = compute_growth_rates(revenue_history)
+    ebitda_growth_history = compute_growth_rates(ebitda_history)
+    net_income_growth_history = compute_growth_rates(net_income_history)
+    free_cash_flow_growth_history = compute_growth_rates(free_cash_flow_history)
+    anomalies: list[FinancialAnomaly] = []
+    for point in ebitda_history:
+        if point.value < 0:
+            anomalies.append(FinancialAnomaly(metric_key="ebitda", fiscal_year=point.fiscal_year, kind="negative"))
+    for key, history in (
+        ("revenue", revenue_growth_history),
+        ("ebitda", ebitda_growth_history),
+        ("net_income", net_income_growth_history),
+        ("free_cash_flow", free_cash_flow_growth_history),
+    ):
+        for point in history:
+            if point.value <= _STRONG_DROP_THRESHOLD:
+                anomalies.append(FinancialAnomaly(metric_key=key, fiscal_year=point.fiscal_year, kind="strong_drop"))
 
     trends = HistoricalFundamentalsTrends(
         revenue_cagr=_cagr(revenue_history),
@@ -515,6 +676,12 @@ def _build_historical_fundamentals(statements: list[FinancialStatement]) -> Hist
         net_debt_history=net_debt_history,
         eps_history=eps_history,
         shares_outstanding_history=shares_outstanding_history,
+        revenue_growth_history=revenue_growth_history,
+        ebitda_growth_history=ebitda_growth_history,
+        net_income_growth_history=net_income_growth_history,
+        free_cash_flow_growth_history=free_cash_flow_growth_history,
+        ebitda_margin_history=margin_history,
+        financial_anomalies=anomalies,
         trends=trends,
     )
 
@@ -648,3 +815,72 @@ def _build_detail(
         institutional_holders=institutional_holders,
         insider_activity=insider_activity,
     )
+
+
+def _to_score(value: float | None, *, good: float, bad: float, lower_is_better: bool) -> float:
+    if value is None:
+        return 0.0
+    if lower_is_better:
+        if value <= good:
+            return 100.0
+        if value >= bad:
+            return 0.0
+        return round((1.0 - ((value - good) / (bad - good))) * 100.0, 2)
+    if value >= good:
+        return 100.0
+    if value <= bad:
+        return 0.0
+    return round(((value - bad) / (good - bad)) * 100.0, 2)
+
+
+def _valuation_view(
+    detail: CompanyFinancialDetail,
+    peer_ev_ebitda_median: float | None,
+    peer_pe_median: float | None,
+) -> str:
+    cheap_signals = 0
+    expensive_signals = 0
+    if detail.ev_ebitda is not None and peer_ev_ebitda_median is not None:
+        if detail.ev_ebitda < peer_ev_ebitda_median:
+            cheap_signals += 1
+        elif detail.ev_ebitda > peer_ev_ebitda_median:
+            expensive_signals += 1
+    if detail.pe_ratio is not None and peer_pe_median is not None:
+        if detail.pe_ratio < peer_pe_median:
+            cheap_signals += 1
+        elif detail.pe_ratio > peer_pe_median:
+            expensive_signals += 1
+    if cheap_signals > expensive_signals:
+        return "cheap"
+    if expensive_signals > cheap_signals:
+        return "expensive"
+    return "neutral"
+
+
+def _valuation_verdict(view: str, fcf_yield: float | None) -> str:
+    if view == "cheap" and fcf_yield is not None and fcf_yield > 0.04:
+        return "attractive valuation"
+    if view == "expensive":
+        return "premium valuation"
+    return "fairly valued"
+
+
+def _trend_from_growth_points(points: list[HistoricalMetricPoint]) -> str:
+    if not points:
+        return "stable"
+    latest = sorted(points, key=lambda point: point.fiscal_year, reverse=True)[0]
+    if latest.value > 0.05:
+        return "improving"
+    if latest.value < -0.05:
+        return "deteriorating"
+    return "stable"
+
+
+def _reinvestment_vs_returns_label(roic: float | None, fcf_yield: float | None) -> str:
+    if roic is None and fcf_yield is None:
+        return "insufficient data"
+    if roic is not None and roic >= 0.12 and (fcf_yield is None or fcf_yield >= 0):
+        return "balanced reinvestment and returns"
+    if fcf_yield is not None and fcf_yield < 0:
+        return "reinvestment currently pressuring returns"
+    return "moderate capital efficiency"

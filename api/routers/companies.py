@@ -13,9 +13,10 @@ from api.dependencies import (
     get_financial_data_service,
     get_kpi_service,
     get_peer_service,
+    get_scoring_service,
     get_watchlist_service,
 )
-from api.schemas.company import CompanyDetailSchema, HistoricalFundamentalsSchema
+from api.schemas.company import CompanyDetailSchema, CompanyInsightsSchema, HistoricalFundamentalsSchema
 from api.schemas.peers import PeerComparisonSchema
 from api.schemas.refresh import CompanyRefreshResultSchema
 from api.schemas.scoring import ScoreBreakdownSchema
@@ -23,6 +24,7 @@ from src.services.company_detail_service import CompanyDetailService
 from src.services.financial_data_service import FinancialDataService
 from src.services.kpi_snapshot_service import KpiSnapshotService
 from src.services.peer_comparison_service import PeerComparisonService
+from src.services.scoring_service import ScoringService
 from src.services.watchlist_service import WatchlistService
 
 router = APIRouter(prefix="/companies", tags=["companies"])
@@ -39,6 +41,12 @@ def _build_historical_schema(detail: object) -> HistoricalFundamentalsSchema:
         free_cash_flow_history=list(hf.free_cash_flow_history),
         net_debt_history=list(hf.net_debt_history),
         eps_history=list(hf.eps_history),
+        revenue_growth_history=list(hf.revenue_growth_history),
+        ebitda_growth_history=list(hf.ebitda_growth_history),
+        net_income_growth_history=list(hf.net_income_growth_history),
+        free_cash_flow_growth_history=list(hf.free_cash_flow_growth_history),
+        ebitda_margin_history=list(hf.ebitda_margin_history),
+        financial_anomalies=list(hf.financial_anomalies),
         revenue_cagr=trends.revenue_cagr,
         operating_income_cagr=trends.operating_income_cagr,
         net_income_cagr=trends.net_income_cagr,
@@ -258,6 +266,52 @@ def get_company_peers(
 ) -> PeerComparisonSchema:
     data = peer_service.get_company_peer_comparison(company_id)
     return PeerComparisonSchema.model_validate(data)
+
+
+@router.get("/{ticker}/insights", response_model=CompanyInsightsSchema)
+def get_company_insights(
+    company_id: int = Depends(get_company_id),
+    detail_service: CompanyDetailService = Depends(get_company_detail_service),
+    watchlist: WatchlistService = Depends(get_watchlist_service),
+    peer_service: PeerComparisonService = Depends(get_peer_service),
+    scoring_service: ScoringService = Depends(get_scoring_service),
+) -> CompanyInsightsSchema:
+    detail = detail_service.get_financial_detail(company_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail=f"No detail found for company {company_id}")
+    analyst_detail = watchlist.get_company_analyst_detail(company_id)
+    peers = peer_service.get_company_peer_comparison(company_id)
+    metric_by_key = {metric.key: metric for metric in peers.metrics}
+    ev_peer_median = metric_by_key.get("ev_ebitda").sector_median if metric_by_key.get("ev_ebitda") else None
+    pe_peer_median = metric_by_key.get("pe_ratio").sector_median if metric_by_key.get("pe_ratio") else None
+
+    valuation = detail_service.compute_valuation_summary(detail, ev_peer_median, pe_peer_median)
+    quality_risk = detail_service.compute_quality_metrics(detail)
+    business = detail_service.compute_business_summary(detail)
+    capital_allocation = detail_service.compute_allocation_metrics(detail)
+    data_quality = detail_service.compute_data_quality_summary(detail)
+    analysis = scoring_service.describe_company(
+        score_explanation=analyst_detail.score_explanation,
+        metrics={
+            "revenue_growth": detail.revenue_growth,
+            "ebitda_growth": detail.ebitda_growth,
+            "net_debt_to_ebitda": detail.net_debt_to_ebitda,
+            "ebitda_margin": detail.operating_margin,
+            "interest_coverage": None,
+        },
+    )
+    return CompanyInsightsSchema(
+        analysis=analysis,  # type: ignore[arg-type]
+        valuation=valuation,  # type: ignore[arg-type]
+        quality_risk=quality_risk,  # type: ignore[arg-type]
+        business=business,  # type: ignore[arg-type]
+        capital_allocation=capital_allocation,  # type: ignore[arg-type]
+        data_quality={
+            "data_quality_score": data_quality.data_quality_score,
+            "missing_data": list(data_quality.missing_data),
+            "warnings": list(data_quality.warnings),
+        },
+    )
 
 
 @router.get("/{ticker}/export")

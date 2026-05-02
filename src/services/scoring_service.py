@@ -56,6 +56,8 @@ _CFQ_REINVESTMENT_MAX_LIFT: float = 20.0
 _MAX_EXPLANATION_POINTS: int = 3
 _STRENGTH_THRESHOLD: float = 60.0
 _WEAKNESS_THRESHOLD: float = 40.0
+_TREND_IMPROVING_THRESHOLD: float = 0.05
+_TREND_DETERIORATING_THRESHOLD: float = -0.05
 
 _CATEGORY_ORDER: tuple[str, ...] = ("quality", "value", "growth", "risk")
 
@@ -132,6 +134,19 @@ class ScoreExplanation:
     strengths: tuple[str, ...]
     weaknesses: tuple[str, ...]
     summary: str
+
+
+@dataclass(frozen=True)
+class CompanyAnalysisSummary:
+    quality: float | None
+    value: float | None
+    growth: float | None
+    risk: float | None
+    strengths: tuple[str, ...]
+    weaknesses: tuple[str, ...]
+    red_flags: tuple[str, ...]
+    trend: str
+    verdict: str
 
 
 # ---------------------------------------------------------------------------
@@ -263,6 +278,27 @@ class ScoringService:
             summary=_build_score_summary(
                 scores, category_contributions, positive_drivers, negative_drivers, strengths, weaknesses
             ),
+        )
+
+    def describe_company(
+        self,
+        score_explanation: ScoreExplanation,
+        metrics: Mapping[str, object],
+    ) -> CompanyAnalysisSummary:
+        explanation = score_explanation
+        trend = _describe_company_trend(metrics)
+        red_flags = _collect_red_flags(metrics)
+        verdict = _build_company_verdict(explanation.total_score, trend, red_flags)
+        return CompanyAnalysisSummary(
+            quality=explanation.quality,
+            value=explanation.value,
+            growth=explanation.growth,
+            risk=explanation.risk,
+            strengths=explanation.strengths[:3],
+            weaknesses=explanation.weaknesses[:3],
+            red_flags=tuple(red_flags),
+            trend=trend,
+            verdict=verdict,
         )
 
 
@@ -902,6 +938,44 @@ def _build_score_summary(
         f"positive drivers: {positive_text} | negative drivers: {negative_text} | "
         f"strengths: {strength_text} | weaknesses: {weakness_text}"
     )
+
+
+def _describe_company_trend(metrics: Mapping[str, object]) -> str:
+    revenue_growth = _as_finite_float(metrics.get("revenue_growth"))
+    ebitda_growth = _as_finite_float(metrics.get("ebitda_growth"))
+    growth_values = [value for value in (revenue_growth, ebitda_growth) if value is not None]
+    if not growth_values:
+        return "stable"
+    average_growth = sum(growth_values) / len(growth_values)
+    if average_growth >= _TREND_IMPROVING_THRESHOLD:
+        return "improving"
+    if average_growth <= _TREND_DETERIORATING_THRESHOLD:
+        return "deteriorating"
+    return "stable"
+
+
+def _collect_red_flags(metrics: Mapping[str, object]) -> list[str]:
+    flags: list[str] = []
+    net_debt_to_ebitda = _as_finite_float(metrics.get("net_debt_to_ebitda"))
+    interest_coverage = _as_finite_float(metrics.get("interest_coverage"))
+    ebitda_margin = _as_finite_float(metrics.get("ebitda_margin"))
+    if net_debt_to_ebitda is not None and net_debt_to_ebitda > 4.0:
+        flags.append("high leverage profile")
+    if interest_coverage is not None and interest_coverage < 1.5:
+        flags.append("weak interest coverage")
+    if ebitda_margin is not None and ebitda_margin < 0.0:
+        flags.append("negative ebitda margin")
+    return flags
+
+
+def _build_company_verdict(total_score: float | None, trend: str, red_flags: list[str]) -> str:
+    if total_score is None:
+        return "insufficient score data"
+    if total_score >= 70.0 and trend == "improving" and not red_flags:
+        return "constructive setup"
+    if total_score < 45.0 or trend == "deteriorating":
+        return "caution required"
+    return "mixed profile"
 
 
 # ---------------------------------------------------------------------------

@@ -11,6 +11,14 @@ class HistoricalMetricPointSchema(BaseModel):
     value: float
 
 
+class FinancialAnomalySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    metric_key: str
+    fiscal_year: int
+    kind: str
+
+
 class HistoricalFundamentalsSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -21,6 +29,12 @@ class HistoricalFundamentalsSchema(BaseModel):
     free_cash_flow_history: list[HistoricalMetricPointSchema]
     net_debt_history: list[HistoricalMetricPointSchema]
     eps_history: list[HistoricalMetricPointSchema]
+    revenue_growth_history: list[HistoricalMetricPointSchema]
+    ebitda_growth_history: list[HistoricalMetricPointSchema]
+    net_income_growth_history: list[HistoricalMetricPointSchema]
+    free_cash_flow_growth_history: list[HistoricalMetricPointSchema]
+    ebitda_margin_history: list[HistoricalMetricPointSchema]
+    financial_anomalies: list[FinancialAnomalySchema]
     revenue_cagr: float | None = None
     operating_income_cagr: float | None = None
     net_income_cagr: float | None = None
@@ -120,3 +134,63 @@ class CompanyDetailSchema(BaseModel):
     major_holders: list[HolderSchema]
     institutional_holders: list[HolderSchema]
     insider_activity: list[InsiderTransactionSchema]
+
+
+class CompanyAnalysisSchema(BaseModel):
+    quality: float | None
+    value: float | None
+    growth: float | None
+    risk: float | None
+    strengths: list[str]
+    weaknesses: list[str]
+    red_flags: list[str]
+    trend: str
+    verdict: str
+
+
+class ValuationSummarySchema(BaseModel):
+    ev_ebitda: float | None
+    pe_ratio: float | None
+    fcf_yield: float | None
+    valuation_view: str
+    valuation_verdict: str
+
+
+class QualityRiskSummarySchema(BaseModel):
+    profitability_score: float
+    balance_sheet_score: float
+    cash_flow_quality_score: float
+    volatility_score: float
+
+
+class BusinessSummarySchema(BaseModel):
+    sector: str | None
+    industry: str | None
+    business_model: str | None
+    market_cap: float | None
+    enterprise_value: float | None
+    analyst_target_price: float | None
+    analyst_target_upside: float | None
+    analyst_recommendation: str | None
+    analyst_count: int | None
+
+
+class CapitalAllocationSummarySchema(BaseModel):
+    fcf_trend: str
+    debt_trend: str
+    reinvestment_vs_returns: str
+
+
+class DataQualitySummarySchema(BaseModel):
+    data_quality_score: float | None
+    missing_data: list[str]
+    warnings: list[str]
+
+
+class CompanyInsightsSchema(BaseModel):
+    analysis: CompanyAnalysisSchema
+    valuation: ValuationSummarySchema
+    quality_risk: QualityRiskSummarySchema
+    business: BusinessSummarySchema
+    capital_allocation: CapitalAllocationSummarySchema
+    data_quality: DataQualitySummarySchema

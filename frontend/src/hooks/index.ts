@@ -15,11 +15,13 @@ export {
 
 export {
   downloadCompanyTearsheetCsv,
+  useCompanyInsights,
   useCompanyDetail,
   useCompanyPeers,
   useCompanyScore,
   useFinancialHistory,
   type CompanyDetail,
+  type CompanyInsights,
   type CompanyScore,
   type HistoricalFundamentals,
   type HistoricalMetricPoint,
