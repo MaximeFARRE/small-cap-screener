@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## v2.1.0 (2026-05-02)
+
+### Feature
+
+* feat: collapsible hero — auto-collapse on tab change, remove score.summary text ([`ceacbba`](https://github.com/MaximeFARRE/small-cap-screener/commit/ceacbbaf159de1347d57c710155b81c82cef9fa3))
+
+* feat: redesign tearsheet hero — dominant score, quality badge, KPI sub-scores ([`724d32c`](https://github.com/MaximeFARRE/small-cap-screener/commit/724d32c82e113fffdd5761c707f1804090c3d055))
+
+### Fix
+
+* fix: validate analyst memo from dataclass attributes ([`ed11bf7`](https://github.com/MaximeFARRE/small-cap-screener/commit/ed11bf771c0988e19add4d4071929a9f66496509))
+
+### Unknown
+
+* Merge pull request #63 from MaximeFARRE/feat/ux-polish
+
+Feat/ux polish ([`20d692d`](https://github.com/MaximeFARRE/small-cap-screener/commit/20d692dbd07b0fcb3e714d34a605ea60622a9277))
+
 ## v2.0.0 (2026-05-01)
 
 ### Breaking
@@ -7,6 +25,10 @@
 * docs!: align documentation baseline with v2.0.0
 
 BREAKING CHANGE: documentation baseline now targets the v2 web architecture and release model. ([`c7124b1`](https://github.com/MaximeFARRE/small-cap-screener/commit/c7124b1dcc46f7ba879b63b757596891d332fc57))
+
+### Chore
+
+* chore(release): 2.0.0 [skip ci] ([`22e68ec`](https://github.com/MaximeFARRE/small-cap-screener/commit/22e68ec1efa04d3a31c2d071209c8e70cb6bd095))
 
 ### Documentation
 
