@@ -170,6 +170,14 @@ export interface AnalysisSummary {
   red_flags: string[];
   trend: string;
   verdict: string;
+  revenue_trend: string;
+  margin_trend: string;
+  debt_trend: string;
+  cash_conversion_ratio: number | null;
+  revenue_cagr_3y: number | null;
+  ebitda_cagr_3y: number | null;
+  net_income_growth: number | null;
+  fcf_growth: number | null;
 }
 
 export interface ValuationSummary {

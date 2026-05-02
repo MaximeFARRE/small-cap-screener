@@ -30,6 +30,17 @@ from src.services.watchlist_service import WatchlistService
 router = APIRouter(prefix="/companies", tags=["companies"])
 
 
+def _latest_growth_value(points: list[object]) -> float | None:
+    if not points:
+        return None
+    ordered = sorted(points, key=lambda p: getattr(p, "fiscal_year", 0), reverse=True)
+    first = ordered[0]
+    value = getattr(first, "value", None)
+    if value is None:
+        return None
+    return float(value)
+
+
 def _build_historical_schema(detail: object) -> HistoricalFundamentalsSchema:
     hf = detail.historical_fundamentals
     trends = hf.trends
@@ -300,6 +311,16 @@ def get_company_insights(
             "net_debt_to_ebitda": detail.net_debt_to_ebitda,
             "ebitda_margin": detail.operating_margin,
             "interest_coverage": None,
+            "revenue_direction": detail.historical_fundamentals.trends.revenue_direction,
+            "margin_direction": detail.historical_fundamentals.trends.margin_direction,
+            "net_debt_direction": detail.historical_fundamentals.trends.net_debt_direction,
+            "cash_conversion_ratio": None,
+            "free_cash_flow": detail.free_cash_flow,
+            "net_income": detail.net_income,
+            "revenue_cagr_3y": detail.historical_fundamentals.trends.revenue_cagr,
+            "ebitda_cagr_3y": detail.historical_fundamentals.trends.operating_income_cagr,
+            "net_income_growth": _latest_growth_value(detail.historical_fundamentals.net_income_growth_history),
+            "fcf_growth": _latest_growth_value(detail.historical_fundamentals.free_cash_flow_growth_history),
         },
     )
     return CompanyInsightsSchema(

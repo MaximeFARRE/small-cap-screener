@@ -247,6 +247,33 @@ export function TearsheetPanel() {
               <p className="mt-1 text-sm text-[var(--color-text-primary)]">{insights.analysis.trend}</p>
               <p className="mt-1 text-sm text-[var(--color-text-primary)]">{insights.analysis.verdict}</p>
             </div>
+            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+              <p className="font-mono text-xs uppercase text-[var(--color-text-muted)]">Trend analysis</p>
+              <p className="mt-1 text-sm text-[var(--color-text-primary)]">{insights.analysis.revenue_trend}</p>
+              <p className="mt-1 text-sm text-[var(--color-text-primary)]">{insights.analysis.margin_trend}</p>
+              <p className="mt-1 text-sm text-[var(--color-text-primary)]">{insights.analysis.debt_trend}</p>
+            </div>
+            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+              <p className="font-mono text-xs uppercase text-[var(--color-text-muted)]">Cash quality</p>
+              <p className="mt-1 text-sm text-[var(--color-text-primary)]">
+                FCF / net income: {formatRatio(insights.analysis.cash_conversion_ratio, 2)}
+              </p>
+            </div>
+            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+              <p className="font-mono text-xs uppercase text-[var(--color-text-muted)]">Growth quality</p>
+              <p className="mt-1 text-sm text-[var(--color-text-primary)]">
+                Revenue CAGR 3Y: {formatPercentRatio(insights.analysis.revenue_cagr_3y)}
+              </p>
+              <p className="mt-1 text-sm text-[var(--color-text-primary)]">
+                EBITDA CAGR 3Y: {formatPercentRatio(insights.analysis.ebitda_cagr_3y)}
+              </p>
+              <p className="mt-1 text-sm text-[var(--color-text-primary)]">
+                Net income growth: {formatPercentRatio(insights.analysis.net_income_growth)}
+              </p>
+              <p className="mt-1 text-sm text-[var(--color-text-primary)]">
+                FCF growth: {formatPercentRatio(insights.analysis.fcf_growth)}
+              </p>
+            </div>
             <div className="space-y-3">
               {[
                 ["Profitability", insights.quality_risk.profitability_score],

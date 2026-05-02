@@ -147,6 +147,14 @@ class CompanyAnalysisSummary:
     red_flags: tuple[str, ...]
     trend: str
     verdict: str
+    revenue_trend: str
+    margin_trend: str
+    debt_trend: str
+    cash_conversion_ratio: float | None
+    revenue_cagr_3y: float | None
+    ebitda_cagr_3y: float | None
+    net_income_growth: float | None
+    fcf_growth: float | None
 
 
 # ---------------------------------------------------------------------------
@@ -299,6 +307,14 @@ class ScoringService:
             red_flags=tuple(red_flags),
             trend=trend,
             verdict=verdict,
+            revenue_trend=_trend_statement(metrics, "revenue_direction", "Revenue"),
+            margin_trend=_trend_statement(metrics, "margin_direction", "Margins"),
+            debt_trend=_debt_trend_statement(metrics),
+            cash_conversion_ratio=_cash_conversion_ratio(metrics),
+            revenue_cagr_3y=_as_finite_float(metrics.get("revenue_cagr_3y")),
+            ebitda_cagr_3y=_as_finite_float(metrics.get("ebitda_cagr_3y")),
+            net_income_growth=_as_finite_float(metrics.get("net_income_growth")),
+            fcf_growth=_as_finite_float(metrics.get("fcf_growth")),
         )
 
 
@@ -976,6 +992,41 @@ def _build_company_verdict(total_score: float | None, trend: str, red_flags: lis
     if total_score < 45.0 or trend == "deteriorating":
         return "caution required"
     return "mixed profile"
+
+
+def _trend_statement(metrics: Mapping[str, object], key: str, subject: str) -> str:
+    direction = metrics.get(key)
+    if not isinstance(direction, str):
+        return f"{subject} trend unavailable"
+    normalized = direction.strip().lower()
+    if normalized == "positive":
+        return f"{subject} improving over 3 years"
+    if normalized == "negative":
+        return f"{subject} deteriorating over 3 years"
+    return f"{subject} stable over 3 years"
+
+
+def _debt_trend_statement(metrics: Mapping[str, object]) -> str:
+    direction = metrics.get("net_debt_direction")
+    if not isinstance(direction, str):
+        return "Debt trend unavailable"
+    normalized = direction.strip().lower()
+    if normalized == "negative":
+        return "Debt increasing rapidly"
+    if normalized == "positive":
+        return "Debt reducing over 3 years"
+    return "Debt stable over 3 years"
+
+
+def _cash_conversion_ratio(metrics: Mapping[str, object]) -> float | None:
+    direct = _as_finite_float(metrics.get("cash_conversion_ratio"))
+    if direct is not None:
+        return direct
+    fcf = _as_finite_float(metrics.get("free_cash_flow"))
+    net_income = _as_finite_float(metrics.get("net_income"))
+    if fcf is None or net_income is None or abs(net_income) < _ZERO:
+        return None
+    return fcf / net_income
 
 
 # ---------------------------------------------------------------------------

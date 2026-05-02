@@ -148,6 +148,14 @@ class CompanyAnalysisSchema(BaseModel):
     red_flags: list[str]
     trend: str
     verdict: str
+    revenue_trend: str
+    margin_trend: str
+    debt_trend: str
+    cash_conversion_ratio: float | None
+    revenue_cagr_3y: float | None
+    ebitda_cagr_3y: float | None
+    net_income_growth: float | None
+    fcf_growth: float | None
 
 
 class ValuationSummarySchema(BaseModel):
