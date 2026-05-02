@@ -17,6 +17,7 @@ import {
   useRemoveFromWatchlist,
   useWatchlist,
 } from "@/hooks";
+import { formatMarketCap, formatNumber, formatRatio } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { FinancialsTable } from "./FinancialsTable";
 import { PeersTable } from "./PeersTable";
@@ -28,28 +29,31 @@ type TearsheetTab = "summary" | "financials" | "charts" | "peers";
 type ExtendedTearsheetTab =
   | TearsheetTab
   | "analysis"
-  | "valuation"
-  | "quality_risk"
-  | "business"
-  | "capital_allocation"
-  | "data_quality";
+  | "valuation";
 
 const TABS: Array<{ key: ExtendedTearsheetTab; label: string }> = [
-  { key: "analysis", label: "Analysis" },
-  { key: "valuation", label: "Valuation" },
-  { key: "quality_risk", label: "Quality & Risk" },
-  { key: "business", label: "Business" },
-  { key: "capital_allocation", label: "Capital Allocation" },
-  { key: "data_quality", label: "Data Quality" },
   { key: "summary", label: "Overview" },
+  { key: "analysis", label: "Analysis" },
   { key: "financials", label: "Financials" },
   { key: "charts", label: "Charts" },
+  { key: "valuation", label: "Valuation" },
   { key: "peers", label: "Peers" },
 ];
 
+const PERCENT_RATIO_FORMATTER = new Intl.NumberFormat("en-US", {
+  style: "percent",
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
+function formatPercentRatio(value: number | null): string {
+  if (value === null) return "—";
+  return PERCENT_RATIO_FORMATTER.format(value);
+}
+
 export function TearsheetPanel() {
   const { activeTicker } = useWorkspace();
-  const [activeTab, setActiveTab] = useState<ExtendedTearsheetTab>("analysis");
+  const [activeTab, setActiveTab] = useState<ExtendedTearsheetTab>("summary");
   const [heroCollapsed, setHeroCollapsed] = useState(false);
 
   function selectTab(tab: ExtendedTearsheetTab) {
@@ -215,7 +219,7 @@ export function TearsheetPanel() {
             <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
               <p className="font-mono text-xs uppercase text-[var(--color-text-muted)]">Score breakdown</p>
               <p className="mt-1 font-mono text-sm text-[var(--color-text-primary)]">
-                Quality {Math.round(insights.analysis.quality ?? 0)} | Value {Math.round(insights.analysis.value ?? 0)} | Growth {Math.round(insights.analysis.growth ?? 0)} | Risk {Math.round(insights.analysis.risk ?? 0)}
+                Quality {formatNumber(insights.analysis.quality, 1)} | Value {formatNumber(insights.analysis.value, 1)} | Growth {formatNumber(insights.analysis.growth, 1)} | Risk {formatNumber(insights.analysis.risk, 1)}
               </p>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
@@ -243,70 +247,71 @@ export function TearsheetPanel() {
               <p className="mt-1 text-sm text-[var(--color-text-primary)]">{insights.analysis.trend}</p>
               <p className="mt-1 text-sm text-[var(--color-text-primary)]">{insights.analysis.verdict}</p>
             </div>
+            <div className="space-y-3">
+              {[
+                ["Profitability", insights.quality_risk.profitability_score],
+                ["Balance sheet", insights.quality_risk.balance_sheet_score],
+                ["Cash flow quality", insights.quality_risk.cash_flow_quality_score],
+                ["Volatility", insights.quality_risk.volatility_score],
+              ].map(([label, scoreValue]) => (
+                <div key={label} className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+                  <div className="mb-1 flex justify-between font-mono text-xs text-[var(--color-text-muted)]">
+                    <span>{label}</span>
+                    <span>{formatNumber(Number(scoreValue), 1)}/100</span>
+                  </div>
+                  <div className="h-2 rounded bg-[var(--color-bg-panel)]">
+                    <div className="h-2 rounded bg-[var(--color-accent)]" style={{ width: `${Math.max(0, Math.min(100, Number(scoreValue)))}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
           </section>
         ) : activeTab === "valuation" ? (
           <section className="space-y-3 p-4">
-            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">EV/EBITDA: {insights.valuation.ev_ebitda ?? "—"}</div>
-            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">P/E: {insights.valuation.pe_ratio ?? "—"}</div>
-            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">FCF yield: {insights.valuation.fcf_yield ?? "—"}</div>
+            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">EV/EBITDA: {formatRatio(insights.valuation.ev_ebitda, 1)}</div>
+            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">P/E: {formatRatio(insights.valuation.pe_ratio, 1)}</div>
+            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">FCF yield: {formatPercentRatio(insights.valuation.fcf_yield)}</div>
             <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Vs peers: {insights.valuation.valuation_view}</div>
             <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Verdict: {insights.valuation.valuation_verdict}</div>
           </section>
-        ) : activeTab === "quality_risk" ? (
-          <section className="space-y-3 p-4">
-            {[
-              ["Profitability", insights.quality_risk.profitability_score],
-              ["Balance sheet", insights.quality_risk.balance_sheet_score],
-              ["Cash flow quality", insights.quality_risk.cash_flow_quality_score],
-              ["Volatility", insights.quality_risk.volatility_score],
-            ].map(([label, scoreValue]) => (
-              <div key={label} className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
-                <div className="mb-1 flex justify-between font-mono text-xs text-[var(--color-text-muted)]">
-                  <span>{label}</span>
-                  <span>{Math.round(Number(scoreValue))}/100</span>
-                </div>
-                <div className="h-2 rounded bg-[var(--color-bg-panel)]">
-                  <div className="h-2 rounded bg-[var(--color-accent)]" style={{ width: `${Math.max(0, Math.min(100, Number(scoreValue)))}%` }} />
-                </div>
-              </div>
-            ))}
-          </section>
-        ) : activeTab === "business" ? (
-          <section className="grid gap-3 p-4 md:grid-cols-2">
-            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Sector: {insights.business.sector ?? "—"}</div>
-            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Industry: {insights.business.industry ?? "—"}</div>
-            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Market cap: {insights.business.market_cap ?? "—"}</div>
-            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">EV: {insights.business.enterprise_value ?? "—"}</div>
-            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Target price: {insights.business.analyst_target_price ?? "—"}</div>
-            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Recommendation: {insights.business.analyst_recommendation ?? "—"} ({insights.business.analyst_count ?? 0})</div>
-            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)] md:col-span-2">Business model: {insights.business.business_model ?? "—"}</div>
-          </section>
-        ) : activeTab === "capital_allocation" ? (
-          <section className="space-y-3 p-4">
-            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">FCF evolution: {insights.capital_allocation.fcf_trend}</div>
-            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Debt evolution: {insights.capital_allocation.debt_trend}</div>
-            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Reinvestment vs returns: {insights.capital_allocation.reinvestment_vs_returns}</div>
-          </section>
-        ) : activeTab === "data_quality" ? (
-          <section className="space-y-3 p-4">
-            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Data quality score: {insights.data_quality.data_quality_score ?? "—"}</div>
-            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
-              <p className="font-mono text-xs uppercase text-[var(--color-text-muted)]">Missing data</p>
-              <div className="mt-1 space-y-1 text-sm text-[var(--color-text-primary)]">
-                {insights.data_quality.missing_data.length === 0 ? <p>None</p> : insights.data_quality.missing_data.map((item) => <p key={item}>{item}</p>)}
-              </div>
-            </div>
-            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
-              <p className="font-mono text-xs uppercase text-[var(--color-warning)]">Warnings</p>
-              <div className="mt-1 space-y-1 text-sm text-[var(--color-text-primary)]">
-                {insights.data_quality.warnings.length === 0 ? <p>None</p> : insights.data_quality.warnings.map((item) => <p key={item}>{item}</p>)}
-              </div>
-            </div>
-          </section>
         ) : activeTab === "summary" ? (
-          <ScoreBreakdown score={score} detail={detail} historical={historical} />
+          <section className="space-y-4">
+            <ScoreBreakdown score={score} detail={detail} historical={historical} />
+            <section className="grid gap-3 p-4 md:grid-cols-2">
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Sector: {insights.business.sector ?? "—"}</div>
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Industry: {insights.business.industry ?? "—"}</div>
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Market cap: {formatMarketCap(insights.business.market_cap)}</div>
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">EV: {formatMarketCap(insights.business.enterprise_value)}</div>
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Target price: {formatNumber(insights.business.analyst_target_price, 2)}</div>
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Target upside: {formatPercentRatio(insights.business.analyst_target_upside)}</div>
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Recommendation: {insights.business.analyst_recommendation ?? "—"} ({insights.business.analyst_count ?? 0})</div>
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)] md:col-span-2">Business model: {insights.business.business_model ?? "—"}</div>
+            </section>
+            <section className="space-y-3 p-4">
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Data quality score: {insights.data_quality.data_quality_score ?? "—"}</div>
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+                <p className="font-mono text-xs uppercase text-[var(--color-text-muted)]">Missing data</p>
+                <div className="mt-1 space-y-1 text-sm text-[var(--color-text-primary)]">
+                  {insights.data_quality.missing_data.length === 0 ? <p>None</p> : insights.data_quality.missing_data.map((item) => <p key={item}>{item}</p>)}
+                </div>
+              </div>
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+                <p className="font-mono text-xs uppercase text-[var(--color-warning)]">Warnings</p>
+                <div className="mt-1 space-y-1 text-sm text-[var(--color-text-primary)]">
+                  {insights.data_quality.warnings.length === 0 ? <p>None</p> : insights.data_quality.warnings.map((item) => <p key={item}>{item}</p>)}
+                </div>
+              </div>
+            </section>
+          </section>
         ) : activeTab === "financials" ? (
-          <FinancialsTable historical={historical} />
+          <section className="space-y-3">
+            <FinancialsTable historical={historical} />
+            <section className="space-y-3 p-4">
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">FCF evolution: {insights.capital_allocation.fcf_trend}</div>
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Debt evolution: {insights.capital_allocation.debt_trend}</div>
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Reinvestment vs returns: {insights.capital_allocation.reinvestment_vs_returns}</div>
+            </section>
+          </section>
         ) : activeTab === "charts" ? (
           <TearsheetCharts historical={historical} />
         ) : (
