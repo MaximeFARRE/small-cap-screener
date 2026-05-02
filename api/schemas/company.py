@@ -137,6 +137,8 @@ class CompanyDetailSchema(BaseModel):
 
 
 class CompanyAnalysisSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     quality: float | None
     value: float | None
     growth: float | None
@@ -149,6 +151,8 @@ class CompanyAnalysisSchema(BaseModel):
 
 
 class ValuationSummarySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     ev_ebitda: float | None
     pe_ratio: float | None
     fcf_yield: float | None
@@ -157,6 +161,8 @@ class ValuationSummarySchema(BaseModel):
 
 
 class QualityRiskSummarySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     profitability_score: float
     balance_sheet_score: float
     cash_flow_quality_score: float
@@ -164,6 +170,8 @@ class QualityRiskSummarySchema(BaseModel):
 
 
 class BusinessSummarySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     sector: str | None
     industry: str | None
     business_model: str | None
@@ -176,12 +184,16 @@ class BusinessSummarySchema(BaseModel):
 
 
 class CapitalAllocationSummarySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     fcf_trend: str
     debt_trend: str
     reinvestment_vs_returns: str
 
 
 class DataQualitySummarySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     data_quality_score: float | None
     missing_data: list[str]
     warnings: list[str]
