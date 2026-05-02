@@ -296,10 +296,13 @@ export function TearsheetPanel() {
         ) : activeTab === "valuation" ? (
           <section className="space-y-3 p-4">
             <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">EV/EBITDA: {formatRatio(insights.valuation.ev_ebitda, 1)}</div>
+            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">EV/Sales: {formatRatio(insights.valuation.ev_sales, 1)}</div>
             <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">P/E: {formatRatio(insights.valuation.pe_ratio, 1)}</div>
+            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">P/S: {formatRatio(insights.valuation.ps_ratio, 1)}</div>
             <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">FCF yield: {formatPercentRatio(insights.valuation.fcf_yield)}</div>
             <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Vs peers: {insights.valuation.valuation_view}</div>
             <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Verdict: {insights.valuation.valuation_verdict}</div>
+            <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Valuation vs growth: {insights.valuation.valuation_vs_growth}</div>
           </section>
         ) : activeTab === "summary" ? (
           <section className="space-y-4">

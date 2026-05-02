@@ -190,10 +190,13 @@ export interface AnalysisSummary {
 
 export interface ValuationSummary {
   ev_ebitda: number | null;
+  ev_sales: number | null;
   pe_ratio: number | null;
+  ps_ratio: number | null;
   fcf_yield: number | null;
   valuation_view: string;
   valuation_verdict: string;
+  valuation_vs_growth: string;
 }
 
 export interface QualityRiskSummary {

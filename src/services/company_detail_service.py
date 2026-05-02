@@ -197,6 +197,7 @@ class CompanyFinancialDetail:
     pb_ratio: float | None = None
     ev_ebitda: float | None = None
     ev_sales: float | None = None
+    ps_ratio: float | None = None
     fcf_yield: float | None = None
     # Quality ratios
     gross_margin: float | None = None
@@ -225,10 +226,13 @@ class CompanyFinancialDetail:
 @dataclass(frozen=True)
 class ValuationSummary:
     ev_ebitda: float | None
+    ev_sales: float | None
     pe_ratio: float | None
+    ps_ratio: float | None
     fcf_yield: float | None
     valuation_view: str
     valuation_verdict: str
+    valuation_vs_growth: str
 
 
 @dataclass(frozen=True)
@@ -323,12 +327,16 @@ class CompanyDetailService:
     ) -> ValuationSummary:
         view = _valuation_view(detail, peer_ev_ebitda_median, peer_pe_median)
         verdict = _valuation_verdict(view, detail.fcf_yield)
+        valuation_vs_growth = _valuation_vs_growth_label(detail)
         return ValuationSummary(
             ev_ebitda=detail.ev_ebitda,
+            ev_sales=detail.ev_sales,
             pe_ratio=detail.pe_ratio,
+            ps_ratio=detail.ps_ratio,
             fcf_yield=detail.fcf_yield,
             valuation_view=view,
             valuation_verdict=verdict,
+            valuation_vs_growth=valuation_vs_growth,
         )
 
     def compute_quality_metrics(self, detail: CompanyFinancialDetail) -> QualityMetricsSummary:
@@ -885,6 +893,7 @@ def _build_detail(
         pb_ratio=_metric(snapshot, "pb_ratio"),
         ev_ebitda=_metric(snapshot, "ev_ebitda"),
         ev_sales=_ev_sales(enterprise_value, revenue),
+        ps_ratio=_metric(snapshot, "ps_ratio"),
         fcf_yield=_metric(snapshot, "fcf_yield"),
         gross_margin=_metric(snapshot, "gross_margin"),
         operating_margin=_metric(snapshot, "operating_margin"),
@@ -953,6 +962,33 @@ def _valuation_verdict(view: str, fcf_yield: float | None) -> str:
     if view == "expensive":
         return "premium valuation"
     return "fairly valued"
+
+
+def _valuation_vs_growth_label(detail: CompanyFinancialDetail) -> str:
+    high_growth = (detail.revenue_growth is not None and detail.revenue_growth >= 0.12) or (
+        detail.ebitda_growth is not None and detail.ebitda_growth >= 0.12
+    )
+    expensive = (
+        (detail.ev_sales is not None and detail.ev_sales >= 6.0)
+        or (detail.ev_ebitda is not None and detail.ev_ebitda >= 16.0)
+        or (detail.ps_ratio is not None and detail.ps_ratio >= 4.0)
+    )
+    if high_growth and expensive:
+        metric = (
+            f"EV/Sales {detail.ev_sales:.1f}x"
+            if detail.ev_sales is not None
+            else f"EV/EBITDA {detail.ev_ebitda:.1f}x"
+            if detail.ev_ebitda is not None
+            else f"P/S {detail.ps_ratio:.1f}x"
+            if detail.ps_ratio is not None
+            else "valuation multiples elevated"
+        )
+        return f"high growth but expensive ({metric})"
+    if high_growth:
+        return "high growth with reasonable valuation"
+    if expensive:
+        return "valuation rich vs growth profile"
+    return "valuation and growth broadly balanced"
 
 
 def _trend_from_growth_points(points: list[HistoricalMetricPoint]) -> str:

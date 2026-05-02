@@ -170,10 +170,13 @@ class ValuationSummarySchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     ev_ebitda: float | None
+    ev_sales: float | None
     pe_ratio: float | None
+    ps_ratio: float | None
     fcf_yield: float | None
     valuation_view: str
     valuation_verdict: str
+    valuation_vs_growth: str
 
 
 class QualityRiskSummarySchema(BaseModel):
