@@ -142,7 +142,7 @@ class KpiSnapshotService:
                 current_liabilities=stmt.current_liabilities,
                 interest_expense=stmt.interest_expense,
             )
-            metrics = _ratios_to_metrics_payload(ratios, context.company)
+            metrics = _ratios_to_metrics_payload(ratios, context.company, stmt, context.previous_statement)
             metrics[DATA_QUALITY_SCORE_KEY] = _compute_data_quality_score(
                 company=context.company,
                 latest_statement=context.latest_statement,
@@ -369,8 +369,13 @@ def _derive_company_price(
     return None, None
 
 
-def _ratios_to_metrics_payload(ratios: CompanyRatios, company: Company) -> dict[str, float | int | None]:
-    return {
+def _ratios_to_metrics_payload(
+    ratios: CompanyRatios,
+    company: Company,
+    stmt: FinancialStatement,
+    previous_stmt: FinancialStatement | None = None,
+) -> dict[str, float | int | None]:
+    payload: dict[str, float | int | None] = {
         "fiscal_year": ratios.fiscal_year,
         "price": ratios.price,
         "market_cap": ratios.mkt_cap,
@@ -396,7 +401,170 @@ def _ratios_to_metrics_payload(ratios: CompanyRatios, company: Company) -> dict[
         "analyst_recommendation": company.analyst_recommendation,
         "analyst_count": company.analyst_count,
         "forward_pe": company.forward_pe,
+        "asset_turnover": ratios.asset_turnover,
+        "roa": ratios.roa,
+        "ebit_margin": ratios.ebit_margin,
+        "net_margin": ratios.net_margin,
+        "debt_to_equity": ratios.debt_to_equity,
+        "fcf_margin": ratios.fcf_margin,
+        "cash_conversion_ratio": ratios.cash_conversion_ratio,
+        "ev_sales": ratios.ev_sales,
+        "price_to_fcf": ratios.price_to_fcf,
+        "ps_ratio": ratios.ps_ratio,
+        "revenue_cagr_3y": ratios.revenue_cagr_3y,
+        "ebitda_cagr_3y": ratios.ebitda_cagr_3y,
+        "net_income_growth": ratios.net_income_growth,
+        "fcf_growth": ratios.fcf_growth,
+        "gross_profit_growth": ratios.gross_profit_growth,
+        "net_debt_growth": ratios.net_debt_growth,
     }
+    payload["gross_profitability"] = _safe_divide(stmt.gross_profit, stmt.total_assets)
+    payload["cfo_to_net_income"] = _safe_divide(stmt.operating_cash_flow, stmt.net_income)
+    payload["cfo_to_ebit"] = _safe_divide(stmt.operating_cash_flow, stmt.ebit)
+    payload["accrual_ratio"] = _accrual_ratio(stmt.net_income, stmt.operating_cash_flow, stmt.total_assets)
+    payload["ev_fcf"] = _safe_divide(ratios.ev, stmt.free_cash_flow) if ratios.ev else None
+    payload["altman_z_proxy"] = _altman_z_proxy(stmt, ratios.mkt_cap)
+    payload["ronic"] = _ronic(stmt, previous_stmt)
+    payload["capex_to_revenue"] = _capex_to_revenue_ratio(stmt)
+    payload["shares_growth"] = _shares_growth(stmt, previous_stmt)
+    payload["cfo_margin"] = _cfo_margin(stmt)
+    payload["cfo_streak_negative"] = _cfo_streak_negative(stmt, previous_stmt)
+    return payload
+
+
+def _safe_divide(num: float | None, den: float | None) -> float | None:
+    if num is None or den is None:
+        return None
+    if not math.isfinite(num) or not math.isfinite(den):
+        return None
+    if abs(den) < 1e-9:
+        return None
+    if den <= 0:
+        return None
+    return num / den
+
+
+def _accrual_ratio(
+    net_income: float | None,
+    operating_cash_flow: float | None,
+    total_assets: float | None,
+) -> float | None:
+    if net_income is None or operating_cash_flow is None or total_assets is None:
+        return None
+    if not math.isfinite(net_income) or not math.isfinite(operating_cash_flow):
+        return None
+    if total_assets is None or not math.isfinite(total_assets) or total_assets <= 0:
+        return None
+    return (net_income - operating_cash_flow) / total_assets
+
+
+def _altman_z_proxy(stmt: FinancialStatement, market_cap: float) -> float | None:
+    ta = stmt.total_assets
+    if ta is None or ta <= 0:
+        return None
+    ca = stmt.current_assets
+    cl = stmt.current_liabilities
+    ebit = stmt.ebit
+    td = stmt.total_debt
+    rev = stmt.revenue
+    if any(v is None for v in (ca, cl, ebit, rev)):
+        return None
+    wc_ta = (ca - cl) / ta
+    ebit_ta = ebit / ta
+    rev_ta = rev / ta
+    eq_debt = 0.0
+    if td is not None and td > 0 and market_cap > 0:
+        eq_debt = market_cap / td
+    z = 1.2 * wc_ta + 3.3 * ebit_ta + 0.6 * eq_debt + 1.0 * rev_ta
+    if not math.isfinite(z):
+        return None
+    return z
+
+
+def _ronic(
+    stmt: FinancialStatement,
+    previous_stmt: FinancialStatement | None,
+) -> float | None:
+    if previous_stmt is None:
+        return None
+    curr_eq = stmt.total_equity
+    prev_eq = previous_stmt.total_equity
+    if curr_eq is None or prev_eq is None:
+        return None
+    curr_nd = stmt.net_debt or 0.0
+    prev_nd = previous_stmt.net_debt or 0.0
+    delta_cap = (curr_eq + curr_nd) - (prev_eq + prev_nd)
+    if delta_cap <= 0:
+        return None
+    curr_ebit = stmt.ebit
+    prev_ebit = previous_stmt.ebit
+    if curr_ebit is not None and prev_ebit is not None:
+        result = (curr_ebit - prev_ebit) / delta_cap
+        if math.isfinite(result):
+            return result
+    curr_ebitda = stmt.ebitda
+    prev_ebitda = previous_stmt.ebitda
+    if curr_ebitda is not None and prev_ebitda is not None:
+        result = (curr_ebitda - prev_ebitda) / delta_cap
+        if math.isfinite(result):
+            return result
+    return None
+
+
+def _capex_to_revenue_ratio(stmt: FinancialStatement) -> float | None:
+    capex = stmt.capex
+    revenue = stmt.revenue
+    if capex is None or revenue is None:
+        return None
+    if not math.isfinite(capex) or not math.isfinite(revenue):
+        return None
+    if revenue <= 0:
+        return None
+    return abs(capex) / revenue
+
+
+def _shares_growth(
+    stmt: FinancialStatement,
+    previous_stmt: FinancialStatement | None,
+) -> float | None:
+    if previous_stmt is None:
+        return None
+    curr = stmt.shares_outstanding
+    prev = previous_stmt.shares_outstanding
+    if curr is None or prev is None:
+        return None
+    if not math.isfinite(curr) or not math.isfinite(prev):
+        return None
+    if prev <= 0:
+        return None
+    return (curr - prev) / prev
+
+
+def _cfo_margin(stmt: FinancialStatement) -> float | None:
+    cfo = stmt.operating_cash_flow
+    revenue = stmt.revenue
+    if cfo is None or revenue is None:
+        return None
+    if not math.isfinite(cfo) or not math.isfinite(revenue):
+        return None
+    if revenue <= 0:
+        return None
+    return cfo / revenue
+
+
+def _cfo_streak_negative(
+    stmt: FinancialStatement,
+    previous_stmt: FinancialStatement | None,
+) -> int:
+    curr_cfo = stmt.operating_cash_flow
+    curr_neg = curr_cfo is not None and math.isfinite(curr_cfo) and curr_cfo < 0
+    if not curr_neg:
+        return 0
+    if previous_stmt is None:
+        return 1
+    prev_cfo = previous_stmt.operating_cash_flow
+    prev_neg = prev_cfo is not None and math.isfinite(prev_cfo) and prev_cfo < 0
+    return 2 if prev_neg else 1
 
 
 def _load_universe_company_total_scores(

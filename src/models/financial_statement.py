@@ -38,5 +38,9 @@ class FinancialStatement(Base):
     current_assets: Mapped[float | None] = mapped_column(default=None)
     current_liabilities: Mapped[float | None] = mapped_column(default=None)
     interest_expense: Mapped[float | None] = mapped_column(default=None)
+    operating_cash_flow: Mapped[float | None] = mapped_column(default=None)
+    capex: Mapped[float | None] = mapped_column(default=None)
+    depreciation_amortization: Mapped[float | None] = mapped_column(default=None)
+    pretax_income: Mapped[float | None] = mapped_column(default=None)
 
     company: Mapped["Company"] = relationship(back_populates="financial_statements")

@@ -219,6 +219,52 @@ def _parse_statement(
     if interest is not None:
         interest = abs(interest)
 
+    operating_cash_flow = (
+        _df_float_multi(
+            cashflow,
+            [
+                "Operating Cash Flow",
+                "Total Cash From Operating Activities",
+                "Cash Flow From Continuing Operating Activities",
+            ],
+            col,
+        )
+        if cashflow is not None
+        else None
+    )
+
+    capex_raw = (
+        _df_float_multi(
+            cashflow,
+            ["Capital Expenditure", "Capital Expenditures", "Capital Expenditure Reported"],
+            col,
+        )
+        if cashflow is not None
+        else None
+    )
+    capex = abs(capex_raw) if capex_raw is not None else None
+
+    depreciation_amortization = (
+        _df_float_multi(
+            cashflow,
+            [
+                "Depreciation And Amortization",
+                "Depreciation",
+                "Depreciation Amortization Depletion",
+                "Reconciled Depreciation",
+            ],
+            col,
+        )
+        if cashflow is not None
+        else None
+    )
+
+    pretax_income = _df_float_multi(
+        income,
+        ["Pretax Income", "Income Before Tax", "Income Before Taxation", "Earnings Before Tax"],
+        col,
+    )
+
     return FinancialData(
         fiscal_year=col.year,
         period_type=PeriodType.ANNUAL,
@@ -236,6 +282,10 @@ def _parse_statement(
         current_assets=current_assets,
         current_liabilities=current_liabilities,
         interest_expense=interest,
+        operating_cash_flow=operating_cash_flow,
+        capex=capex,
+        depreciation_amortization=depreciation_amortization,
+        pretax_income=pretax_income,
     )
 
 

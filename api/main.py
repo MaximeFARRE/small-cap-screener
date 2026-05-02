@@ -6,10 +6,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.dependencies import get_settings
 from api.routers import companies, data_refresh, screening, signals, watchlist
+from src.repositories.database import init_db
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    init_db()
     yield
 
 
