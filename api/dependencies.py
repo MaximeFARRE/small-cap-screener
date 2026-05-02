@@ -25,7 +25,7 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     debug: bool = False
-    database_url: str = "sqlite:///./data/screener.db"
+    database_url: str = "sqlite:///C:/Users/<username>/.small-cap-screener/screener.db"
     api_host: str = "127.0.0.1"
     api_port: int = 8000
     frontend_origin: str = "http://localhost:5173"
