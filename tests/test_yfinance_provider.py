@@ -474,6 +474,181 @@ def test_get_financial_statements_new_fields_none_when_absent(mock_ticker_cls):
     assert stmts[0].interest_expense is None
 
 
+def _make_cashflow_extended_df() -> pd.DataFrame:
+    col = pd.Timestamp("2023-12-31")
+    return pd.DataFrame(
+        {
+            col: {
+                "Free Cash Flow": 18_000_000.0,
+                "Operating Cash Flow": 25_000_000.0,
+                "Capital Expenditure": -7_000_000.0,
+                "Depreciation And Amortization": 10_000_000.0,
+            }
+        }
+    )
+
+
+def _make_financials_with_pretax_df() -> pd.DataFrame:
+    col = pd.Timestamp("2023-12-31")
+    return pd.DataFrame(
+        {
+            col: {
+                "Total Revenue": 200_000_000.0,
+                "EBIT": 20_000_000.0,
+                "EBITDA": 30_000_000.0,
+                "Net Income": 15_000_000.0,
+                "Pretax Income": 18_000_000.0,
+            }
+        }
+    )
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_financial_statements_parses_operating_cash_flow(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"sharesOutstanding": 1_000_000},
+        financials=_make_enriched_financials_df(),
+        balance_sheet=_make_enriched_balance_df(),
+        cashflow=_make_cashflow_extended_df(),
+    )
+    stmts = YFinanceProvider().get_financial_statements(TICKER, years=1)
+    assert stmts[0].operating_cash_flow == pytest.approx(25_000_000.0)
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_financial_statements_parses_capex_as_positive(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"sharesOutstanding": 1_000_000},
+        financials=_make_enriched_financials_df(),
+        balance_sheet=_make_enriched_balance_df(),
+        cashflow=_make_cashflow_extended_df(),
+    )
+    stmts = YFinanceProvider().get_financial_statements(TICKER, years=1)
+    assert stmts[0].capex == pytest.approx(7_000_000.0)
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_financial_statements_capex_positive_when_already_positive(mock_ticker_cls):
+    col = pd.Timestamp("2023-12-31")
+    cashflow_positive_capex = pd.DataFrame({col: {"Free Cash Flow": 18_000_000.0, "Capital Expenditure": 7_000_000.0}})
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"sharesOutstanding": 1_000_000},
+        financials=_make_enriched_financials_df(),
+        balance_sheet=_make_enriched_balance_df(),
+        cashflow=cashflow_positive_capex,
+    )
+    stmts = YFinanceProvider().get_financial_statements(TICKER, years=1)
+    assert stmts[0].capex == pytest.approx(7_000_000.0)
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_financial_statements_parses_depreciation_amortization(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"sharesOutstanding": 1_000_000},
+        financials=_make_enriched_financials_df(),
+        balance_sheet=_make_enriched_balance_df(),
+        cashflow=_make_cashflow_extended_df(),
+    )
+    stmts = YFinanceProvider().get_financial_statements(TICKER, years=1)
+    assert stmts[0].depreciation_amortization == pytest.approx(10_000_000.0)
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_financial_statements_parses_pretax_income(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"sharesOutstanding": 1_000_000},
+        financials=_make_financials_with_pretax_df(),
+        balance_sheet=_make_enriched_balance_df(),
+        cashflow=_make_cashflow_df(),
+    )
+    stmts = YFinanceProvider().get_financial_statements(TICKER, years=1)
+    assert stmts[0].pretax_income == pytest.approx(18_000_000.0)
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_financial_statements_new_cashflow_fields_none_when_cashflow_absent(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"sharesOutstanding": 1_000_000},
+        financials=_make_financials_with_pretax_df(),
+        balance_sheet=_make_enriched_balance_df(),
+        cashflow=pd.DataFrame(),
+    )
+    stmts = YFinanceProvider().get_financial_statements(TICKER, years=1)
+    assert stmts[0].operating_cash_flow is None
+    assert stmts[0].capex is None
+    assert stmts[0].depreciation_amortization is None
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_financial_statements_new_fields_none_when_keys_absent(mock_ticker_cls):
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"sharesOutstanding": 1_000_000},
+        financials=_make_financials_df(),
+        balance_sheet=_make_balance_df(),
+        cashflow=_make_cashflow_df(),
+    )
+    stmts = YFinanceProvider().get_financial_statements(TICKER, years=1)
+    assert stmts[0].operating_cash_flow is None
+    assert stmts[0].capex is None
+    assert stmts[0].depreciation_amortization is None
+    assert stmts[0].pretax_income is None
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_financial_statements_da_fallback_key(mock_ticker_cls):
+    col = pd.Timestamp("2023-12-31")
+    cashflow_with_fallback = pd.DataFrame(
+        {col: {"Free Cash Flow": 18_000_000.0, "Reconciled Depreciation": 9_000_000.0}}
+    )
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"sharesOutstanding": 1_000_000},
+        financials=_make_enriched_financials_df(),
+        balance_sheet=_make_enriched_balance_df(),
+        cashflow=cashflow_with_fallback,
+    )
+    stmts = YFinanceProvider().get_financial_statements(TICKER, years=1)
+    assert stmts[0].depreciation_amortization == pytest.approx(9_000_000.0)
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_financial_statements_pretax_fallback_key(mock_ticker_cls):
+    col = pd.Timestamp("2023-12-31")
+    financials_with_fallback = pd.DataFrame(
+        {
+            col: {
+                "Total Revenue": 200_000_000.0,
+                "EBIT": 20_000_000.0,
+                "Net Income": 15_000_000.0,
+                "Income Before Tax": 17_500_000.0,
+            }
+        }
+    )
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"sharesOutstanding": 1_000_000},
+        financials=financials_with_fallback,
+        balance_sheet=_make_enriched_balance_df(),
+        cashflow=_make_cashflow_df(),
+    )
+    stmts = YFinanceProvider().get_financial_statements(TICKER, years=1)
+    assert stmts[0].pretax_income == pytest.approx(17_500_000.0)
+
+
+@patch("src.repositories.providers.yfinance_provider.yf.Ticker")
+def test_get_financial_statements_ocf_fallback_key(mock_ticker_cls):
+    col = pd.Timestamp("2023-12-31")
+    cashflow_with_fallback = pd.DataFrame(
+        {col: {"Free Cash Flow": 18_000_000.0, "Total Cash From Operating Activities": 24_000_000.0}}
+    )
+    mock_ticker_cls.return_value = _mock_ticker(
+        info={"sharesOutstanding": 1_000_000},
+        financials=_make_enriched_financials_df(),
+        balance_sheet=_make_enriched_balance_df(),
+        cashflow=cashflow_with_fallback,
+    )
+    stmts = YFinanceProvider().get_financial_statements(TICKER, years=1)
+    assert stmts[0].operating_cash_flow == pytest.approx(24_000_000.0)
+
+
 # --- get_analyst_data ---
 
 
