@@ -29,6 +29,14 @@ class HistoricalFundamentalsSchema(BaseModel):
     free_cash_flow_history: list[HistoricalMetricPointSchema]
     net_debt_history: list[HistoricalMetricPointSchema]
     eps_history: list[HistoricalMetricPointSchema]
+    capex_history: list[HistoricalMetricPointSchema]
+    capex_to_revenue_history: list[HistoricalMetricPointSchema]
+    working_capital_history: list[HistoricalMetricPointSchema]
+    operating_cash_flow_history: list[HistoricalMetricPointSchema]
+    asset_turnover_history: list[HistoricalMetricPointSchema]
+    equity_multiplier_history: list[HistoricalMetricPointSchema]
+    capex_growth_history: list[HistoricalMetricPointSchema]
+    working_capital_growth_history: list[HistoricalMetricPointSchema]
     revenue_growth_history: list[HistoricalMetricPointSchema]
     ebitda_growth_history: list[HistoricalMetricPointSchema]
     net_income_growth_history: list[HistoricalMetricPointSchema]
@@ -195,6 +203,7 @@ class CapitalAllocationSummarySchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     fcf_trend: str
+    capex_trend: str
     debt_trend: str
     reinvestment_vs_returns: str
 

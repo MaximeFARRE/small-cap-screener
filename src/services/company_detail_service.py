@@ -68,6 +68,14 @@ class HistoricalFundamentals:
     net_debt_history: list[HistoricalMetricPoint] = field(default_factory=list)
     eps_history: list[HistoricalMetricPoint] = field(default_factory=list)
     shares_outstanding_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    capex_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    capex_to_revenue_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    working_capital_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    operating_cash_flow_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    asset_turnover_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    equity_multiplier_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    capex_growth_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    working_capital_growth_history: list[HistoricalMetricPoint] = field(default_factory=list)
     revenue_growth_history: list[HistoricalMetricPoint] = field(default_factory=list)
     ebitda_growth_history: list[HistoricalMetricPoint] = field(default_factory=list)
     net_income_growth_history: list[HistoricalMetricPoint] = field(default_factory=list)
@@ -247,6 +255,7 @@ class BusinessSummary:
 @dataclass(frozen=True)
 class CapitalAllocationSummary:
     fcf_trend: str
+    capex_trend: str
     debt_trend: str
     reinvestment_vs_returns: str
 
@@ -350,10 +359,12 @@ class CompanyDetailService:
     def compute_allocation_metrics(self, detail: CompanyFinancialDetail) -> CapitalAllocationSummary:
         historical = detail.historical_fundamentals
         fcf_trend = _trend_from_growth_points(historical.free_cash_flow_growth_history)
+        capex_trend = _trend_from_growth_points(historical.capex_growth_history)
         debt_trend = historical.trends.net_debt_direction or "stable"
         reinvestment_vs_returns = _reinvestment_vs_returns_label(detail.roic, detail.fcf_yield)
         return CapitalAllocationSummary(
             fcf_trend=fcf_trend,
+            capex_trend=capex_trend,
             debt_trend=debt_trend,
             reinvestment_vs_returns=reinvestment_vs_returns,
         )
@@ -693,6 +704,21 @@ def _build_historical_fundamentals(statements: list[FinancialStatement]) -> Hist
     net_debt_history = _build_metric_history(statements, lambda s: s.net_debt)
     eps_history = _build_metric_history(statements, _eps)
     shares_outstanding_history = _build_metric_history(statements, lambda s: s.shares_outstanding)
+    capex_history = _build_metric_history(statements, lambda s: s.capex)
+    capex_to_revenue_history = _build_metric_history(
+        statements, lambda s: _ratio(abs(s.capex) if s.capex is not None else None, s.revenue)
+    )
+    working_capital_history = _build_metric_history(
+        statements,
+        lambda s: (s.current_assets - s.current_liabilities)
+        if s.current_assets is not None and s.current_liabilities is not None
+        else None,
+    )
+    operating_cash_flow_history = _build_metric_history(statements, lambda s: s.operating_cash_flow)
+    asset_turnover_history = _build_metric_history(statements, lambda s: _ratio(s.revenue, s.total_assets))
+    equity_multiplier_history = _build_metric_history(statements, lambda s: _ratio(s.total_assets, s.total_equity))
+    capex_growth_history = compute_growth_rates(capex_history)
+    working_capital_growth_history = compute_growth_rates(working_capital_history)
     margin_history = _margin_history(statements)
     revenue_growth_history = compute_growth_rates(revenue_history)
     ebitda_growth_history = compute_growth_rates(ebitda_history)
@@ -732,6 +758,14 @@ def _build_historical_fundamentals(statements: list[FinancialStatement]) -> Hist
         net_debt_history=net_debt_history,
         eps_history=eps_history,
         shares_outstanding_history=shares_outstanding_history,
+        capex_history=capex_history,
+        capex_to_revenue_history=capex_to_revenue_history,
+        working_capital_history=working_capital_history,
+        operating_cash_flow_history=operating_cash_flow_history,
+        asset_turnover_history=asset_turnover_history,
+        equity_multiplier_history=equity_multiplier_history,
+        capex_growth_history=capex_growth_history,
+        working_capital_growth_history=working_capital_growth_history,
         revenue_growth_history=revenue_growth_history,
         ebitda_growth_history=ebitda_growth_history,
         net_income_growth_history=net_income_growth_history,

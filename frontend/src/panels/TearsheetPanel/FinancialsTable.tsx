@@ -12,6 +12,7 @@ interface FinancialRowDefinition {
   absolutePoints: HistoricalMetricPoint[];
   growthPoints: HistoricalMetricPoint[];
   cagr: number | null;
+  format: "currency" | "percent" | "ratio";
 }
 
 const CURRENCY_COMPACT = new Intl.NumberFormat("en-US", {
@@ -60,6 +61,19 @@ function formatPercent(value: number | null): string {
   return PERCENT.format(value);
 }
 
+function formatRatio(value: number | null): string {
+  if (value === null) {
+    return "—";
+  }
+  return `${value.toFixed(2)}x`;
+}
+
+function formatValue(value: number | null, format: FinancialRowDefinition["format"]): string {
+  if (format === "percent") return formatPercent(value);
+  if (format === "ratio") return formatRatio(value);
+  return formatCurrency(value);
+}
+
 export function FinancialsTable({ historical }: FinancialsTableProps) {
   const [mode, setMode] = useState<"absolute" | "growth">("absolute");
   const anomalySet = useMemo(
@@ -77,6 +91,7 @@ export function FinancialsTable({ historical }: FinancialsTableProps) {
       absolutePoints: historical.revenue_history,
       growthPoints: historical.revenue_growth_history,
       cagr: historical.revenue_cagr ?? cagrFromPoints(historical.revenue_history),
+      format: "currency",
     },
     {
       key: "ebitda",
@@ -84,6 +99,7 @@ export function FinancialsTable({ historical }: FinancialsTableProps) {
       absolutePoints: historical.ebitda_history,
       growthPoints: historical.ebitda_growth_history,
       cagr: cagrFromPoints(historical.ebitda_history),
+      format: "currency",
     },
     {
       key: "net_income",
@@ -91,6 +107,7 @@ export function FinancialsTable({ historical }: FinancialsTableProps) {
       absolutePoints: historical.net_income_history,
       growthPoints: historical.net_income_growth_history,
       cagr: historical.net_income_cagr ?? cagrFromPoints(historical.net_income_history),
+      format: "currency",
     },
     {
       key: "free_cash_flow",
@@ -98,6 +115,39 @@ export function FinancialsTable({ historical }: FinancialsTableProps) {
       absolutePoints: historical.free_cash_flow_history,
       growthPoints: historical.free_cash_flow_growth_history,
       cagr: historical.free_cash_flow_cagr ?? cagrFromPoints(historical.free_cash_flow_history),
+      format: "currency",
+    },
+    {
+      key: "operating_cash_flow",
+      label: "Operating Cash Flow",
+      absolutePoints: historical.operating_cash_flow_history,
+      growthPoints: [],
+      cagr: cagrFromPoints(historical.operating_cash_flow_history),
+      format: "currency",
+    },
+    {
+      key: "capex",
+      label: "CAPEX",
+      absolutePoints: historical.capex_history,
+      growthPoints: historical.capex_growth_history,
+      cagr: cagrFromPoints(historical.capex_history),
+      format: "currency",
+    },
+    {
+      key: "capex_to_revenue",
+      label: "CAPEX / Revenue",
+      absolutePoints: historical.capex_to_revenue_history,
+      growthPoints: [],
+      cagr: null,
+      format: "percent",
+    },
+    {
+      key: "working_capital",
+      label: "Working Capital",
+      absolutePoints: historical.working_capital_history,
+      growthPoints: historical.working_capital_growth_history,
+      cagr: cagrFromPoints(historical.working_capital_history),
+      format: "currency",
     },
     {
       key: "net_debt",
@@ -105,6 +155,23 @@ export function FinancialsTable({ historical }: FinancialsTableProps) {
       absolutePoints: historical.net_debt_history,
       growthPoints: [],
       cagr: cagrFromPoints(historical.net_debt_history),
+      format: "currency",
+    },
+    {
+      key: "asset_turnover",
+      label: "Asset Turnover",
+      absolutePoints: historical.asset_turnover_history,
+      growthPoints: [],
+      cagr: null,
+      format: "ratio",
+    },
+    {
+      key: "equity_multiplier",
+      label: "Equity Multiplier",
+      absolutePoints: historical.equity_multiplier_history,
+      growthPoints: [],
+      cagr: null,
+      format: "ratio",
     },
   ];
 
@@ -173,16 +240,16 @@ export function FinancialsTable({ historical }: FinancialsTableProps) {
                 return (
                   <td key={`${row.key}-${year}`} className={cn("px-2 py-2 text-right", toneClass)}>
                     <div className="font-mono text-xs">
-                      {mode === "absolute" ? formatCurrency(value) : formatPercent(yoyChange)}
+                      {mode === "absolute" ? formatValue(value, row.format) : formatPercent(yoyChange)}
                     </div>
                     <div className="font-mono text-[11px] text-[var(--color-text-muted)]">
-                      {mode === "absolute" ? formatPercent(yoyChange) : formatCurrency(value)}
+                      {mode === "absolute" ? formatPercent(yoyChange) : formatValue(value, row.format)}
                     </div>
                   </td>
                 );
               })}
               <td className="px-2 py-2 text-right font-mono text-xs text-[var(--color-accent)]">
-                {formatPercent(row.cagr)}
+                {row.format === "currency" ? formatPercent(row.cagr) : "—"}
               </td>
             </tr>
           ))}

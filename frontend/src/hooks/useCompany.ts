@@ -21,6 +21,14 @@ export interface HistoricalFundamentals {
   free_cash_flow_history: HistoricalMetricPoint[];
   net_debt_history: HistoricalMetricPoint[];
   eps_history: HistoricalMetricPoint[];
+  capex_history: HistoricalMetricPoint[];
+  capex_to_revenue_history: HistoricalMetricPoint[];
+  working_capital_history: HistoricalMetricPoint[];
+  operating_cash_flow_history: HistoricalMetricPoint[];
+  asset_turnover_history: HistoricalMetricPoint[];
+  equity_multiplier_history: HistoricalMetricPoint[];
+  capex_growth_history: HistoricalMetricPoint[];
+  working_capital_growth_history: HistoricalMetricPoint[];
   revenue_growth_history: HistoricalMetricPoint[];
   ebitda_growth_history: HistoricalMetricPoint[];
   net_income_growth_history: HistoricalMetricPoint[];
@@ -209,6 +217,7 @@ export interface BusinessSummary {
 
 export interface CapitalAllocationSummary {
   fcf_trend: string;
+  capex_trend: string;
   debt_trend: string;
   reinvestment_vs_returns: string;
 }

@@ -374,6 +374,7 @@ export function TearsheetPanel() {
             <FinancialsTable historical={historical} />
             <section className="space-y-3 p-4">
               <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">FCF evolution: {insights.capital_allocation.fcf_trend}</div>
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">CAPEX trend: {insights.capital_allocation.capex_trend}</div>
               <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Debt evolution: {insights.capital_allocation.debt_trend}</div>
               <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3 text-sm text-[var(--color-text-primary)]">Reinvestment vs returns: {insights.capital_allocation.reinvestment_vs_returns}</div>
             </section>
