@@ -10,7 +10,7 @@ def test_resolve_database_url_uses_environment_variable(monkeypatch):
     assert database._resolve_database_url() == "sqlite:///C:/tmp/custom.db"
 
 
-def test_default_sqlite_path_uses_project_data_folder(monkeypatch):
+def test_default_sqlite_path_uses_user_home_app_folder(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.setattr(database.sys, "frozen", False, raising=False)
 
@@ -18,7 +18,7 @@ def test_default_sqlite_path_uses_project_data_folder(monkeypatch):
 
     assert default_path.is_absolute()
     assert default_path.name == "screener.db"
-    assert default_path.parent.name == "data"
+    assert default_path.parent.name == ".small-cap-screener"
 
 
 def test_default_sqlite_path_uses_executable_dir_when_frozen(monkeypatch):

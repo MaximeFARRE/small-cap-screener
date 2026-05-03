@@ -11,6 +11,14 @@ class HistoricalMetricPointSchema(BaseModel):
     value: float
 
 
+class FinancialAnomalySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    metric_key: str
+    fiscal_year: int
+    kind: str
+
+
 class HistoricalFundamentalsSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -21,6 +29,20 @@ class HistoricalFundamentalsSchema(BaseModel):
     free_cash_flow_history: list[HistoricalMetricPointSchema]
     net_debt_history: list[HistoricalMetricPointSchema]
     eps_history: list[HistoricalMetricPointSchema]
+    capex_history: list[HistoricalMetricPointSchema]
+    capex_to_revenue_history: list[HistoricalMetricPointSchema]
+    working_capital_history: list[HistoricalMetricPointSchema]
+    operating_cash_flow_history: list[HistoricalMetricPointSchema]
+    asset_turnover_history: list[HistoricalMetricPointSchema]
+    equity_multiplier_history: list[HistoricalMetricPointSchema]
+    capex_growth_history: list[HistoricalMetricPointSchema]
+    working_capital_growth_history: list[HistoricalMetricPointSchema]
+    revenue_growth_history: list[HistoricalMetricPointSchema]
+    ebitda_growth_history: list[HistoricalMetricPointSchema]
+    net_income_growth_history: list[HistoricalMetricPointSchema]
+    free_cash_flow_growth_history: list[HistoricalMetricPointSchema]
+    ebitda_margin_history: list[HistoricalMetricPointSchema]
+    financial_anomalies: list[FinancialAnomalySchema]
     revenue_cagr: float | None = None
     operating_income_cagr: float | None = None
     net_income_cagr: float | None = None
@@ -120,3 +142,115 @@ class CompanyDetailSchema(BaseModel):
     major_holders: list[HolderSchema]
     institutional_holders: list[HolderSchema]
     insider_activity: list[InsiderTransactionSchema]
+
+
+class CompanyAnalysisSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    quality: float | None
+    value: float | None
+    growth: float | None
+    risk: float | None
+    strengths: list[str]
+    weaknesses: list[str]
+    red_flags: list[str]
+    trend: str
+    verdict: str
+    revenue_trend: str
+    margin_trend: str
+    debt_trend: str
+    cash_conversion_ratio: float | None
+    revenue_cagr_3y: float | None
+    ebitda_cagr_3y: float | None
+    net_income_growth: float | None
+    fcf_growth: float | None
+
+
+class ValuationSummarySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    ev_ebitda: float | None
+    ev_sales: float | None
+    pe_ratio: float | None
+    ps_ratio: float | None
+    fcf_yield: float | None
+    valuation_view: str
+    valuation_verdict: str
+    valuation_vs_growth: str
+
+
+class QualityRiskSummarySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    profitability_score: float
+    balance_sheet_score: float
+    cash_flow_quality_score: float
+    volatility_score: float
+
+
+class BusinessSummarySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    sector: str | None
+    industry: str | None
+    business_model: str | None
+    market_cap: float | None
+    enterprise_value: float | None
+    analyst_target_price: float | None
+    analyst_target_upside: float | None
+    analyst_recommendation: str | None
+    analyst_count: int | None
+
+
+class CapitalAllocationSummarySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    fcf_trend: str
+    capex_trend: str
+    debt_trend: str
+    reinvestment_vs_returns: str
+
+
+class DataQualitySummarySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    data_quality_score: float | None
+    years_available: int
+    missing_data: list[str]
+    warnings: list[str]
+
+
+class MomentumSummarySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    performance_1m: float | None
+    performance_6m: float | None
+    performance_12m: float | None
+    pct_vs_52w_high: float | None
+    pct_vs_52w_low: float | None
+
+
+class OwnershipHolderSummarySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    holder_name: str
+    weight: float | None
+
+
+class OwnershipSummarySchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    institutional_pct: float | None
+    insiders_pct: float | None
+    top_holders: list[OwnershipHolderSummarySchema]
+
+
+class CompanyInsightsSchema(BaseModel):
+    analysis: CompanyAnalysisSchema
+    valuation: ValuationSummarySchema
+    quality_risk: QualityRiskSummarySchema
+    business: BusinessSummarySchema
+    momentum: MomentumSummarySchema
+    ownership: OwnershipSummarySchema
+    capital_allocation: CapitalAllocationSummarySchema
+    data_quality: DataQualitySummarySchema

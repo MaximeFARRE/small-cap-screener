@@ -4,7 +4,7 @@ import logging
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -36,6 +36,7 @@ _ANNUAL_PERIOD = PeriodType.ANNUAL.value
 _TREND_POSITIVE = "positive"
 _TREND_NEGATIVE = "negative"
 _TREND_STABLE = "stable"
+_STRONG_DROP_THRESHOLD = -0.2
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,20 @@ class HistoricalFundamentals:
     net_debt_history: list[HistoricalMetricPoint] = field(default_factory=list)
     eps_history: list[HistoricalMetricPoint] = field(default_factory=list)
     shares_outstanding_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    capex_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    capex_to_revenue_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    working_capital_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    operating_cash_flow_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    asset_turnover_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    equity_multiplier_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    capex_growth_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    working_capital_growth_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    revenue_growth_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    ebitda_growth_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    net_income_growth_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    free_cash_flow_growth_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    ebitda_margin_history: list[HistoricalMetricPoint] = field(default_factory=list)
+    financial_anomalies: list[FinancialAnomaly] = field(default_factory=list)
     trends: HistoricalFundamentalsTrends = field(
         default_factory=lambda: HistoricalFundamentalsTrends(
             revenue_cagr=None,
@@ -78,6 +93,13 @@ class HistoricalFundamentals:
             net_debt_direction=None,
         )
     )
+
+
+@dataclass(frozen=True)
+class FinancialAnomaly:
+    metric_key: str
+    fiscal_year: int
+    kind: str
 
 
 @dataclass(frozen=True)
@@ -175,6 +197,7 @@ class CompanyFinancialDetail:
     pb_ratio: float | None = None
     ev_ebitda: float | None = None
     ev_sales: float | None = None
+    ps_ratio: float | None = None
     fcf_yield: float | None = None
     # Quality ratios
     gross_margin: float | None = None
@@ -198,6 +221,71 @@ class CompanyFinancialDetail:
     top_shareholders: tuple[OwnershipHolderItem, ...] = ()
     institutional_holders: tuple[OwnershipHolderItem, ...] = ()
     insider_activity: tuple[OwnershipInsiderItem, ...] = ()
+
+
+@dataclass(frozen=True)
+class ValuationSummary:
+    ev_ebitda: float | None
+    ev_sales: float | None
+    pe_ratio: float | None
+    ps_ratio: float | None
+    fcf_yield: float | None
+    valuation_view: str
+    valuation_verdict: str
+    valuation_vs_growth: str
+
+
+@dataclass(frozen=True)
+class QualityMetricsSummary:
+    profitability_score: float
+    balance_sheet_score: float
+    cash_flow_quality_score: float
+    volatility_score: float
+
+
+@dataclass(frozen=True)
+class BusinessSummary:
+    sector: str | None
+    industry: str | None
+    business_model: str | None
+    market_cap: float | None
+    enterprise_value: float | None
+    analyst_target_price: float | None
+    analyst_target_upside: float | None
+    analyst_recommendation: str | None
+    analyst_count: int | None
+
+
+@dataclass(frozen=True)
+class CapitalAllocationSummary:
+    fcf_trend: str
+    capex_trend: str
+    debt_trend: str
+    reinvestment_vs_returns: str
+
+
+@dataclass(frozen=True)
+class DataQualitySummary:
+    data_quality_score: float | None
+    years_available: int
+    missing_data: tuple[str, ...]
+    warnings: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class MomentumSummary:
+    performance_1m: float | None
+    performance_6m: float | None
+    performance_12m: float | None
+    pct_vs_52w_high: float | None
+    pct_vs_52w_low: float | None
+
+
+@dataclass(frozen=True)
+class OwnershipSummary:
+    institutional_pct: float | None
+    insiders_pct: float | None
+    top_holders: tuple[OwnershipHolderItem, ...]
 
 
 @dataclass
@@ -230,6 +318,115 @@ class CompanyDetailService:
                 holders,
                 insider_transactions,
             )
+
+    def compute_valuation_summary(
+        self,
+        detail: CompanyFinancialDetail,
+        peer_ev_ebitda_median: float | None,
+        peer_pe_median: float | None,
+    ) -> ValuationSummary:
+        view = _valuation_view(detail, peer_ev_ebitda_median, peer_pe_median)
+        verdict = _valuation_verdict(view, detail.fcf_yield)
+        valuation_vs_growth = _valuation_vs_growth_label(detail)
+        return ValuationSummary(
+            ev_ebitda=detail.ev_ebitda,
+            ev_sales=detail.ev_sales,
+            pe_ratio=detail.pe_ratio,
+            ps_ratio=detail.ps_ratio,
+            fcf_yield=detail.fcf_yield,
+            valuation_view=view,
+            valuation_verdict=verdict,
+            valuation_vs_growth=valuation_vs_growth,
+        )
+
+    def compute_quality_metrics(self, detail: CompanyFinancialDetail) -> QualityMetricsSummary:
+        profitability_score = _to_score(detail.roic, good=0.15, bad=0.02, lower_is_better=False)
+        balance_sheet_score = _to_score(detail.net_debt_to_ebitda, good=1.0, bad=5.0, lower_is_better=True)
+        cash_flow_quality_score = _to_score(detail.fcf_yield, good=0.06, bad=0.0, lower_is_better=False)
+        volatility_score = _to_score(detail.beta, good=0.8, bad=1.8, lower_is_better=True)
+        return QualityMetricsSummary(
+            profitability_score=profitability_score,
+            balance_sheet_score=balance_sheet_score,
+            cash_flow_quality_score=cash_flow_quality_score,
+            volatility_score=volatility_score,
+        )
+
+    def compute_business_summary(self, detail: CompanyFinancialDetail) -> BusinessSummary:
+        return BusinessSummary(
+            sector=detail.sector,
+            industry=detail.industry,
+            business_model=detail.business_summary,
+            market_cap=detail.market_cap,
+            enterprise_value=detail.enterprise_value,
+            analyst_target_price=detail.analyst_target_price,
+            analyst_target_upside=detail.analyst_target_upside,
+            analyst_recommendation=detail.analyst_recommendation,
+            analyst_count=detail.analyst_count,
+        )
+
+    def compute_allocation_metrics(self, detail: CompanyFinancialDetail) -> CapitalAllocationSummary:
+        historical = detail.historical_fundamentals
+        fcf_trend = _trend_from_growth_points(historical.free_cash_flow_growth_history)
+        capex_trend = _trend_from_growth_points(historical.capex_growth_history)
+        debt_trend = historical.trends.net_debt_direction or "stable"
+        reinvestment_vs_returns = _reinvestment_vs_returns_label(detail.roic, detail.fcf_yield)
+        return CapitalAllocationSummary(
+            fcf_trend=fcf_trend,
+            capex_trend=capex_trend,
+            debt_trend=debt_trend,
+            reinvestment_vs_returns=reinvestment_vs_returns,
+        )
+
+    def compute_data_quality_summary(self, detail: CompanyFinancialDetail) -> DataQualitySummary:
+        warnings: list[str] = []
+        if detail.data_quality_score is not None and detail.data_quality_score < 60.0:
+            warnings.append("low data quality score")
+        if detail.missing_fields:
+            warnings.append("missing key fields")
+        years_available = len(detail.historical_fundamentals.revenue_history)
+        return DataQualitySummary(
+            data_quality_score=detail.data_quality_score,
+            years_available=years_available,
+            missing_data=detail.missing_fields,
+            warnings=tuple(warnings),
+        )
+
+    def compute_momentum_summary(self, company_id: int) -> MomentumSummary:
+        with self.session_scope_factory() as session:
+            prices = price_history_repository.get_by_company(session, company_id)
+        if not prices:
+            return MomentumSummary(None, None, None, None, None)
+        latest = prices[0]
+        latest_date = latest.date
+        latest_close = latest.close
+        perf_1m = _performance_since(prices, latest_date - timedelta(days=30), latest_close)
+        perf_6m = _performance_since(prices, latest_date - timedelta(days=182), latest_close)
+        perf_12m = _performance_since(prices, latest_date - timedelta(days=365), latest_close)
+        one_year_window = [p for p in prices if p.date >= latest_date - timedelta(days=365)]
+        if not one_year_window:
+            one_year_window = prices
+        high_52w = max((p.high if p.high is not None else p.close) for p in one_year_window)
+        low_52w = min((p.low if p.low is not None else p.close) for p in one_year_window)
+        pct_vs_52w_high = None if abs(high_52w) < _ZERO else (latest_close - high_52w) / high_52w
+        pct_vs_52w_low = None if abs(low_52w) < _ZERO else (latest_close - low_52w) / low_52w
+        return MomentumSummary(
+            performance_1m=perf_1m,
+            performance_6m=perf_6m,
+            performance_12m=perf_12m,
+            pct_vs_52w_high=pct_vs_52w_high,
+            pct_vs_52w_low=pct_vs_52w_low,
+        )
+
+    def compute_ownership_summary(self, detail: CompanyFinancialDetail) -> OwnershipSummary:
+        institutional_pct = _sum_holder_weights(detail.institutional_holders)
+        insider_candidates = [holder for holder in detail.major_holders if holder.holder_type == "insider"]
+        insiders_pct = _sum_holder_weights(tuple(insider_candidates))
+        top_holders = tuple(detail.top_shareholders[:5])
+        return OwnershipSummary(
+            institutional_pct=institutional_pct,
+            insiders_pct=insiders_pct,
+            top_holders=top_holders,
+        )
 
 
 def _select_historical_statements(statements: list[FinancialStatement]) -> list[FinancialStatement]:
@@ -453,6 +650,28 @@ def _margin_history(statements: list[FinancialStatement]) -> list[HistoricalMetr
     return _build_metric_history(statements, lambda s: _ratio(_operating_income(s), s.revenue))
 
 
+def compute_growth_rates(points: list[HistoricalMetricPoint]) -> list[HistoricalMetricPoint]:
+    if len(points) < 2:
+        return []
+    ordered = sorted(points, key=lambda p: p.fiscal_year, reverse=True)
+    growth_points: list[HistoricalMetricPoint] = []
+    for index, point in enumerate(ordered):
+        previous = ordered[index + 1] if index + 1 < len(ordered) else None
+        growth = None
+        if previous is not None and abs(previous.value) >= _ZERO:
+            growth = (point.value - previous.value) / abs(previous.value)
+        if growth is None:
+            continue
+        growth_points.append(
+            HistoricalMetricPoint(
+                fiscal_year=point.fiscal_year,
+                period_type=point.period_type,
+                value=growth,
+            )
+        )
+    return growth_points
+
+
 def _ratio(numerator: float | None, denominator: float | None) -> float | None:
     if numerator is None or denominator is None:
         return None
@@ -493,7 +712,39 @@ def _build_historical_fundamentals(statements: list[FinancialStatement]) -> Hist
     net_debt_history = _build_metric_history(statements, lambda s: s.net_debt)
     eps_history = _build_metric_history(statements, _eps)
     shares_outstanding_history = _build_metric_history(statements, lambda s: s.shares_outstanding)
+    capex_history = _build_metric_history(statements, lambda s: s.capex)
+    capex_to_revenue_history = _build_metric_history(
+        statements, lambda s: _ratio(abs(s.capex) if s.capex is not None else None, s.revenue)
+    )
+    working_capital_history = _build_metric_history(
+        statements,
+        lambda s: (s.current_assets - s.current_liabilities)
+        if s.current_assets is not None and s.current_liabilities is not None
+        else None,
+    )
+    operating_cash_flow_history = _build_metric_history(statements, lambda s: s.operating_cash_flow)
+    asset_turnover_history = _build_metric_history(statements, lambda s: _ratio(s.revenue, s.total_assets))
+    equity_multiplier_history = _build_metric_history(statements, lambda s: _ratio(s.total_assets, s.total_equity))
+    capex_growth_history = compute_growth_rates(capex_history)
+    working_capital_growth_history = compute_growth_rates(working_capital_history)
     margin_history = _margin_history(statements)
+    revenue_growth_history = compute_growth_rates(revenue_history)
+    ebitda_growth_history = compute_growth_rates(ebitda_history)
+    net_income_growth_history = compute_growth_rates(net_income_history)
+    free_cash_flow_growth_history = compute_growth_rates(free_cash_flow_history)
+    anomalies: list[FinancialAnomaly] = []
+    for point in ebitda_history:
+        if point.value < 0:
+            anomalies.append(FinancialAnomaly(metric_key="ebitda", fiscal_year=point.fiscal_year, kind="negative"))
+    for key, history in (
+        ("revenue", revenue_growth_history),
+        ("ebitda", ebitda_growth_history),
+        ("net_income", net_income_growth_history),
+        ("free_cash_flow", free_cash_flow_growth_history),
+    ):
+        for point in history:
+            if point.value <= _STRONG_DROP_THRESHOLD:
+                anomalies.append(FinancialAnomaly(metric_key=key, fiscal_year=point.fiscal_year, kind="strong_drop"))
 
     trends = HistoricalFundamentalsTrends(
         revenue_cagr=_cagr(revenue_history),
@@ -515,6 +766,20 @@ def _build_historical_fundamentals(statements: list[FinancialStatement]) -> Hist
         net_debt_history=net_debt_history,
         eps_history=eps_history,
         shares_outstanding_history=shares_outstanding_history,
+        capex_history=capex_history,
+        capex_to_revenue_history=capex_to_revenue_history,
+        working_capital_history=working_capital_history,
+        operating_cash_flow_history=operating_cash_flow_history,
+        asset_turnover_history=asset_turnover_history,
+        equity_multiplier_history=equity_multiplier_history,
+        capex_growth_history=capex_growth_history,
+        working_capital_growth_history=working_capital_growth_history,
+        revenue_growth_history=revenue_growth_history,
+        ebitda_growth_history=ebitda_growth_history,
+        net_income_growth_history=net_income_growth_history,
+        free_cash_flow_growth_history=free_cash_flow_growth_history,
+        ebitda_margin_history=margin_history,
+        financial_anomalies=anomalies,
         trends=trends,
     )
 
@@ -628,6 +893,7 @@ def _build_detail(
         pb_ratio=_metric(snapshot, "pb_ratio"),
         ev_ebitda=_metric(snapshot, "ev_ebitda"),
         ev_sales=_ev_sales(enterprise_value, revenue),
+        ps_ratio=_metric(snapshot, "ps_ratio"),
         fcf_yield=_metric(snapshot, "fcf_yield"),
         gross_margin=_metric(snapshot, "gross_margin"),
         operating_margin=_metric(snapshot, "operating_margin"),
@@ -648,3 +914,115 @@ def _build_detail(
         institutional_holders=institutional_holders,
         insider_activity=insider_activity,
     )
+
+
+def _to_score(value: float | None, *, good: float, bad: float, lower_is_better: bool) -> float:
+    if value is None:
+        return 0.0
+    if lower_is_better:
+        if value <= good:
+            return 100.0
+        if value >= bad:
+            return 0.0
+        return round((1.0 - ((value - good) / (bad - good))) * 100.0, 2)
+    if value >= good:
+        return 100.0
+    if value <= bad:
+        return 0.0
+    return round(((value - bad) / (good - bad)) * 100.0, 2)
+
+
+def _valuation_view(
+    detail: CompanyFinancialDetail,
+    peer_ev_ebitda_median: float | None,
+    peer_pe_median: float | None,
+) -> str:
+    cheap_signals = 0
+    expensive_signals = 0
+    if detail.ev_ebitda is not None and peer_ev_ebitda_median is not None:
+        if detail.ev_ebitda < peer_ev_ebitda_median:
+            cheap_signals += 1
+        elif detail.ev_ebitda > peer_ev_ebitda_median:
+            expensive_signals += 1
+    if detail.pe_ratio is not None and peer_pe_median is not None:
+        if detail.pe_ratio < peer_pe_median:
+            cheap_signals += 1
+        elif detail.pe_ratio > peer_pe_median:
+            expensive_signals += 1
+    if cheap_signals > expensive_signals:
+        return "cheap"
+    if expensive_signals > cheap_signals:
+        return "expensive"
+    return "neutral"
+
+
+def _valuation_verdict(view: str, fcf_yield: float | None) -> str:
+    if view == "cheap" and fcf_yield is not None and fcf_yield > 0.04:
+        return "attractive valuation"
+    if view == "expensive":
+        return "premium valuation"
+    return "fairly valued"
+
+
+def _valuation_vs_growth_label(detail: CompanyFinancialDetail) -> str:
+    high_growth = (detail.revenue_growth is not None and detail.revenue_growth >= 0.12) or (
+        detail.ebitda_growth is not None and detail.ebitda_growth >= 0.12
+    )
+    expensive = (
+        (detail.ev_sales is not None and detail.ev_sales >= 6.0)
+        or (detail.ev_ebitda is not None and detail.ev_ebitda >= 16.0)
+        or (detail.ps_ratio is not None and detail.ps_ratio >= 4.0)
+    )
+    if high_growth and expensive:
+        metric = (
+            f"EV/Sales {detail.ev_sales:.1f}x"
+            if detail.ev_sales is not None
+            else f"EV/EBITDA {detail.ev_ebitda:.1f}x"
+            if detail.ev_ebitda is not None
+            else f"P/S {detail.ps_ratio:.1f}x"
+            if detail.ps_ratio is not None
+            else "valuation multiples elevated"
+        )
+        return f"high growth but expensive ({metric})"
+    if high_growth:
+        return "high growth with reasonable valuation"
+    if expensive:
+        return "valuation rich vs growth profile"
+    return "valuation and growth broadly balanced"
+
+
+def _trend_from_growth_points(points: list[HistoricalMetricPoint]) -> str:
+    if not points:
+        return "stable"
+    latest = sorted(points, key=lambda point: point.fiscal_year, reverse=True)[0]
+    if latest.value > 0.05:
+        return "improving"
+    if latest.value < -0.05:
+        return "deteriorating"
+    return "stable"
+
+
+def _reinvestment_vs_returns_label(roic: float | None, fcf_yield: float | None) -> str:
+    if roic is None and fcf_yield is None:
+        return "insufficient data"
+    if roic is not None and roic >= 0.12 and (fcf_yield is None or fcf_yield >= 0):
+        return "balanced reinvestment and returns"
+    if fcf_yield is not None and fcf_yield < 0:
+        return "reinvestment currently pressuring returns"
+    return "moderate capital efficiency"
+
+
+def _performance_since(prices_desc: list[PriceHistory], target_date: date, latest_close: float) -> float | None:
+    reference = next((item for item in prices_desc if item.date <= target_date), None)
+    if reference is None:
+        return None
+    if abs(reference.close) < _ZERO:
+        return None
+    return (latest_close - reference.close) / reference.close
+
+
+def _sum_holder_weights(holders: tuple[OwnershipHolderItem, ...]) -> float | None:
+    weights = [holder.weight for holder in holders if holder.weight is not None]
+    if not weights:
+        return None
+    return sum(weights)

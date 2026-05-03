@@ -56,6 +56,8 @@ _CFQ_REINVESTMENT_MAX_LIFT: float = 20.0
 _MAX_EXPLANATION_POINTS: int = 3
 _STRENGTH_THRESHOLD: float = 60.0
 _WEAKNESS_THRESHOLD: float = 40.0
+_TREND_IMPROVING_THRESHOLD: float = 0.05
+_TREND_DETERIORATING_THRESHOLD: float = -0.05
 
 _CATEGORY_ORDER: tuple[str, ...] = ("quality", "value", "growth", "risk")
 
@@ -132,6 +134,27 @@ class ScoreExplanation:
     strengths: tuple[str, ...]
     weaknesses: tuple[str, ...]
     summary: str
+
+
+@dataclass(frozen=True)
+class CompanyAnalysisSummary:
+    quality: float | None
+    value: float | None
+    growth: float | None
+    risk: float | None
+    strengths: tuple[str, ...]
+    weaknesses: tuple[str, ...]
+    red_flags: tuple[str, ...]
+    trend: str
+    verdict: str
+    revenue_trend: str
+    margin_trend: str
+    debt_trend: str
+    cash_conversion_ratio: float | None
+    revenue_cagr_3y: float | None
+    ebitda_cagr_3y: float | None
+    net_income_growth: float | None
+    fcf_growth: float | None
 
 
 # ---------------------------------------------------------------------------
@@ -263,6 +286,35 @@ class ScoringService:
             summary=_build_score_summary(
                 scores, category_contributions, positive_drivers, negative_drivers, strengths, weaknesses
             ),
+        )
+
+    def describe_company(
+        self,
+        score_explanation: ScoreExplanation,
+        metrics: Mapping[str, object],
+    ) -> CompanyAnalysisSummary:
+        explanation = score_explanation
+        trend = _describe_company_trend(metrics)
+        red_flags = _collect_red_flags(metrics)
+        verdict = _build_company_verdict(explanation.total_score, trend, red_flags)
+        return CompanyAnalysisSummary(
+            quality=explanation.quality,
+            value=explanation.value,
+            growth=explanation.growth,
+            risk=explanation.risk,
+            strengths=explanation.strengths[:3],
+            weaknesses=explanation.weaknesses[:3],
+            red_flags=tuple(red_flags),
+            trend=trend,
+            verdict=verdict,
+            revenue_trend=_trend_statement(metrics, "revenue_direction", "Revenue"),
+            margin_trend=_trend_statement(metrics, "margin_direction", "Margins"),
+            debt_trend=_debt_trend_statement(metrics),
+            cash_conversion_ratio=_cash_conversion_ratio(metrics),
+            revenue_cagr_3y=_as_finite_float(metrics.get("revenue_cagr_3y")),
+            ebitda_cagr_3y=_as_finite_float(metrics.get("ebitda_cagr_3y")),
+            net_income_growth=_as_finite_float(metrics.get("net_income_growth")),
+            fcf_growth=_as_finite_float(metrics.get("fcf_growth")),
         )
 
 
@@ -902,6 +954,79 @@ def _build_score_summary(
         f"positive drivers: {positive_text} | negative drivers: {negative_text} | "
         f"strengths: {strength_text} | weaknesses: {weakness_text}"
     )
+
+
+def _describe_company_trend(metrics: Mapping[str, object]) -> str:
+    revenue_growth = _as_finite_float(metrics.get("revenue_growth"))
+    ebitda_growth = _as_finite_float(metrics.get("ebitda_growth"))
+    growth_values = [value for value in (revenue_growth, ebitda_growth) if value is not None]
+    if not growth_values:
+        return "stable"
+    average_growth = sum(growth_values) / len(growth_values)
+    if average_growth >= _TREND_IMPROVING_THRESHOLD:
+        return "improving"
+    if average_growth <= _TREND_DETERIORATING_THRESHOLD:
+        return "deteriorating"
+    return "stable"
+
+
+def _collect_red_flags(metrics: Mapping[str, object]) -> list[str]:
+    flags: list[str] = []
+    net_debt_to_ebitda = _as_finite_float(metrics.get("net_debt_to_ebitda"))
+    interest_coverage = _as_finite_float(metrics.get("interest_coverage"))
+    ebitda_margin = _as_finite_float(metrics.get("ebitda_margin"))
+    if net_debt_to_ebitda is not None and net_debt_to_ebitda > 4.0:
+        flags.append("high leverage profile")
+    if interest_coverage is not None and interest_coverage < 1.5:
+        flags.append("weak interest coverage")
+    if ebitda_margin is not None and ebitda_margin < 0.0:
+        flags.append("negative ebitda margin")
+    return flags
+
+
+def _build_company_verdict(total_score: float | None, trend: str, red_flags: list[str]) -> str:
+    if total_score is None:
+        return "insufficient score data"
+    if total_score >= 70.0 and trend == "improving" and not red_flags:
+        return "constructive setup"
+    if total_score < 45.0 or trend == "deteriorating":
+        return "caution required"
+    return "mixed profile"
+
+
+def _trend_statement(metrics: Mapping[str, object], key: str, subject: str) -> str:
+    direction = metrics.get(key)
+    if not isinstance(direction, str):
+        return f"{subject} trend unavailable"
+    normalized = direction.strip().lower()
+    if normalized == "positive":
+        return f"{subject} improving over 3 years"
+    if normalized == "negative":
+        return f"{subject} deteriorating over 3 years"
+    return f"{subject} stable over 3 years"
+
+
+def _debt_trend_statement(metrics: Mapping[str, object]) -> str:
+    direction = metrics.get("net_debt_direction")
+    if not isinstance(direction, str):
+        return "Debt trend unavailable"
+    normalized = direction.strip().lower()
+    if normalized == "negative":
+        return "Debt increasing rapidly"
+    if normalized == "positive":
+        return "Debt reducing over 3 years"
+    return "Debt stable over 3 years"
+
+
+def _cash_conversion_ratio(metrics: Mapping[str, object]) -> float | None:
+    direct = _as_finite_float(metrics.get("cash_conversion_ratio"))
+    if direct is not None:
+        return direct
+    fcf = _as_finite_float(metrics.get("free_cash_flow"))
+    net_income = _as_finite_float(metrics.get("net_income"))
+    if fcf is None or net_income is None or abs(net_income) < _ZERO:
+        return None
+    return fcf / net_income
 
 
 # ---------------------------------------------------------------------------

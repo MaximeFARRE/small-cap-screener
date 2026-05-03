@@ -19,6 +19,8 @@ interface PeersTableProps {
 const PEER_COLUMN_WIDTH_CLASSES: string[] = [
   "w-[92px]",
   "w-[260px]",
+  "w-[80px]",
+  "w-[110px]",
   "w-[96px]",
   "w-[130px]",
   "w-[100px]",
@@ -29,6 +31,9 @@ const PEER_COLUMN_WIDTH_CLASSES: string[] = [
 ];
 
 export function PeersTable({ peers, activeTicker }: PeersTableProps) {
+  const rankedRows = peers.peer_rows.filter((row) => row.peer_rank !== null);
+  const bestRank = rankedRows.length > 0 ? Math.min(...rankedRows.map((row) => row.peer_rank ?? Number.MAX_VALUE)) : null;
+  const worstRank = rankedRows.length > 0 ? Math.max(...rankedRows.map((row) => row.peer_rank ?? Number.MIN_VALUE)) : null;
   const percentileMetrics = peers.metrics
     .filter((metric) => metric.percentile_rank !== null)
     .slice(0, 4);
@@ -65,6 +70,8 @@ export function PeersTable({ peers, activeTicker }: PeersTableProps) {
           <TableRow>
             <TableHead>Ticker</TableHead>
             <TableHead>Name</TableHead>
+            <TableHead>Rank</TableHead>
+            <TableHead>Percentile</TableHead>
             <TableHead>Score</TableHead>
             <TableHead>Market Cap</TableHead>
             <TableHead>P/E</TableHead>
@@ -77,13 +84,23 @@ export function PeersTable({ peers, activeTicker }: PeersTableProps) {
         <TableBody>
           {peers.peer_rows.map((row) => {
             const isActive = row.ticker !== null && row.ticker === activeTicker;
+            const isBest = bestRank !== null && row.peer_rank === bestRank;
+            const isWorst = worstRank !== null && row.peer_rank === worstRank;
             return (
               <TableRow
                 key={row.company_id}
-                className={cn(isActive && "bg-[var(--color-accent)]/15")}
+                className={cn(
+                  isActive && "bg-[var(--color-accent)]/15",
+                  isBest && "bg-[var(--color-positive)]/10",
+                  isWorst && "bg-[var(--color-negative)]/10",
+                )}
               >
                 <TableCell className="font-mono text-xs">{row.ticker ?? "—"}</TableCell>
                 <TableCell className="truncate text-xs">{row.name}</TableCell>
+                <TableCell className="font-mono text-xs">{row.peer_rank ?? "—"}</TableCell>
+                <TableCell className="font-mono text-xs">
+                  {row.score_percentile === null ? "—" : `${Math.round(row.score_percentile)}th`}
+                </TableCell>
                 <TableCell>
                   <ScoreBadge score={row.total_score} />
                 </TableCell>

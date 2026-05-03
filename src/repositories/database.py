@@ -1,5 +1,6 @@
 import os
 import pathlib
+import shutil
 import sys
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -10,12 +11,14 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 _PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
 load_dotenv(_PROJECT_ROOT / ".env")
+_APP_DIR_NAME = ".small-cap-screener"
 
 
 def _default_sqlite_database_path() -> pathlib.Path:
     if getattr(sys, "frozen", False):
         return pathlib.Path(sys.executable).parent / "data" / "screener.db"
-    return _PROJECT_ROOT / "data" / "screener.db"
+    home_dir = pathlib.Path.home()
+    return home_dir / _APP_DIR_NAME / "screener.db"
 
 
 def _build_sqlite_url(path: pathlib.Path) -> str:
@@ -40,6 +43,25 @@ SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, expi
 
 class Base(DeclarativeBase):
     pass
+
+
+def _migrate_legacy_sqlite_if_needed() -> None:
+    if not DATABASE_URL.startswith("sqlite:///"):
+        return
+    db_path = DATABASE_URL.removeprefix("sqlite:///")
+    if db_path == ":memory:":
+        return
+    target_path = pathlib.Path(db_path)
+    if target_path.exists():
+        return
+    legacy_path = _PROJECT_ROOT / "data" / "screener.db"
+    if not legacy_path.exists():
+        return
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(legacy_path, target_path)
+
+
+_migrate_legacy_sqlite_if_needed()
 
 
 def init_db() -> None:

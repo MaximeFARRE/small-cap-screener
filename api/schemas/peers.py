@@ -30,6 +30,8 @@ class PeerCompanyRowSchema(BaseModel):
     roic: float | None
     roe: float | None
     net_debt_to_ebitda: float | None
+    peer_rank: int | None
+    score_percentile: float | None
 
 
 class PeerAnalystAssessmentSchema(BaseModel):
