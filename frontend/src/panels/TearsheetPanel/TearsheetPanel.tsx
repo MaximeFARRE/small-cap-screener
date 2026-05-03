@@ -11,6 +11,7 @@ import {
   downloadCompanyTearsheetCsv,
   useCompanyDetail,
   useCompanyInsights,
+  useCompanyPriceHistory,
   useCompanyPeers,
   useCompanyScore,
   useFinancialHistory,
@@ -66,6 +67,7 @@ export function TearsheetPanel() {
   const historyQuery = useFinancialHistory(activeTicker);
   const peersQuery = useCompanyPeers(activeTicker);
   const insightsQuery = useCompanyInsights(activeTicker);
+  const priceHistoryQuery = useCompanyPriceHistory(activeTicker);
   const watchlistQuery = useWatchlist();
   const addToWatchlist = useAddToWatchlist();
   const removeFromWatchlist = useRemoveFromWatchlist();
@@ -75,7 +77,8 @@ export function TearsheetPanel() {
     scoreQuery.isPending ||
     historyQuery.isPending ||
     peersQuery.isPending ||
-    insightsQuery.isPending;
+    insightsQuery.isPending ||
+    priceHistoryQuery.isPending;
 
   const firstError = useMemo(
     () =>
@@ -84,8 +87,9 @@ export function TearsheetPanel() {
       historyQuery.error ??
       peersQuery.error ??
       insightsQuery.error ??
+      priceHistoryQuery.error ??
       null,
-    [detailQuery.error, historyQuery.error, insightsQuery.error, peersQuery.error, scoreQuery.error],
+    [detailQuery.error, historyQuery.error, insightsQuery.error, peersQuery.error, priceHistoryQuery.error, scoreQuery.error],
   );
 
   if (activeTicker === null) {
@@ -106,6 +110,7 @@ export function TearsheetPanel() {
           void historyQuery.refetch();
           void peersQuery.refetch();
           void insightsQuery.refetch();
+          void priceHistoryQuery.refetch();
         }}
       />
     );
@@ -116,8 +121,9 @@ export function TearsheetPanel() {
   const historical = historyQuery.data;
   const peers = peersQuery.data;
   const insights = insightsQuery.data;
+  const priceHistory = priceHistoryQuery.data;
 
-  if (!detail || !score || !historical || !peers || !insights) {
+  if (!detail || !score || !historical || !peers || !insights || !priceHistory) {
     return (
       isPendingAny ? (
         <LoadingState label="Loading tearsheet…" />
@@ -383,7 +389,7 @@ export function TearsheetPanel() {
             </section>
           </section>
         ) : activeTab === "charts" ? (
-          <TearsheetCharts historical={historical} />
+          <TearsheetCharts historical={historical} priceHistory={priceHistory} />
         ) : (
           <PeersTable peers={peers} activeTicker={activeTicker} />
         )}

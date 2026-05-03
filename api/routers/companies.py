@@ -16,7 +16,12 @@ from api.dependencies import (
     get_scoring_service,
     get_watchlist_service,
 )
-from api.schemas.company import CompanyDetailSchema, CompanyInsightsSchema, HistoricalFundamentalsSchema
+from api.schemas.company import (
+    CompanyDetailSchema,
+    CompanyInsightsSchema,
+    HistoricalFundamentalsSchema,
+    PriceHistoryPointSchema,
+)
 from api.schemas.peers import PeerComparisonSchema
 from api.schemas.refresh import CompanyRefreshResultSchema
 from api.schemas.scoring import ScoreBreakdownSchema
@@ -352,6 +357,15 @@ def get_company_insights(
             "warnings": list(data_quality.warnings),
         },
     )
+
+
+@router.get("/{ticker}/prices", response_model=list[PriceHistoryPointSchema])
+def get_company_prices(
+    company_id: int = Depends(get_company_id),
+    detail_service: CompanyDetailService = Depends(get_company_detail_service),
+) -> list[PriceHistoryPointSchema]:
+    points = detail_service.get_price_history(company_id)
+    return [PriceHistoryPointSchema.model_validate(point) for point in points]
 
 
 @router.get("/{ticker}/export")

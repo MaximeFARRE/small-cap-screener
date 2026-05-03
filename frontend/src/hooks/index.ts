@@ -16,6 +16,7 @@ export {
 export {
   downloadCompanyTearsheetCsv,
   useCompanyInsights,
+  useCompanyPriceHistory,
   useCompanyDetail,
   useCompanyPeers,
   useCompanyScore,
@@ -28,6 +29,7 @@ export {
   type PeerCompanyRow,
   type PeerComparison,
   type PeerMetric,
+  type PriceHistoryPoint,
   type ScoreMetricDriver,
 } from "./useCompany";
 

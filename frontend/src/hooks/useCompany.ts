@@ -251,6 +251,11 @@ export interface OwnershipSummary {
   top_holders: OwnershipTopHolder[];
 }
 
+export interface PriceHistoryPoint {
+  date: string;
+  close: number;
+}
+
 export interface CompanyInsights {
   analysis: AnalysisSummary;
   valuation: ValuationSummary;
@@ -327,5 +332,13 @@ export function useCompanyInsights(ticker: string | null) {
     queryKey: ["companies", "insights", ticker],
     enabled: ticker !== null,
     queryFn: () => api.get<CompanyInsights>(getCompanyPath(ticker ?? "", "/insights")),
+  });
+}
+
+export function useCompanyPriceHistory(ticker: string | null) {
+  return useQuery({
+    queryKey: ["companies", "prices", ticker],
+    enabled: ticker !== null,
+    queryFn: () => api.get<PriceHistoryPoint[]>(getCompanyPath(ticker ?? "", "/prices")),
   });
 }
