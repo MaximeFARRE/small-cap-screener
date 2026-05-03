@@ -245,6 +245,13 @@ class OwnershipSummarySchema(BaseModel):
     top_holders: list[OwnershipHolderSummarySchema]
 
 
+class PriceHistoryPointSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    date: date
+    close: float
+
+
 class CompanyInsightsSchema(BaseModel):
     analysis: CompanyAnalysisSchema
     valuation: ValuationSummarySchema

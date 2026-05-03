@@ -282,6 +282,12 @@ class MomentumSummary:
 
 
 @dataclass(frozen=True)
+class PriceHistoryPoint:
+    date: date
+    close: float
+
+
+@dataclass(frozen=True)
 class OwnershipSummary:
     institutional_pct: float | None
     insiders_pct: float | None
@@ -427,6 +433,15 @@ class CompanyDetailService:
             insiders_pct=insiders_pct,
             top_holders=top_holders,
         )
+
+    def get_price_history(self, company_id: int, max_points: int = 260) -> list[PriceHistoryPoint]:
+        with self.session_scope_factory() as session:
+            prices = price_history_repository.get_by_company(session, company_id)
+        ordered = sorted(prices, key=lambda item: item.date)
+        points = [PriceHistoryPoint(date=item.date, close=item.close) for item in ordered]
+        if max_points <= 0:
+            return points
+        return points[-max_points:]
 
 
 def _select_historical_statements(statements: list[FinancialStatement]) -> list[FinancialStatement]:

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import {
+  LineChart,
   CartesianGrid,
   Area,
   AreaChart,
@@ -12,14 +13,15 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { HistoricalFundamentals } from "@/hooks";
+import type { HistoricalFundamentals, PriceHistoryPoint } from "@/hooks";
 import { COLORS } from "@/lib/constants";
 
 interface TearsheetChartsProps {
   historical: HistoricalFundamentals;
+  priceHistory: PriceHistoryPoint[];
 }
 
-export function TearsheetCharts({ historical }: TearsheetChartsProps) {
+export function TearsheetCharts({ historical, priceHistory }: TearsheetChartsProps) {
   const revEbitdaData = useMemo(() => {
     const byYear = new Map<number, { year: number; revenue?: number; ebitda?: number }>();
 
@@ -58,9 +60,38 @@ export function TearsheetCharts({ historical }: TearsheetChartsProps) {
         .map((point) => ({ year: point.fiscal_year, fcf: point.value })),
     [historical.free_cash_flow_history],
   );
+  const priceData = useMemo(
+    () =>
+      [...priceHistory].map((point) => ({
+        date: point.date,
+        close: point.close,
+      })),
+    [priceHistory],
+  );
 
   return (
-    <section className="grid min-h-0 gap-3 p-4 xl:grid-cols-3">
+    <section className="grid min-h-0 gap-3 p-4 xl:grid-cols-2">
+      <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-2 xl:col-span-2">
+        <p className="mb-2 font-mono text-xs uppercase text-[var(--color-text-muted)]">Price trend</p>
+        {priceData.length === 0 ? (
+          <div className="flex h-64 items-center justify-center font-mono text-xs text-[var(--color-text-muted)]">
+            No price data available.
+          </div>
+        ) : (
+          <div className="h-64 w-full">
+            <ResponsiveContainer>
+              <LineChart data={priceData}>
+                <CartesianGrid stroke={COLORS.BORDER} strokeDasharray="4 4" />
+                <XAxis dataKey="date" stroke={COLORS.TEXT_MUTED} tick={{ fill: COLORS.TEXT_MUTED, fontSize: 11 }} minTickGap={32} />
+                <YAxis stroke={COLORS.TEXT_MUTED} tick={{ fill: COLORS.TEXT_MUTED, fontSize: 11 }} />
+                <Tooltip contentStyle={{ background: COLORS.BG_PANEL, border: `1px solid ${COLORS.BORDER}` }} />
+                <Line type="monotone" dataKey="close" stroke={COLORS.ACCENT} dot={false} strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
       <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-2">
         <p className="mb-2 font-mono text-xs uppercase text-[var(--color-text-muted)]">
           Revenue + EBITDA
