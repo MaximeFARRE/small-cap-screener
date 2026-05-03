@@ -102,9 +102,9 @@ Reference: [STACK.md](STACK.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ---
 
-## Scoring Model (v2)
+## Scoring Model (v2, verified against `main`)
 
-The scoring is deterministic and computed server-side in `ScoringService` from KPI snapshots.
+The active screener scoring is deterministic and computed server-side in `ScoringService` from KPI snapshots. The legacy `compute_score()` helper still exists for backward compatibility, but KPI snapshots use the sub-score model below.
 
 ### 1) Four sub-scores (0-100)
 
@@ -113,9 +113,29 @@ The scoring is deterministic and computed server-side in `ScoringService` from K
 - Growth: `revenue_growth`, `ebitda_growth`
 - Risk: `net_debt_to_ebitda`, `current_ratio`, `interest_coverage`
 
-Each metric is transformed to a normalized score between 0 and 100 using good/bad thresholds (with linear interpolation between thresholds, and direction-aware logic: lower-is-better or higher-is-better).
+Each metric is transformed to a normalized score between 0 and 100 using good/bad thresholds, linear interpolation between thresholds, and direction-aware logic: lower-is-better or higher-is-better.
 
-### 2) Category weights
+### 2) Per-metric rules
+
+| Category | Metric | Weight | Good | Bad | Direction |
+| --- | --- | ---: | ---: | ---: | --- |
+| Quality | `roe` | `0.35` | `0.15` | `0.00` | higher is better |
+| Quality | `roic` | `0.25` | `0.12` | `0.00` | higher is better |
+| Quality | `operating_margin` | `0.25` | `0.12` | `0.00` | higher is better |
+| Quality | `gross_margin` | `0.15` | `0.30` | `0.10` | higher is better |
+| Value | `pe_ratio` | `0.30` | `10.0` | `25.0` | lower is better |
+| Value | `pb_ratio` | `0.20` | `1.0` | `3.0` | lower is better |
+| Value | `ev_ebitda` | `0.30` | `6.0` | `15.0` | lower is better |
+| Value | `fcf_yield` | `0.20` | `0.08` | `0.00` | higher is better |
+| Growth | `revenue_growth` | `0.60` | `0.10` | `-0.05` | higher is better |
+| Growth | `ebitda_growth` | `0.40` | `0.10` | `-0.05` | higher is better |
+| Risk | `net_debt_to_ebitda` | `0.50` | `1.0` | `4.0` | lower is better |
+| Risk | `current_ratio` | `0.25` | `1.5` | `0.8` | higher is better |
+| Risk | `interest_coverage` | `0.25` | `6.0` | `1.0` | higher is better |
+
+When some metrics are missing inside a category, the available metric weights are normalized within that category.
+
+### 3) Category weights
 
 Default global weights are:
 
@@ -130,13 +150,13 @@ Total score formula:
 
 Weights are configurable in settings and persisted in snapshot metrics (`score_weight_quality`, `score_weight_value`, `score_weight_growth`, `score_weight_risk`) for score traceability.
 
-### 3) Ranking outputs
+### 4) Ranking outputs
 
 - Global rank (all scored companies)
 - Sector rank (within normalized sector buckets)
 - Driver explanations (top positive and negative metric contributors)
 
-### 4) Data quality score
+### 5) Data quality score
 
 In parallel, a `data_quality_score` (0-100) is computed in `KpiSnapshotService` to qualify confidence in each row:
 
