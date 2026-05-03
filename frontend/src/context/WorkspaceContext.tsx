@@ -5,12 +5,12 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { PANEL_TYPES, type PanelType } from "@/panels/registry";
+import { PANEL_TYPES, type PanelType } from "../panels/registry";
 import {
   DEFAULT_LAYOUT_PRESET,
   LAYOUT_PRESETS,
   type LayoutPreset,
-} from "@/workspace/LayoutPresets";
+} from "../workspace/LayoutPresets";
 
 const STORAGE_KEY = "workspace:layout";
 
