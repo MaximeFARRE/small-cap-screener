@@ -1,4 +1,4 @@
-import type { PanelType } from "@/panels/registry";
+import type { PanelType } from "../panels/registry";
 
 export type LayoutPreset = "single" | "split-h" | "split-v" | "quad";
 

@@ -5,8 +5,8 @@ import {
   QueryClientProvider,
 } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
-import { WorkspaceProvider } from "@/context/WorkspaceContext";
-import { Workspace } from "@/workspace";
+import { WorkspaceProvider } from "./context/WorkspaceContext";
+import { Workspace } from "./workspace";
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
