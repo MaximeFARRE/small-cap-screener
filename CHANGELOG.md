@@ -1,6 +1,42 @@
 # CHANGELOG
 
+## v2.3.0 (2026-05-03)
+
+### Chore
+
+* chore: make sqlite storage persistent across branches ([`f470c0e`](https://github.com/MaximeFARRE/small-cap-screener/commit/f470c0e3b9721ef9770116eb3ed8b54c3fa63f79))
+
+### Feature
+
+* feat: extend valuation with ps and ev sales ([`b9ce2ba`](https://github.com/MaximeFARRE/small-cap-screener/commit/b9ce2ba9de50ab8b12541c8858744e61a534aa71))
+
+* feat: extend financials with capex and efficiency metrics ([`f227823`](https://github.com/MaximeFARRE/small-cap-screener/commit/f22782332045643d3874b83a7bf709a138e15c41))
+
+* feat: enrich analysis tab with trend and growth quality ([`6c42aaf`](https://github.com/MaximeFARRE/small-cap-screener/commit/6c42aafce380c8a76b1f48d4473858b7fe3125ba))
+
+* feat: add overview momentum ownership and confidence ([`f84b52d`](https://github.com/MaximeFARRE/small-cap-screener/commit/f84b52d01e2808cd5f787691ef89470b51039714))
+
+* feat: improve company detail tabs ([`2db5f27`](https://github.com/MaximeFARRE/small-cap-screener/commit/2db5f2760934b6d023e55904d050ed9ac7b62ede))
+
+* feat: add analyst-focused company detail tabs ([`78f566c`](https://github.com/MaximeFARRE/small-cap-screener/commit/78f566c0bb5684f68e99fcfeb3b3e11f47b8781b))
+
+* feat: add company insights service payloads ([`44210f8`](https://github.com/MaximeFARRE/small-cap-screener/commit/44210f89a15bede7d0e770e27c28e5e9a7497464))
+
+### Fix
+
+* fix: accept dataclass inputs in insights schemas ([`5eb6c80`](https://github.com/MaximeFARRE/small-cap-screener/commit/5eb6c8026735dfe20cb43b65d24dfd55b119cef6))
+
+### Unknown
+
+* Merge pull request #65 from MaximeFARRE/feat/company-page
+
+Feat/company page ([`6a3dd41`](https://github.com/MaximeFARRE/small-cap-screener/commit/6a3dd41339466cdb626ec1e98bbd4a38297058d5))
+
 ## v2.2.0 (2026-05-02)
+
+### Chore
+
+* chore(release): 2.2.0 [skip ci] ([`2b556b1`](https://github.com/MaximeFARRE/small-cap-screener/commit/2b556b1149da020ee475db73366f9bc0cbd8dd4d))
 
 ### Documentation
 
