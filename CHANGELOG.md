@@ -1,8 +1,26 @@
 # CHANGELOG
 
+## v2.4.0 (2026-05-03)
+
+### Feature
+
+* feat: add stock price evolution chart in charts tab ([`76be370`](https://github.com/MaximeFARRE/small-cap-screener/commit/76be370f12b9bd0fbf59552f122628b33c542b82))
+
+### Fix
+
+* fix: use persistent default database path in settings ([`59c823c`](https://github.com/MaximeFARRE/small-cap-screener/commit/59c823c187aea6c777bf123dc94e1a71ccd5d239))
+
+### Unknown
+
+* Merge pull request #66 from MaximeFARRE/feat/company-page
+
+Feat/company page ([`085b51e`](https://github.com/MaximeFARRE/small-cap-screener/commit/085b51ef0c83adcc43e2b71436616594f0e6d759))
+
 ## v2.3.0 (2026-05-03)
 
 ### Chore
+
+* chore(release): 2.3.0 [skip ci] ([`8b98471`](https://github.com/MaximeFARRE/small-cap-screener/commit/8b9847189c1cd2ded8eaf1c1fdd395302d5c9fa6))
 
 * chore: make sqlite storage persistent across branches ([`f470c0e`](https://github.com/MaximeFARRE/small-cap-screener/commit/f470c0e3b9721ef9770116eb3ed8b54c3fa63f79))
 
