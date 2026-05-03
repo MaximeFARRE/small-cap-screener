@@ -1,5 +1,6 @@
 from collections.abc import Generator
 from functools import lru_cache
+from pathlib import Path
 
 from fastapi import Depends, HTTPException
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -25,7 +26,7 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     debug: bool = False
-    database_url: str = "sqlite:///C:/Users/<username>/.small-cap-screener/screener.db"
+    database_url: str = f"sqlite:///{(Path.home() / '.small-cap-screener' / 'screener.db').as_posix()}"
     api_host: str = "127.0.0.1"
     api_port: int = 8000
     frontend_origin: str = "http://localhost:5173"
