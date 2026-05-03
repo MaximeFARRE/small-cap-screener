@@ -1,6 +1,42 @@
 # CHANGELOG
 
+## v2.4.1 (2026-05-03)
+
+### Documentation
+
+* docs: update README to v2.4.0 with 8-bloc scoring engine documentation
+
+Co-Authored-By: Claude Sonnet 4.6 &lt;noreply@anthropic.com&gt; ([`7613981`](https://github.com/MaximeFARRE/small-cap-screener/commit/76139810cc349396d5656a4502a4e6b00bcc8e84))
+
+* docs: clarify active scoring model ([`1c9df14`](https://github.com/MaximeFARRE/small-cap-screener/commit/1c9df14448ca7a984d2ba9253f0ee66ec7e00d12))
+
+* docs: update readme with screenshots scoring and tracked data ([`e5bc70a`](https://github.com/MaximeFARRE/small-cap-screener/commit/e5bc70ab911a4584480a88c0a9c69fce0a7e9509))
+
+* docs: clarify active scoring model ([`81d65e1`](https://github.com/MaximeFARRE/small-cap-screener/commit/81d65e1fd0bfbb1f8061631ecca2f5cc44cf14ce))
+
+* docs: update readme with screenshots scoring and tracked data ([`40b67a7`](https://github.com/MaximeFARRE/small-cap-screener/commit/40b67a7c7e083e653002b02a5eb4847600e0a65b))
+
+### Fix
+
+* fix: replace frontend alias imports with relative paths ([`0f17407`](https://github.com/MaximeFARRE/small-cap-screener/commit/0f1740773a3f07899d2e92884983da6851b51935))
+
+### Unknown
+
+* Merge pull request #68 from MaximeFARRE/feat/company-page
+
+fix: replace frontend alias imports with relative paths ([`2139bea`](https://github.com/MaximeFARRE/small-cap-screener/commit/2139bea7ae9c0a32e128aee1e77f004eb2c3cb1c))
+
+* Merge pull request #67 from MaximeFARRE/docs/update-docs
+
+Docs/update docs ([`0a69dad`](https://github.com/MaximeFARRE/small-cap-screener/commit/0a69dad45ae06de8041289b121da890447ea85e5))
+
+* Merge branch &#39;docs/update-docs&#39; of https://github.com/MaximeFARRE/small-cap-screener into docs/update-docs ([`5e68ee4`](https://github.com/MaximeFARRE/small-cap-screener/commit/5e68ee4855dc3ab35730c2c3de249632009fae18))
+
 ## v2.4.0 (2026-05-03)
+
+### Chore
+
+* chore(release): 2.4.0 [skip ci] ([`a02fee6`](https://github.com/MaximeFARRE/small-cap-screener/commit/a02fee675affe4f0a1d2e12eaa491d33b6126a58))
 
 ### Feature
 
